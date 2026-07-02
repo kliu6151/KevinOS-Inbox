@@ -104,11 +104,18 @@
     <div class="top"><h1>Open Loops</h1><div class="sub"></div></div>
     <div id="loops-body" class="loading">Loading…</div>
   </div>
+
+  <!-- CALENDAR -->
+  <div class="view" id="v-cal">
+    <div class="top"><h1>Calendar</h1><div class="sub" id="cal-count"></div></div>
+    <div id="cal-body" class="loading">Loading…</div>
+  </div>
 </main>
 
 <nav>
   <button data-v="dump" class="on">Dump</button>
   <button data-v="today">Today</button>
+  <button data-v="cal">Cal</button>
   <button data-v="tasks">Tasks</button>
   <button data-v="loops">Loops</button>
 </nav>
@@ -261,7 +268,13 @@ async function renderToday(){
     const n=meta(it.body,'nudge');return !it.checked&&n&&n<=t;
   }):[];
   if(!due.length)empty(c3,'Nothing due. The system is holding your loops — head clear.');
-  due.forEach(it=>c3.appendChild(itemHTML(it,'data/loops.md',meta(it.body,'waiting-on')?'waiting on '+meta(it.body,'waiting-on'):'')));
+  due.forEach(it=>{
+    const bits=[];
+    const w=meta(it.body,'waiting-on');if(w)bits.push('waiting on '+w);
+    const od=Math.round((new Date(t)-new Date(meta(it.body,'nudge')))/864e5);
+    if(od>=3)bits.push(`<span class="pri1">⚠ ${od} days overdue</span>`);
+    c3.appendChild(itemHTML(it,'data/loops.md',bits.join(' · ')));
+  });
 
   // habit streaks
   if(habits){
@@ -310,14 +323,46 @@ async function renderLoops(){
     items.forEach(it=>{
       const bits=[];
       const w=meta(it.body,'waiting-on');if(w)bits.push('waiting on '+w);
-      const n=meta(it.body,'nudge');if(n)bits.push(n<=todayStr()?'<span class="pri1">nudge due</span>':'nudge '+n);
+      const n=meta(it.body,'nudge');
+      if(n){
+        const od=Math.round((new Date(todayStr())-new Date(n))/864e5);
+        if(od>=3)bits.push(`<span class="pri1">⚠ ${od} days overdue — chase it or kill it</span>`);
+        else if(od>=0)bits.push('<span class="pri1">nudge due</span>');
+        else bits.push('nudge '+n);
+      }
       c.appendChild(itemHTML(it,'data/loops.md',bits.join(' · ')));
     });
   }
 }
 
+/* ---- CALENDAR ---- */
+async function renderCal(){
+  const body=$('cal-body');body.innerHTML='<div class="loading">Loading…</div>';
+  const f=await getFile('data/calendar.md');body.innerHTML='';
+  const t=todayStr(),week=plusDays(7);
+  const evs=f?parseChecklist(f.text).filter(it=>!it.checked&&it.body.match(/\d{4}-\d{2}-\d{2}/)):[];
+  evs.sort((a,b)=>a.body.localeCompare(b.body));
+  $('cal-count').textContent=evs.length?evs.length+' upcoming':'';
+  const groups=[['Missed / Past',e=>e<t],['Today',e=>e===t],['This Week',e=>e>t&&e<=week],['Later',e=>e>week]];
+  let shown=0;
+  for(const[label,test]of groups){
+    const items=evs.filter(it=>test((it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1]));
+    if(!items.length)continue;
+    shown+=items.length;
+    body.insertAdjacentHTML('beforeend',`<div class="sec">${label}</div>`);
+    const c=card();body.appendChild(c);
+    items.forEach(it=>{
+      const d=(it.body.match(/(\d{4}-\d{2}-\d{2})( \d{2}:\d{2})?/)||[]);
+      const past=d[1]<t;
+      const when=new Date(d[1]+'T00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+(d[2]||'');
+      c.appendChild(itemHTML(it,'data/calendar.md',past?`<span class="pri1">was ${when} — reschedule or check off</span>`:when));
+    });
+  }
+  if(!shown){const c=card();body.appendChild(c);empty(c,'Nothing on the calendar. Dump anything with a date — appointments, inspections, permit deadlines, birthdays — and it lands here.');}
+}
+
 /* ---- nav ---- */
-const renderers={today:renderToday,tasks:renderTasks,loops:renderLoops};
+const renderers={today:renderToday,tasks:renderTasks,loops:renderLoops,cal:renderCal};
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
