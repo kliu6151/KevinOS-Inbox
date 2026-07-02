@@ -2,122 +2,330 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0d1117">
-<title>KevinOS Inbox</title>
+<title>KevinOS</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #0d1117; color: #e6edf3;
-    min-height: 100vh; display: flex; flex-direction: column;
-    padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+    background: #0d1117; color: #e6edf3; min-height: 100vh;
+    padding: env(safe-area-inset-top) 0 calc(64px + env(safe-area-inset-bottom));
   }
-  header { display: flex; align-items: baseline; justify-content: space-between; padding: 16px 0 12px; }
-  h1 { font-size: 20px; font-weight: 700; }
-  h1 span { color: #58a6ff; }
-  #pending { font-size: 13px; color: #8b949e; }
+  main { padding: 12px 16px; max-width: 640px; margin: 0 auto; }
+  .view { display: none; } .view.active { display: block; }
+
+  /* header */
+  .top { display: flex; align-items: baseline; justify-content: space-between; padding: 14px 0 10px; }
+  .top h1 { font-size: 19px; font-weight: 700; } .top h1 span { color: #58a6ff; }
+  .top .sub { font-size: 12px; color: #8b949e; }
+
+  /* capture */
   textarea {
-    flex: 1; width: 100%; min-height: 45vh;
-    background: #161b22; color: #e6edf3;
-    border: 1px solid #30363d; border-radius: 12px;
-    padding: 14px; font-size: 17px; line-height: 1.5;
-    resize: none; outline: none;
+    width: 100%; min-height: 42vh; background: #161b22; color: #e6edf3;
+    border: 1px solid #30363d; border-radius: 14px; padding: 14px;
+    font-size: 17px; line-height: 1.5; resize: none; outline: none;
   }
   textarea:focus { border-color: #58a6ff; }
-  button {
-    margin-top: 12px; padding: 16px; width: 100%;
-    background: #238636; color: #fff; border: none; border-radius: 12px;
-    font-size: 18px; font-weight: 600;
+  .btn {
+    margin-top: 12px; padding: 16px; width: 100%; background: #238636; color: #fff;
+    border: none; border-radius: 14px; font-size: 18px; font-weight: 600;
   }
-  button:disabled { background: #21262d; color: #8b949e; }
-  #status { text-align: center; padding: 10px; font-size: 14px; color: #8b949e; min-height: 36px; }
-  #status.ok { color: #3fb950; }
-  #status.err { color: #f85149; }
-  #settings { text-align: center; padding: 8px 0 16px; }
-  #settings a { color: #8b949e; font-size: 12px; text-decoration: none; }
+  .btn:disabled { background: #21262d; color: #8b949e; }
+  #status { text-align: center; padding: 10px; font-size: 14px; color: #8b949e; min-height: 38px; }
+  #status.ok { color: #3fb950; } #status.err { color: #f85149; }
+  .tiny { text-align: center; padding: 6px 0; } .tiny a { color: #8b949e; font-size: 12px; text-decoration: none; }
+
+  /* sections & items */
+  .sec { margin: 18px 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #8b949e; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 14px; overflow: hidden; }
+  .item { display: flex; align-items: flex-start; gap: 12px; padding: 13px 14px; border-bottom: 1px solid #21262d; }
+  .item:last-child { border-bottom: none; }
+  .box {
+    flex: none; width: 24px; height: 24px; margin-top: 1px; border: 2px solid #484f58;
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; color: transparent;
+  }
+  .item.done { opacity: .45; } .item.done .txt { text-decoration: line-through; }
+  .item.done .box { background: #238636; border-color: #238636; color: #fff; }
+  .txt { font-size: 16px; line-height: 1.45; flex: 1; }
+  .meta { font-size: 12.5px; color: #8b949e; margin-top: 2px; }
+  .pri1 { color: #f85149; font-weight: 600; } .today-badge { color: #58a6ff; font-weight: 600; }
+  .empty { padding: 16px 14px; color: #8b949e; font-size: 14.5px; line-height: 1.5; }
+  .note { font-size: 15px; line-height: 1.6; padding: 14px; }
+  .note .h1 { font-weight: 700; font-size: 16px; margin: 8px 0 4px; }
+  .note .h2 { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #8b949e; margin: 12px 0 4px; }
+  .note .bullet { padding-left: 10px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 0; }
+  .chip { background: #161b22; border: 1px solid #30363d; border-radius: 999px; padding: 6px 12px; font-size: 13px; }
+  .chip b { color: #d29922; }
+
+  /* bottom nav */
+  nav {
+    position: fixed; bottom: 0; left: 0; right: 0; display: flex;
+    background: rgba(13,17,23,.97); border-top: 1px solid #21262d;
+    padding-bottom: env(safe-area-inset-bottom); backdrop-filter: blur(8px);
+  }
+  nav button {
+    flex: 1; padding: 13px 0 11px; background: none; border: none;
+    color: #8b949e; font-size: 13.5px; font-weight: 600;
+  }
+  nav button.on { color: #58a6ff; }
+  .loading { padding: 24px; text-align: center; color: #8b949e; font-size: 14px; }
 </style>
 </head>
 <body>
-<header>
-  <h1>Kevin<span>OS</span> Inbox</h1>
-  <div id="pending"></div>
-</header>
-<textarea id="dump" placeholder="Dump it. Appointments, follow-ups, ideas, problems — messy is fine. Claude sorts it on the next /daily."></textarea>
-<button id="save">Save to Inbox</button>
-<div id="status"></div>
-<div id="settings"><a href="#" id="reset">change token</a></div>
+<main>
+  <!-- DUMP -->
+  <div class="view active" id="v-dump">
+    <div class="top"><h1>Kevin<span>OS</span></h1><div class="sub" id="pending"></div></div>
+    <textarea id="dump" placeholder="Dump it. Messy is fine — the system holds it so your head doesn't have to."></textarea>
+    <button class="btn" id="save">Save to Inbox</button>
+    <div id="status"></div>
+    <div class="tiny"><a href="#" id="reset">change token</a></div>
+  </div>
+
+  <!-- TODAY -->
+  <div class="view" id="v-today">
+    <div class="top"><h1>Today</h1><div class="sub" id="today-date"></div></div>
+    <div id="today-body" class="loading">Loading…</div>
+  </div>
+
+  <!-- TASKS -->
+  <div class="view" id="v-tasks">
+    <div class="top"><h1>Tasks</h1><div class="sub" id="task-count"></div></div>
+    <div id="tasks-body" class="loading">Loading…</div>
+  </div>
+
+  <!-- LOOPS -->
+  <div class="view" id="v-loops">
+    <div class="top"><h1>Open Loops</h1><div class="sub"></div></div>
+    <div id="loops-body" class="loading">Loading…</div>
+  </div>
+</main>
+
+<nav>
+  <button data-v="dump" class="on">Dump</button>
+  <button data-v="today">Today</button>
+  <button data-v="tasks">Tasks</button>
+  <button data-v="loops">Loops</button>
+</nav>
+
 <script>
-const OWNER = 'kliu6151', REPO = 'KevinOS';
-const $ = id => document.getElementById(id);
-const dump = $('dump'), status = $('status'), save = $('save');
+const OWNER='kliu6151', REPO='KevinOS';
+const $=id=>document.getElementById(id);
+const enc=s=>btoa(unescape(encodeURIComponent(s)));
+const dec=s=>decodeURIComponent(escape(atob(s)));
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const todayStr=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;};
+const plusDays=n=>{const d=new Date();d.setDate(d.getDate()+n);const p=x=>String(x).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;};
 
-// draft survives app switches / accidental closes
-dump.value = localStorage.getItem('draft') || '';
-dump.addEventListener('input', () => localStorage.setItem('draft', dump.value));
-
-function token() {
-  let t = localStorage.getItem('gh_token');
-  if (!t) {
-    t = prompt('Paste your GitHub token (one-time setup):');
-    if (t) localStorage.setItem('gh_token', t.trim());
-  }
+function token(){
+  let t=localStorage.getItem('gh_token');
+  if(!t){t=prompt('Paste your GitHub token (one-time setup):');if(t)localStorage.setItem('gh_token',t.trim());}
   return localStorage.getItem('gh_token');
 }
-$('reset').onclick = e => { e.preventDefault(); localStorage.removeItem('gh_token'); token(); };
+$('reset').onclick=e=>{e.preventDefault();localStorage.removeItem('gh_token');token();};
 
-function stamp() {
-  const d = new Date(), p = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-}
-
-async function gh(path, opts = {}) {
-  const r = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/${path}`, {
-    ...opts,
-    headers: {
-      'Authorization': `Bearer ${token()}`,
-      'Accept': 'application/vnd.github+json',
-      ...(opts.body ? {'Content-Type': 'application/json'} : {})
-    }
-  });
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || r.status);
+async function api(path,opts={}){
+  const r=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/${path}`,{...opts,headers:{
+    'Authorization':`Bearer ${token()}`,'Accept':'application/vnd.github+json',
+    ...(opts.body?{'Content-Type':'application/json'}:{})}});
+  if(r.status===404)return null;
+  if(!r.ok)throw new Error((await r.json().catch(()=>({}))).message||r.status);
   return r.json();
 }
-
-async function refreshPending() {
-  try {
-    const files = await gh('contents/inbox');
-    const n = files.filter(f => f.type === 'file' && f.name !== 'README.md').length;
-    $('pending').textContent = n ? `${n} awaiting processing` : 'inbox clear';
-  } catch (e) { /* not fatal */ }
+async function getFile(path){
+  const j=await api(`contents/${path}`);
+  return j?{text:dec(j.content.replace(/\n/g,'')),sha:j.sha}:null;
 }
 
-save.onclick = async () => {
-  const text = dump.value.trim();
-  if (!text) { status.textContent = 'Nothing to save.'; return; }
-  if (!token()) { status.textContent = 'Token required.'; status.className = 'err'; return; }
-  save.disabled = true; status.className = ''; status.textContent = 'Saving…';
-  try {
-    await gh(`contents/inbox/dump-${stamp()}.md`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        message: `inbox: phone dump ${stamp()}`,
-        content: btoa(unescape(encodeURIComponent(text + '\n')))
-      })
-    });
-    dump.value = ''; localStorage.removeItem('draft');
-    status.className = 'ok'; status.textContent = '✓ Saved. Claude will sort it on the next /daily.';
-    refreshPending();
-  } catch (e) {
-    status.className = 'err';
-    status.textContent = `Failed: ${e.message}. Draft is kept — try again.`;
+/* ---- checkbox toggle: flips "- [ ]" to "- [x]" for an exact line in a file ---- */
+async function toggleLine(path,line,el){
+  el.classList.add('done');
+  try{
+    const f=await getFile(path);
+    if(!f)throw new Error('file not found');
+    if(!f.text.includes(line))throw new Error('item changed elsewhere — reopen this tab');
+    const flipped=line.replace('- [ ]','- [x]');
+    await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
+      message:`done via app: ${line.slice(6,60)}`,sha:f.sha,
+      content:enc(f.text.replace(line,flipped))})});
+  }catch(e){
+    el.classList.remove('done');
+    alert('Sync failed: '+e.message);
   }
-  save.disabled = false;
+}
+
+/* ---- parsers ---- */
+function parseChecklist(text){
+  const items=[];let section='';
+  for(const raw of text.split('\n')){
+    const line=raw.replace(/\r$/,'');
+    if(line.startsWith('## ')){section=line.slice(3).trim();continue;}
+    const m=line.match(/^- \[( |x)\] (.*)$/);
+    if(m)items.push({line,checked:m[1]==='x',body:m[2],section});
+  }
+  return items;
+}
+const meta=(s,k)=>{const m=s.match(new RegExp(k+':([^|]+)'));return m?m[1].trim():'';};
+const stripMeta=s=>s.split(' — ')[0].split(' | ')[0].trim();
+
+function itemHTML(it,file,extra=''){
+  const div=document.createElement('div');
+  div.className='item'+(it.checked?' done':'');
+  div.innerHTML=`<div class="box">✓</div><div style="flex:1"><div class="txt">${esc(stripMeta(it.body))}</div>${extra?`<div class="meta">${extra}</div>`:''}</div>`;
+  if(!it.checked)div.onclick=()=>toggleLine(file,it.line,div);
+  return div;
+}
+function card(){const c=document.createElement('div');c.className='card';return c;}
+function empty(card,msg){card.innerHTML=`<div class="empty">${msg}</div>`;}
+
+/* ---- DUMP ---- */
+const dump=$('dump'),status=$('status'),save=$('save');
+dump.value=localStorage.getItem('draft')||'';
+dump.addEventListener('input',()=>localStorage.setItem('draft',dump.value));
+async function refreshPending(){
+  try{const files=await api('contents/inbox');
+    const n=(files||[]).filter(f=>f.type==='file'&&f.name!=='README.md').length;
+    $('pending').textContent=n?`${n} awaiting processing`:'inbox clear';
+  }catch(e){}
+}
+save.onclick=async()=>{
+  const text=dump.value.trim();
+  if(!text){status.textContent='Nothing to save.';return;}
+  save.disabled=true;status.className='';status.textContent='Saving…';
+  try{
+    const d=new Date(),p=n=>String(n).padStart(2,'0');
+    const name=`dump-${todayStr()}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+    await api(`contents/inbox/${name}.md`,{method:'PUT',body:JSON.stringify({
+      message:`inbox: phone dump`,content:enc(text+'\n')})});
+    dump.value='';localStorage.removeItem('draft');
+    status.className='ok';status.textContent='✓ Held. Out of your head — sorted on the next /daily.';
+    refreshPending();
+  }catch(e){status.className='err';status.textContent=`Failed: ${e.message}. Draft kept — try again.`;}
+  save.disabled=false;
 };
 
-if (localStorage.getItem('gh_token')) refreshPending();
+/* ---- TODAY ---- */
+async function renderToday(){
+  const body=$('today-body');
+  $('today-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
+  body.innerHTML='<div class="loading">Loading…</div>';
+  const t=todayStr(),horizon=plusDays(3);
+  const [cal,loops,daily,habits]=await Promise.all([
+    getFile('data/calendar.md'),getFile('data/loops.md'),
+    getFile(`daily/${t}.md`),getFile('data/habits.md')]);
+  body.innerHTML='';
+
+  // schedule (today + next 3 days)
+  body.insertAdjacentHTML('beforeend','<div class="sec">Schedule</div>');
+  const c1=card();body.appendChild(c1);
+  const events=cal?parseChecklist(cal.text).filter(it=>{
+    const d=(it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];
+    return !it.checked&&d&&d>=t&&d<=horizon;
+  }).sort((a,b)=>a.body.localeCompare(b.body)):[];
+  if(!events.length)empty(c1,'Nothing scheduled through '+horizon+'. If that\'s wrong, dump it — dates are sacred here.');
+  events.forEach(it=>{
+    const d=(it.body.match(/(\d{4}-\d{2}-\d{2})( \d{2}:\d{2})?/)||[]);
+    const label=d[1]===t?`<span class="today-badge">TODAY${d[2]||''}</span>`:d[0];
+    c1.appendChild(itemHTML(it,'data/calendar.md',label));
+  });
+
+  // today's plan (daily note)
+  body.insertAdjacentHTML('beforeend','<div class="sec">Today\'s Plan</div>');
+  const c2=card();body.appendChild(c2);
+  if(!daily){empty(c2,'No plan yet. Run <b>/daily</b> in Claude — it sorts every pending dump and hands you Top 3 + first move.');}
+  else{
+    const wrap=document.createElement('div');wrap.className='note';
+    for(const raw of daily.text.split('\n')){
+      const line=raw.replace(/\r$/,'');
+      const m=line.match(/^- \[( |x)\] (.*)$/);
+      if(m){wrap.appendChild(itemHTML({line,checked:m[1]==='x',body:m[2]},`daily/${t}.md`));continue;}
+      const el=document.createElement('div');
+      if(line.startsWith('# ')){el.className='h1';el.textContent=line.slice(2);}
+      else if(line.startsWith('## ')){el.className='h2';el.textContent=line.slice(3);}
+      else if(line.startsWith('- ')){el.className='bullet';el.textContent='• '+line.slice(2);}
+      else el.innerHTML=esc(line).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+      wrap.appendChild(el);
+    }
+    c2.appendChild(wrap);
+  }
+
+  // due follow-ups
+  body.insertAdjacentHTML('beforeend','<div class="sec">Due Follow-ups</div>');
+  const c3=card();body.appendChild(c3);
+  const due=loops?parseChecklist(loops.text).filter(it=>{
+    const n=meta(it.body,'nudge');return !it.checked&&n&&n<=t;
+  }):[];
+  if(!due.length)empty(c3,'Nothing due. The system is holding your loops — head clear.');
+  due.forEach(it=>c3.appendChild(itemHTML(it,'data/loops.md',meta(it.body,'waiting-on')?'waiting on '+meta(it.body,'waiting-on'):'')));
+
+  // habit streaks
+  if(habits){
+    const hs=habits.text.split('\n').map(l=>l.match(/^- ([^|]+)\|.*streak:(\d+)/)).filter(Boolean);
+    if(hs.length){
+      body.insertAdjacentHTML('beforeend','<div class="sec">Streaks</div>');
+      const chips=document.createElement('div');chips.className='chips';
+      hs.forEach(h=>chips.insertAdjacentHTML('beforeend',`<div class="chip">${esc(h[1].trim())} <b>${h[2]}🔥</b></div>`));
+      body.appendChild(chips);
+    }
+  }
+}
+
+/* ---- TASKS ---- */
+async function renderTasks(){
+  const body=$('tasks-body');body.innerHTML='<div class="loading">Loading…</div>';
+  const f=await getFile('data/tasks.md');body.innerHTML='';
+  const open=f?parseChecklist(f.text).filter(it=>!it.checked):[];
+  $('task-count').textContent=open.length?open.length+' open':'all clear';
+  if(!open.length){const c=card();body.appendChild(c);empty(c,'No open tasks. Either you\'re on top of it, or the dumps aren\'t happening.');return;}
+  const bySec={};open.forEach(it=>{(bySec[it.section||'Other']=bySec[it.section||'Other']||[]).push(it);});
+  for(const[sec,items]of Object.entries(bySec)){
+    body.insertAdjacentHTML('beforeend',`<div class="sec">${esc(sec)}</div>`);
+    const c=card();body.appendChild(c);
+    items.sort((a,b)=>(meta(a.body,'pri')||'9').localeCompare(meta(b.body,'pri')||'9'));
+    items.forEach(it=>{
+      const pri=meta(it.body,'pri'),due=meta(it.body,'due');
+      const bits=[];
+      if(pri==='1')bits.push('<span class="pri1">priority</span>');
+      if(due)bits.push(due<=todayStr()?'<span class="pri1">due '+due+'</span>':'due '+due);
+      c.appendChild(itemHTML(it,'data/tasks.md',bits.join(' · ')));
+    });
+  }
+}
+
+/* ---- LOOPS ---- */
+async function renderLoops(){
+  const body=$('loops-body');body.innerHTML='<div class="loading">Loading…</div>';
+  const f=await getFile('data/loops.md');body.innerHTML='';
+  const open=f?parseChecklist(f.text).filter(it=>!it.checked):[];
+  if(!open.length){const c=card();body.appendChild(c);empty(c,'No open loops. Rare state — enjoy it.');return;}
+  const bySec={};open.forEach(it=>{(bySec[it.section||'Other']=bySec[it.section||'Other']||[]).push(it);});
+  for(const[sec,items]of Object.entries(bySec)){
+    body.insertAdjacentHTML('beforeend',`<div class="sec">${esc(sec)}</div>`);
+    const c=card();body.appendChild(c);
+    items.forEach(it=>{
+      const bits=[];
+      const w=meta(it.body,'waiting-on');if(w)bits.push('waiting on '+w);
+      const n=meta(it.body,'nudge');if(n)bits.push(n<=todayStr()?'<span class="pri1">nudge due</span>':'nudge '+n);
+      c.appendChild(itemHTML(it,'data/loops.md',bits.join(' · ')));
+    });
+  }
+}
+
+/* ---- nav ---- */
+const renderers={today:renderToday,tasks:renderTasks,loops:renderLoops};
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  $('v-'+b.dataset.v).classList.add('active');
+  if(renderers[b.dataset.v]){if(!token())return;renderers[b.dataset.v]();}
+});
+
+if(localStorage.getItem('gh_token'))refreshPending();
 </script>
 </body>
 </html>
