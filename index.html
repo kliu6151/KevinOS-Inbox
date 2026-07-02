@@ -80,6 +80,25 @@
   .cal-cell.past-due .dot { background: #f85149; }
   .day-title { margin: 16px 0 6px; font-size: 14px; font-weight: 700; }
 
+  /* detail sheet */
+  #sheet-ov {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 50;
+    display: flex; align-items: flex-end;
+  }
+  #sheet {
+    width: 100%; background: #161b22; border-radius: 20px 20px 0 0;
+    border-top: 1px solid #30363d; padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+    max-height: 75vh; overflow-y: auto;
+  }
+  #sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: #30363d; margin: 0 auto 16px; }
+  #sheet-title { font-size: 19px; font-weight: 700; line-height: 1.35; margin-bottom: 14px; }
+  .srow { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid #21262d; font-size: 15px; }
+  .srow .k { color: #8b949e; flex: none; min-width: 92px; }
+  .btn2 {
+    margin-top: 10px; padding: 15px; width: 100%; background: #21262d; color: #e6edf3;
+    border: 1px solid #30363d; border-radius: 14px; font-size: 17px; font-weight: 600;
+  }
+
   /* bottom nav */
   nav {
     position: fixed; bottom: 0; left: 0; right: 0; display: flex;
@@ -130,6 +149,16 @@
   </div>
 </main>
 
+<div id="sheet-ov" hidden>
+  <div id="sheet">
+    <div class="grab"></div>
+    <div id="sheet-title"></div>
+    <div id="sheet-rows"></div>
+    <button class="btn" id="sheet-done">Mark done ✓</button>
+    <button class="btn2" id="sheet-close">Close</button>
+  </div>
+</div>
+
 <nav>
   <button data-v="dump" class="on">Dump</button>
   <button data-v="today">Today</button>
@@ -167,22 +196,56 @@ async function getFile(path){
   return j?{text:dec(j.content.replace(/\n/g,'')),sha:j.sha}:null;
 }
 
-/* ---- checkbox toggle: flips "- [ ]" to "- [x]" for an exact line in a file ---- */
+/* ---- checkbox toggle: tolerant line match (ignores \r and edge whitespace) ---- */
+const norm=s=>s.replace(/\r/g,'').trim();
 async function toggleLine(path,line,el){
-  el.classList.add('done');
+  if(el)el.classList.add('done');
   try{
     const f=await getFile(path);
     if(!f)throw new Error('file not found');
-    if(!f.text.includes(line))throw new Error('item changed elsewhere — reopen this tab');
-    const flipped=line.replace('- [ ]','- [x]');
+    const lines=f.text.split('\n');
+    const i=lines.findIndex(l=>norm(l)===norm(line));
+    if(i<0)throw new Error('item changed elsewhere — pull down to refresh');
+    lines[i]=lines[i].replace('- [ ]','- [x]');
     await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
-      message:`done via app: ${line.slice(6,60)}`,sha:f.sha,
-      content:enc(f.text.replace(line,flipped))})});
+      message:`done via app: ${norm(line).slice(6,60)}`,sha:f.sha,
+      content:enc(lines.join('\n'))})});
+    return true;
   }catch(e){
-    el.classList.remove('done');
+    if(el)el.classList.remove('done');
     alert('Sync failed: '+e.message);
+    return false;
   }
 }
+
+/* ---- detail sheet ---- */
+let sheetCtx=null;
+function openSheet(it,file,title){
+  sheetCtx={it,file};
+  $('sheet-title').textContent=title;
+  const rows=[];
+  const d=it.body.match(/(\d{4}-\d{2}-\d{2})( (\d{2}:\d{2}))?/);
+  if(d)rows.push(['When',new Date(d[1]+'T00:00').toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})+(d[3]?' · '+d[3]:'')]);
+  if(it.section)rows.push(['Category',it.section]);
+  it.body.split('|').map(s=>s.trim()).forEach((seg,i)=>{
+    if(i===0)return; // first segment holds date+title, already shown
+    const kv=seg.match(/^([\w-]+):\s*(.*)$/);
+    if(kv&&kv[2])rows.push([kv[1].replace(/-/g,' '),kv[2]]);
+    else if(seg)rows.push(['Note',seg]);
+  });
+  $('sheet-rows').innerHTML=rows.map(([k,v])=>`<div class="srow"><div class="k">${esc(k)}</div><div>${esc(v)}</div></div>`).join('');
+  $('sheet-ov').hidden=false;
+}
+function closeSheet(){$('sheet-ov').hidden=true;sheetCtx=null;}
+$('sheet-close').onclick=closeSheet;
+$('sheet-ov').onclick=e=>{if(e.target.id==='sheet-ov')closeSheet();};
+$('sheet-done').onclick=async()=>{
+  if(!sheetCtx)return;
+  $('sheet-done').disabled=true;
+  const ok=await toggleLine(sheetCtx.file,sheetCtx.it.line,null);
+  $('sheet-done').disabled=false;
+  if(ok){closeSheet();if(renderers[currentView])renderers[currentView]();}
+};
 
 /* ---- parsers ---- */
 function parseChecklist(text){
@@ -197,12 +260,18 @@ function parseChecklist(text){
 }
 const meta=(s,k)=>{const m=s.match(new RegExp(k+':([^|]+)'));return m?m[1].trim():'';};
 const stripMeta=s=>s.split(' — ')[0].split(' | ')[0].trim();
+// calendar bodies lead with the date, so the title comes AFTER the dash
+const evTitle=b=>b.replace(/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?\s*[—-]?\s*/,'').split(' | ')[0].trim()||stripMeta(b);
 
-function itemHTML(it,file,extra=''){
+function itemHTML(it,file,extra='',title){
+  const t=title||stripMeta(it.body);
   const div=document.createElement('div');
   div.className='item'+(it.checked?' done':'');
-  div.innerHTML=`<div class="box">✓</div><div style="flex:1"><div class="txt">${esc(stripMeta(it.body))}</div>${extra?`<div class="meta">${extra}</div>`:''}</div>`;
-  if(!it.checked)div.onclick=()=>toggleLine(file,it.line,div);
+  div.innerHTML=`<div class="box">✓</div><div style="flex:1"><div class="txt">${esc(t)}</div>${extra?`<div class="meta">${extra}</div>`:''}</div>`;
+  if(!it.checked){
+    div.querySelector('.box').onclick=e=>{e.stopPropagation();toggleLine(file,it.line,div);};
+    div.onclick=()=>openSheet(it,file,t);
+  }
   return div;
 }
 function card(){const c=document.createElement('div');c.className='card';return c;}
@@ -256,7 +325,7 @@ async function renderToday(){
   events.forEach(it=>{
     const d=(it.body.match(/(\d{4}-\d{2}-\d{2})( \d{2}:\d{2})?/)||[]);
     const label=d[1]===t?`<span class="today-badge">TODAY${d[2]||''}</span>`:d[0];
-    c1.appendChild(itemHTML(it,'data/calendar.md',label));
+    c1.appendChild(itemHTML(it,'data/calendar.md',label,evTitle(it.body)));
   });
 
   // today's plan (daily note)
@@ -396,7 +465,7 @@ function drawCal(){
   if(!items.length)empty(c,'Nothing this day.');
   items.forEach(it=>{
     const late=calSel<t?'<span class="pri1">past — reschedule or check off</span>':evTime(it);
-    c.appendChild(itemHTML(it,'data/calendar.md',late));
+    c.appendChild(itemHTML(it,'data/calendar.md',late,evTitle(it.body)));
   });
 
   // upcoming agenda (next 30 days)
@@ -407,7 +476,7 @@ function drawCal(){
   if(missed.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Missed — decide</div>');
     const mc=card();body.appendChild(mc);
-    missed.forEach(it=>mc.appendChild(itemHTML(it,'data/calendar.md',`<span class="pri1">was ${evDate(it)}</span>`)));
+    missed.forEach(it=>mc.appendChild(itemHTML(it,'data/calendar.md',`<span class="pri1">was ${evDate(it)}</span>`,evTitle(it.body))));
   }
   body.insertAdjacentHTML('beforeend','<div class="sec">Next 30 Days</div>');
   const uc=card();body.appendChild(uc);
@@ -417,7 +486,7 @@ function drawCal(){
     const d=evDate(it);
     const label=(d!==lastD?new Date(d+'T00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}):'')+(evTime(it)?' '+evTime(it):'');
     lastD=d;
-    uc.appendChild(itemHTML(it,'data/calendar.md',d===t?`<span class="today-badge">TODAY</span>${evTime(it)?' '+evTime(it):''}`:label));
+    uc.appendChild(itemHTML(it,'data/calendar.md',d===t?`<span class="today-badge">TODAY</span>${evTime(it)?' '+evTime(it):''}`:label,evTitle(it.body)));
   });
 }
 
@@ -431,8 +500,10 @@ async function renderCal(){
 }
 
 /* ---- nav ---- */
+let currentView='dump';
 const renderers={today:renderToday,tasks:renderTasks,loops:renderLoops,cal:renderCal};
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  currentView=b.dataset.v;
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $('v-'+b.dataset.v).classList.add('active');
