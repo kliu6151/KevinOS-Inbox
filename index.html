@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d1117">
+<title>KevinOS Inbox</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0d1117; color: #e6edf3;
+    min-height: 100vh; display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+  }
+  header { display: flex; align-items: baseline; justify-content: space-between; padding: 16px 0 12px; }
+  h1 { font-size: 20px; font-weight: 700; }
+  h1 span { color: #58a6ff; }
+  #pending { font-size: 13px; color: #8b949e; }
+  textarea {
+    flex: 1; width: 100%; min-height: 45vh;
+    background: #161b22; color: #e6edf3;
+    border: 1px solid #30363d; border-radius: 12px;
+    padding: 14px; font-size: 17px; line-height: 1.5;
+    resize: none; outline: none;
+  }
+  textarea:focus { border-color: #58a6ff; }
+  button {
+    margin-top: 12px; padding: 16px; width: 100%;
+    background: #238636; color: #fff; border: none; border-radius: 12px;
+    font-size: 18px; font-weight: 600;
+  }
+  button:disabled { background: #21262d; color: #8b949e; }
+  #status { text-align: center; padding: 10px; font-size: 14px; color: #8b949e; min-height: 36px; }
+  #status.ok { color: #3fb950; }
+  #status.err { color: #f85149; }
+  #settings { text-align: center; padding: 8px 0 16px; }
+  #settings a { color: #8b949e; font-size: 12px; text-decoration: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Kevin<span>OS</span> Inbox</h1>
+  <div id="pending"></div>
+</header>
+<textarea id="dump" placeholder="Dump it. Appointments, follow-ups, ideas, problems — messy is fine. Claude sorts it on the next /daily."></textarea>
+<button id="save">Save to Inbox</button>
+<div id="status"></div>
+<div id="settings"><a href="#" id="reset">change token</a></div>
+<script>
+const OWNER = 'kliu6151', REPO = 'KevinOS';
+const $ = id => document.getElementById(id);
+const dump = $('dump'), status = $('status'), save = $('save');
+
+// draft survives app switches / accidental closes
+dump.value = localStorage.getItem('draft') || '';
+dump.addEventListener('input', () => localStorage.setItem('draft', dump.value));
+
+function token() {
+  let t = localStorage.getItem('gh_token');
+  if (!t) {
+    t = prompt('Paste your GitHub token (one-time setup):');
+    if (t) localStorage.setItem('gh_token', t.trim());
+  }
+  return localStorage.getItem('gh_token');
+}
+$('reset').onclick = e => { e.preventDefault(); localStorage.removeItem('gh_token'); token(); };
+
+function stamp() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+async function gh(path, opts = {}) {
+  const r = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/${path}`, {
+    ...opts,
+    headers: {
+      'Authorization': `Bearer ${token()}`,
+      'Accept': 'application/vnd.github+json',
+      ...(opts.body ? {'Content-Type': 'application/json'} : {})
+    }
+  });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || r.status);
+  return r.json();
+}
+
+async function refreshPending() {
+  try {
+    const files = await gh('contents/inbox');
+    const n = files.filter(f => f.type === 'file' && f.name !== 'README.md').length;
+    $('pending').textContent = n ? `${n} awaiting processing` : 'inbox clear';
+  } catch (e) { /* not fatal */ }
+}
+
+save.onclick = async () => {
+  const text = dump.value.trim();
+  if (!text) { status.textContent = 'Nothing to save.'; return; }
+  if (!token()) { status.textContent = 'Token required.'; status.className = 'err'; return; }
+  save.disabled = true; status.className = ''; status.textContent = 'Saving…';
+  try {
+    await gh(`contents/inbox/dump-${stamp()}.md`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        message: `inbox: phone dump ${stamp()}`,
+        content: btoa(unescape(encodeURIComponent(text + '\n')))
+      })
+    });
+    dump.value = ''; localStorage.removeItem('draft');
+    status.className = 'ok'; status.textContent = '✓ Saved. Claude will sort it on the next /daily.';
+    refreshPending();
+  } catch (e) {
+    status.className = 'err';
+    status.textContent = `Failed: ${e.message}. Draft is kept — try again.`;
+  }
+  save.disabled = false;
+};
+
+if (localStorage.getItem('gh_token')) refreshPending();
+</script>
+</body>
+</html>
