@@ -121,7 +121,13 @@
     <textarea id="dump" placeholder="Dump it. Messy is fine — the system holds it so your head doesn't have to."></textarea>
     <button class="btn" id="save">Save to Inbox</button>
     <div id="status"></div>
-    <div class="tiny"><a href="#" id="reset">change token</a></div>
+    <div class="tiny"><a href="#" id="reset">change token</a> · <a href="#" id="dev-link">roadmap</a></div>
+  </div>
+
+  <!-- DEV / ROADMAP -->
+  <div class="view" id="v-dev">
+    <div class="top"><h1>Developer</h1><div class="sub">what's next for KevinOS</div></div>
+    <div id="dev-body" class="loading">Loading…</div>
   </div>
 
   <!-- TODAY -->
@@ -498,6 +504,31 @@ async function renderCal(){
   if(!calMonth){calMonth=new Date();calMonth.setDate(1);calSel=todayStr();}
   drawCal();
 }
+
+/* ---- DEV / ROADMAP (read-only) ---- */
+async function renderDev(){
+  const body=$('dev-body');body.innerHTML='<div class="loading">Loading…</div>';
+  const f=await getFile('ROADMAP.md');body.innerHTML='';
+  const c=card();body.appendChild(c);
+  if(!f){empty(c,'No ROADMAP.md found.');return;}
+  const wrap=document.createElement('div');wrap.className='note';
+  for(const raw of f.text.split('\n')){
+    const line=raw.replace(/\r$/,'');
+    const el=document.createElement('div');
+    if(line.startsWith('# ')){el.className='h1';el.textContent=line.slice(2);}
+    else if(line.startsWith('## ')){el.className='h2';el.textContent=line.slice(3);}
+    else if(line.match(/^\d+\. |^- /)){el.className='bullet';el.innerHTML='• '+esc(line.replace(/^(\d+\. |- )/,'')).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');}
+    else el.innerHTML=esc(line).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+    wrap.appendChild(el);
+  }
+  c.appendChild(wrap);
+}
+$('dev-link').onclick=e=>{
+  e.preventDefault();
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  $('v-dev').classList.add('active');
+  if(token())renderDev();
+};
 
 /* ---- nav ---- */
 let currentView='dump';
