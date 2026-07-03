@@ -156,6 +156,12 @@
     <div class="top"><h1>Calendar</h1><div class="sub" id="cal-count"></div></div>
     <div id="cal-body" class="loading">Loading…</div>
   </div>
+
+  <!-- MONEY -->
+  <div class="view" id="v-money">
+    <div class="top"><h1>Money</h1><div class="sub">from HCP, nightly 5am</div></div>
+    <div id="money-body" class="loading">Loading…</div>
+  </div>
 </main>
 
 <div id="sheet-ov" hidden>
@@ -172,6 +178,7 @@
   <button data-v="dump" class="on">Dump</button>
   <button data-v="today">Today</button>
   <button data-v="cal">Cal</button>
+  <button data-v="money">Money</button>
   <button data-v="tasks">Tasks</button>
   <button data-v="loops">Loops</button>
 </nav>
@@ -508,6 +515,33 @@ async function renderCal(){
   drawCal();
 }
 
+/* ---- MONEY (money.md with tappable check-offs) ---- */
+async function renderMoney(){
+  const body=$('money-body');body.innerHTML='<div class="loading">Loading…</div>';
+  const f=await getFile('data/money.md');body.innerHTML='';
+  if(!f){const c=card();body.appendChild(c);empty(c,'No money.md yet — the 5am pipeline builds it.');return;}
+  let cur=null;
+  for(const raw of f.text.split('\n')){
+    const line=raw.replace(/\r$/,'');
+    const m=line.match(/^- \[( |x)\] (.*)$/);
+    if(m){
+      if(!cur){cur=card();body.appendChild(cur);}
+      const it={line,checked:m[1]==='x',body:m[2]};
+      const parts=m[2].split(' | ');
+      cur.appendChild(itemHTML(it,'data/money.md',esc(parts.slice(1).join(' · ')),parts[0]));
+      continue;
+    }
+    cur=null;
+    const el=document.createElement('div');
+    if(line.startsWith('# ')){el.className='sec';el.textContent=line.slice(2);}
+    else if(line.startsWith('## ')){el.className='sec';el.textContent=line.slice(3);}
+    else if(line.startsWith('- ')){el.className='note bullet';el.textContent='• '+line.slice(2);}
+    else if(line.trim()){el.className='note';el.style.padding='4px 2px';el.innerHTML=esc(line).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/_(.+?)_/g,'<i>$1</i>');}
+    else continue;
+    body.appendChild(el);
+  }
+}
+
 /* ---- DEV / ROADMAP (read-only) ---- */
 async function renderDev(){
   const body=$('dev-body');body.innerHTML='<div class="loading">Loading…</div>';
@@ -539,7 +573,7 @@ $('dev-back').onclick=()=>{
 
 /* ---- nav ---- */
 let currentView='dump';
-const renderers={today:renderToday,tasks:renderTasks,loops:renderLoops,cal:renderCal};
+const renderers={today:renderToday,tasks:renderTasks,loops:renderLoops,cal:renderCal,money:renderMoney};
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   currentView=b.dataset.v;
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
