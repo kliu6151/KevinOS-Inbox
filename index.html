@@ -85,6 +85,7 @@
     position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 50;
     display: flex; align-items: flex-end;
   }
+  #sheet-ov[hidden] { display: none; }
   #sheet {
     width: 100%; background: #161b22; border-radius: 20px 20px 0 0;
     border-top: 1px solid #30363d; padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
@@ -275,7 +276,7 @@ function itemHTML(it,file,extra='',title){
   div.className='item'+(it.checked?' done':'');
   div.innerHTML=`<div class="box">✓</div><div style="flex:1"><div class="txt">${esc(t)}</div>${extra?`<div class="meta">${extra}</div>`:''}</div>`;
   if(!it.checked){
-    div.querySelector('.box').onclick=e=>{e.stopPropagation();toggleLine(file,it.line,div);};
+    div.querySelector('.box').onclick=e=>{e.stopPropagation();toggleLine(file,it.line,div).then(ok=>{if(ok&&renderers[currentView])setTimeout(()=>renderers[currentView](),600);});};
     div.onclick=()=>openSheet(it,file,t);
   }
   return div;
