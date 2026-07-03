@@ -515,31 +515,45 @@ async function renderCal(){
   drawCal();
 }
 
-/* ---- MONEY (money.md with tappable check-offs) ---- */
+/* ---- MONEY (money.md as collapsible sections) ---- */
+function moneyLineEl(line){
+  const m=line.match(/^- \[( |x)\] (.*)$/);
+  if(m){
+    const it={line,checked:m[1]==='x',body:m[2]};
+    const parts=m[2].split(' | ');
+    return itemHTML(it,'data/money.md',esc(parts.slice(1).join(' · ')),parts[0]);
+  }
+  const el=document.createElement('div');
+  if(line.startsWith('- ')){el.className='note bullet';el.textContent='• '+line.slice(2);}
+  else{el.className='note';el.style.padding='4px 14px';el.innerHTML=esc(line).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/_(.+?)_/g,'<i>$1</i>');}
+  return el;
+}
 async function renderMoney(){
   const body=$('money-body');body.innerHTML='<div class="loading">Loading…</div>';
   const f=await getFile('data/money.md');body.innerHTML='';
-  if(!f){const c=card();body.appendChild(c);empty(c,'No money.md yet — the 5am pipeline builds it.');return;}
-  let cur=null;
+  if(!f){const c=card();body.appendChild(c);empty(c,'No money.md yet — the weekend pipeline builds it.');return;}
+  // split into preamble + ## sections
+  const secs=[];let pre=[],cur=null;
   for(const raw of f.text.split('\n')){
     const line=raw.replace(/\r$/,'');
-    const m=line.match(/^- \[( |x)\] (.*)$/);
-    if(m){
-      if(!cur){cur=card();body.appendChild(cur);}
-      const it={line,checked:m[1]==='x',body:m[2]};
-      const parts=m[2].split(' | ');
-      cur.appendChild(itemHTML(it,'data/money.md',esc(parts.slice(1).join(' · ')),parts[0]));
-      continue;
-    }
-    cur=null;
-    const el=document.createElement('div');
-    if(line.startsWith('# ')){el.className='sec';el.textContent=line.slice(2);}
-    else if(line.startsWith('## ')){el.className='sec';el.textContent=line.slice(3);}
-    else if(line.startsWith('- ')){el.className='note bullet';el.textContent='• '+line.slice(2);}
-    else if(line.trim()){el.className='note';el.style.padding='4px 2px';el.innerHTML=esc(line).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/_(.+?)_/g,'<i>$1</i>');}
-    else continue;
-    body.appendChild(el);
+    if(line.startsWith('## ')){cur={title:line.slice(3),lines:[]};secs.push(cur);continue;}
+    if(line.startsWith('# ')||!line.trim())continue;
+    (cur?cur.lines:pre).push(line);
   }
+  pre.forEach(l=>body.appendChild(moneyLineEl(l)));
+  const openByDefault=t=>/this month/i.test(t);
+  secs.forEach(s=>{
+    const open=/status:/i.test(s.title)||openByDefault(s.title);
+    const nOpen=s.lines.filter(l=>l.startsWith('- [ ]')).length;
+    const nWarn=s.lines.filter(l=>l.includes('⚠')).length;
+    const head=document.createElement('button');
+    head.className='btn2';head.style.textAlign='left';head.style.marginTop='14px';
+    head.innerHTML=`<span style="float:right">${open?'▾':'▸'}</span>${esc(s.title)}${nOpen?` <span style="color:#8b949e">· ${nOpen} open</span>`:''}${nWarn?` <span class="pri1">· ${nWarn} ⚠</span>`:''}`;
+    const c=card();c.style.display=open?'':'none';c.style.marginTop='6px';
+    s.lines.forEach(l=>c.appendChild(moneyLineEl(l)));
+    head.onclick=()=>{const show=c.style.display==='none';c.style.display=show?'':'none';head.querySelector('span').textContent=show?'▾':'▸';};
+    body.appendChild(head);body.appendChild(c);
+  });
 }
 
 /* ---- DEV / ROADMAP (read-only) ---- */
