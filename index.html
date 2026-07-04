@@ -99,6 +99,15 @@
   .chip{background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:7px 13px;font-size:13px;box-shadow:var(--shadow-sm)}
   .chip b{color:var(--amber)}
 
+  /* money ledger rows */
+  .lwrap{flex:1;display:flex;gap:12px;align-items:flex-start;min-width:0}
+  .lmain{flex:1;min-width:0}
+  .ljob{color:var(--faint);font-size:12px;font-weight:600;margin-left:7px;white-space:nowrap}
+  .lamt{text-align:right;flex:none}
+  .amt{font-weight:700;font-size:15.5px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .age{font-size:12px;color:var(--muted);margin-top:2px}
+  .age.warn{color:var(--red);font-weight:600}
+
   /* collapsible fold */
   .fold{
     display:flex;align-items:center;gap:10px;width:100%;margin-top:14px;padding:14px;
@@ -628,14 +637,51 @@ async function renderCal(){
   drawCal();
 }
 
-/* ---- MONEY (money.md as collapsible sections) ---- */
-function moneyLineEl(line){
-  const m=line.match(/^- \[( |x)\] (.*)$/);
-  if(m){
-    const it={line,checked:m[1]==='x',body:m[2]};
-    const parts=m[2].split(' | ');
-    return itemHTML(it,'data/money.md',esc(parts.slice(1).join(' · ')),parts[0]);
+/* ---- MONEY (money.md as a ledger: name left, amount right, aging badge) ---- */
+const AMT_RE=/\$[\d,]+(?:\.\d{1,2})?/g;
+const parseAmt=a=>parseFloat(a.replace(/[$,]/g,''));
+const fmtAmt=v=>'$'+Math.round(v).toLocaleString();
+const compactAmt=v=>v>=1e6?'$'+(v/1e6).toFixed(2)+'M':v>=1e3?'$'+Math.round(v/1e3)+'k':fmtAmt(v);
+
+/* pipe-delimited money line → structured ledger row */
+function ledgerRow(line){
+  const cm=line.match(/^- \[( |x)\] (.*)$/);
+  const body=cm?cm[2]:line.replace(/^- /,'');
+  const it={line,checked:cm?cm[1]==='x':false,body};
+  const parts=body.split(' | ').map(s=>s.trim());
+  let head=parts[0],amt=0,age='',warn=false;
+  const amts=(head.match(AMT_RE)||[]).map(parseAmt);
+  if(amts.length){amt=amts.reduce((a,b)=>a+b,0);head=head.replace(AMT_RE,'').replace(/\s{2,}/g,' ').replace(/\s\+\s*$/,'').trim();}
+  const metaBits=[];
+  for(const seg of parts.slice(1)){
+    const am=seg.match(/^(\d+)d( ⚠)?$/);
+    if(am){age=am[1]+'d';warn=!!am[2];continue;}
+    const gm=seg.match(/^gross (\$[\d,]+(?:\.\d{1,2})?)/);
+    if(gm&&!amt){amt=parseAmt(gm[1]);continue;}
+    if(seg&&seg!=='—')metaBits.push(seg);
   }
+  // "Name — program" split, then pull a leading "#1234" / "Est #1234" into a chip
+  let name=head,sub='';
+  const di=head.indexOf(' — ');
+  if(di>0){name=head.slice(0,di);sub=head.slice(di+3).replace(/\s\+\s*$/,'').trim();}
+  let chip='';
+  const jm=name.match(/^(Est\s+)?#(\S+)\s*(.*)$/);
+  if(jm){chip=(jm[1]?'Est ':'')+'#'+jm[2];name=jm[3].trim()||chip;if(name===chip)chip='';}
+  if(sub)metaBits.unshift(sub);
+
+  const div=document.createElement('div');
+  div.className='item'+(it.checked?' done':'');
+  div.innerHTML=`${cm?'<div class="box">✓</div>':''}<div class="lwrap"><div class="lmain"><div class="txt">${esc(name)}${chip?`<span class="ljob">${esc(chip)}</span>`:''}</div>${metaBits.length?`<div class="meta">${esc(metaBits.join(' · '))}</div>`:''}</div>${(amt||age)?`<div class="lamt">${amt?`<div class="amt">${fmtAmt(amt)}</div>`:''}${age?`<div class="age${warn?' warn':''}">${age}${warn?' ⚠':''}</div>`:''}</div>`:''}</div>`;
+  if(cm&&!it.checked){
+    div.querySelector('.box').onclick=e=>{e.stopPropagation();toggleLine('data/money.md',it.line,div).then(ok=>{if(ok&&renderers[currentView])setTimeout(()=>renderers[currentView](),600);});};
+    div.onclick=()=>openSheet(it,'data/money.md',name+(chip?' '+chip:''));
+  }
+  return div;
+}
+function moneyLineEl(line){
+  if(line.startsWith('- ')&&line.includes(' | '))return ledgerRow(line); // top-level structured → ledger row
+  const m=line.match(/^- \[( |x)\] (.*)$/);
+  if(m)return itemHTML({line,checked:m[1]==='x',body:m[2]},'data/money.md');
   const el=document.createElement('div');
   if(line.startsWith('- ')){el.className='note bullet';el.textContent='• '+line.slice(2);}
   else{el.className='note';el.style.padding='4px 14px';el.innerHTML=esc(line).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/_(.+?)_/g,'<i>$1</i>');}
@@ -657,10 +703,12 @@ async function renderMoney(){
   const openByDefault=t=>/this month/i.test(t);
   secs.forEach(s=>{
     const open=/status:/i.test(s.title)||openByDefault(s.title);
-    const nOpen=s.lines.filter(l=>l.startsWith('- [ ]')).length;
-    const nWarn=s.lines.filter(l=>l.includes('⚠')).length;
-    const sf=fold(s.title,nOpen?nOpen+' open':'',open,nWarn);
-    s.lines.forEach(l=>sf.card.appendChild(moneyLineEl(l)));
+    const openLines=s.lines.filter(l=>l.startsWith('- [ ]'));
+    const nWarn=openLines.filter(l=>l.includes('⚠')).length;   // only count warnings still open
+    const total=openLines.reduce((sum,l)=>sum+((l.split(' | ')[0].match(AMT_RE)||[]).map(parseAmt).reduce((a,b)=>a+b,0)),0);
+    const label=openLines.length?openLines.length+' open'+(total?' · '+compactAmt(total):''):'';
+    const sf=fold(s.title,label,open,nWarn);
+    appendCapped(sf.card,s.lines,moneyLineEl,12);
     body.appendChild(sf.head);body.appendChild(sf.card);
   });
 }
