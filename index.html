@@ -190,13 +190,24 @@
   nav .brand{display:none}
   nav button{
     flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-    padding:11px 0 6px;background:none;border:none;
+    padding:11px 0 6px;background:none;border:none;position:relative;
     color:var(--muted);font-size:12px;font-weight:600;
     transition:color .15s;
   }
   nav button svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   nav button.on{color:var(--accent)}
   .loading{padding:24px;text-align:center;color:var(--muted);font-size:14px}
+  .skelrow{height:14px;border-radius:7px;margin:16px 14px;background:linear-gradient(90deg,var(--panel2) 25%,var(--border) 50%,var(--panel2) 75%);background-size:200% 100%;animation:shim 1.2s linear infinite}
+  @keyframes shim{from{background-position:200% 0}to{background-position:-200% 0}}
+  .stale{
+    margin:0 0 10px;padding:10px 13px;border-radius:12px;font-size:13.5px;font-weight:600;
+    color:var(--amber);background:rgba(224,163,62,.1);border:1px solid rgba(224,163,62,.3);
+  }
+  .nbadge{
+    position:absolute;top:5px;left:calc(50% + 7px);min-width:17px;height:17px;padding:0 5px;
+    display:flex;align-items:center;justify-content:center;border-radius:9px;
+    background:var(--red);color:#fff;font-size:10.5px;font-weight:700;line-height:1;
+  }
 
   /* desktop: left rail + hover states */
   @media (min-width:880px){
@@ -214,6 +225,7 @@
       font-size:15px;justify-content:flex-start;
     }
     nav button.on{background:var(--accent-soft)}
+    .nbadge{position:static;margin-left:auto}
     #sheet-ov{align-items:center;justify-content:center;padding:24px}
     #sheet{max-width:480px;border-radius:22px;border:1px solid var(--border2)}
   }
@@ -317,10 +329,26 @@ async function api(path,opts={}){
   if(!r.ok)throw new Error((await r.json().catch(()=>({}))).message||r.status);
   return r.json();
 }
+/* file fetch with localStorage cache: instant paint from cache, network refresh behind it,
+   stale fallback when GitHub is unreachable (job-site LTE) */
+let cacheOnly=false,usedStale=false,keepView=false;
+const cacheGet=p=>{try{const c=localStorage.getItem('fc_'+p);return c?JSON.parse(c):null;}catch(e){return null;}};
+const hasCache=()=>Object.keys(localStorage).some(k=>k.startsWith('fc_'));
 async function getFile(path){
-  const j=await api(`contents/${path}`);
-  return j?{text:dec(j.content.replace(/\n/g,'')),sha:j.sha}:null;
+  if(cacheOnly)return cacheGet(path);
+  try{
+    const j=await api(`contents/${path}`);
+    if(!j){localStorage.removeItem('fc_'+path);return null;}
+    const f={text:dec(j.content.replace(/\n/g,'')),sha:j.sha};
+    try{localStorage.setItem('fc_'+path,JSON.stringify({text:f.text,sha:f.sha,ts:Date.now()}));}catch(e){}
+    return f;
+  }catch(e){
+    const c=cacheGet(path);
+    if(c){usedStale=true;return{text:c.text,sha:c.sha,stale:true};}
+    throw e;
+  }
 }
+function skel(){return '<div class="card">'+[78,52,68,38].map(w=>`<div class="skelrow" style="width:${w}%"></div>`).join('')+'</div>';}
 
 /* ---- checkbox toggle: tolerant line match (ignores \r and edge whitespace) ---- */
 const norm=s=>s.replace(/\r/g,'').trim();
@@ -329,13 +357,15 @@ async function toggleLine(path,line,el){
   try{
     const f=await getFile(path);
     if(!f)throw new Error('file not found');
+    if(f.stale)throw new Error('offline — reconnect and try again');
     const lines=f.text.split('\n');
     const i=lines.findIndex(l=>norm(l)===norm(line));
     if(i<0)throw new Error('item changed elsewhere — pull down to refresh');
     lines[i]=lines[i].replace('- [ ]','- [x]');
-    await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
+    const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
       message:`done via app: ${norm(line).slice(6,60)}`,sha:f.sha,
       content:enc(lines.join('\n'))})});
+    try{localStorage.setItem('fc_'+path,JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
     return true;
   }catch(e){
     if(el)el.classList.remove('done');
@@ -370,7 +400,7 @@ $('sheet-done').onclick=async()=>{
   $('sheet-done').disabled=true;
   const ok=await toggleLine(sheetCtx.file,sheetCtx.it.line,null);
   $('sheet-done').disabled=false;
-  if(ok){closeSheet();if(renderers[currentView])renderers[currentView]();}
+  if(ok){closeSheet();runRender(currentView);}
 };
 
 /* ---- parsers ---- */
@@ -396,7 +426,7 @@ function itemHTML(it,file,extra='',title){
   div.className='item'+(it.checked?' done':'');
   div.innerHTML=`<div class="box">✓</div><div style="flex:1"><div class="txt">${esc(t)}</div>${extra?`<div class="meta">${extra}</div>`:''}</div>`;
   if(!it.checked){
-    div.querySelector('.box').onclick=e=>{e.stopPropagation();toggleLine(file,it.line,div).then(ok=>{if(ok&&renderers[currentView])setTimeout(()=>renderers[currentView](),600);});};
+    div.querySelector('.box').onclick=e=>{e.stopPropagation();toggleLine(file,it.line,div).then(ok=>{if(ok)setTimeout(()=>runRender(currentView),600);});};
     div.onclick=()=>openSheet(it,file,t);
   }
   return div;
@@ -505,7 +535,7 @@ save.onclick=async()=>{
 async function renderToday(){
   const body=$('today-body');
   $('today-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
-  body.innerHTML='<div class="loading">Loading…</div>';
+  if(!keepView)body.innerHTML=skel();
   const t=todayStr(),horizon=plusDays(3);
   const [cal,loops,tasks,daily,habits]=await Promise.all([
     getFile('data/calendar.md'),getFile('data/loops.md'),getFile('data/tasks.md'),
@@ -693,7 +723,7 @@ function drawCal(){
 }
 
 async function renderCal(){
-  const body=$('cal-body');body.innerHTML='<div class="loading">Loading…</div>';
+  const body=$('cal-body');if(!keepView)body.innerHTML=skel();
   const f=await getFile('data/calendar.md');
   calEvs=f?parseChecklist(f.text).filter(it=>!it.checked&&it.body.match(/\d{4}-\d{2}-\d{2}/)):[];
   $('cal-count').textContent=calEvs.length?calEvs.length+' scheduled':'';
@@ -737,7 +767,7 @@ function ledgerRow(line){
   div.className='item'+(it.checked?' done':'');
   div.innerHTML=`${cm?'<div class="box">✓</div>':''}<div class="lwrap"><div class="lmain"><div class="txt">${esc(name)}${chip?`<span class="ljob">${esc(chip)}</span>`:''}</div>${metaBits.length?`<div class="meta">${esc(metaBits.join(' · '))}</div>`:''}</div>${(amt||age)?`<div class="lamt">${amt?`<div class="amt">${fmtAmt(amt)}</div>`:''}${age?`<div class="age${warn?' warn':''}">${age}${warn?' ⚠':''}</div>`:''}</div>`:''}</div>`;
   if(cm&&!it.checked){
-    div.querySelector('.box').onclick=e=>{e.stopPropagation();toggleLine('data/money.md',it.line,div).then(ok=>{if(ok&&renderers[currentView])setTimeout(()=>renderers[currentView](),600);});};
+    div.querySelector('.box').onclick=e=>{e.stopPropagation();toggleLine('data/money.md',it.line,div).then(ok=>{if(ok)setTimeout(()=>runRender(currentView),600);});};
     div.onclick=()=>openSheet(it,'data/money.md',name+(chip?' '+chip:''));
   }
   return div;
@@ -752,7 +782,7 @@ function moneyLineEl(line){
   return el;
 }
 async function renderMoney(){
-  const body=$('money-body');body.innerHTML='<div class="loading">Loading…</div>';
+  const body=$('money-body');if(!keepView)body.innerHTML=skel();
   const f=await getFile('data/money.md');body.innerHTML='';
   if(!f){const c=card();body.appendChild(c);empty(c,'No money.md yet — the weekend pipeline builds it.');return;}
   // split into preamble + ## sections
@@ -806,18 +836,69 @@ $('dev-back').onclick=()=>{
   $('v-dump').classList.add('active');
 };
 
-/* ---- nav ---- */
-let currentView='dump';
+/* ---- nav + render orchestration ---- */
+let currentView='dump',lastRender=0;
 const renderers={today:renderToday,cal:renderCal,money:renderMoney};
+const viewBody={today:'today-body',cal:'cal-body',money:'money-body'};
+
+/* two-pass render: paint cached data instantly, then refresh from network.
+   offline → banner over cached view, or an error card with retry if nothing cached. */
+async function runRender(name){
+  const fn=renderers[name];if(!fn||!token())return;
+  const bodyEl=$(viewBody[name]);
+  let painted=false;
+  if(hasCache()){
+    cacheOnly=true;
+    try{await fn();painted=true;}catch(e){}
+    cacheOnly=false;
+  }
+  usedStale=false;keepView=painted;
+  try{
+    await fn();lastRender=Date.now();
+    if(usedStale)bodyEl.insertAdjacentHTML('afterbegin','<div class="stale">⚠ Offline — showing last synced data</div>');
+  }catch(e){
+    if(painted)bodyEl.insertAdjacentHTML('afterbegin','<div class="stale">⚠ Offline — showing last synced data</div>');
+    else{
+      bodyEl.innerHTML='';
+      const c=card();c.innerHTML=`<div class="empty">Couldn't reach GitHub — ${esc(e.message||'network error')}. Check signal, then retry.</div>`;
+      bodyEl.appendChild(c);
+      const b=document.createElement('button');b.className='btn2';b.textContent='↻ Retry';
+      b.onclick=()=>runRender(name);
+      bodyEl.appendChild(b);
+    }
+  }
+  keepView=false;
+  updateBadge();
+}
+
+/* red count on the Today tab: due/priority tasks + due follow-ups, from cache */
+function updateBadge(){
+  const t=todayStr();
+  const tk=cacheGet('data/tasks.md'),lp=cacheGet('data/loops.md');
+  let n=0;
+  if(tk)n+=parseChecklist(tk.text).filter(it=>{const d=meta(it.body,'due');return !it.checked&&((d&&d<=t)||meta(it.body,'pri')==='1');}).length;
+  if(lp)n+=parseChecklist(lp.text).filter(it=>{const nd=meta(it.body,'nudge');return !it.checked&&nd&&nd<=t;}).length;
+  const btn=document.querySelector('nav button[data-v="today"]');
+  let b=btn.querySelector('.nbadge');
+  if(!n){if(b)b.remove();return;}
+  if(!b){b=document.createElement('span');b.className='nbadge';btn.appendChild(b);}
+  b.textContent=n>9?'9+':n;
+}
+
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   currentView=b.dataset.v;
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $('v-'+b.dataset.v).classList.add('active');
-  if(renderers[b.dataset.v]){if(!token())return;renderers[b.dataset.v]();}
+  runRender(b.dataset.v);
 });
 
-if(localStorage.getItem('gh_token'))refreshPending();
+/* coming back to the app after 60s+ silently refreshes the current tab */
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden&&Date.now()-lastRender>60000&&renderers[currentView])runRender(currentView);
+});
+
+if(localStorage.getItem('gh_token')){refreshPending();updateBadge();}
 </script>
 </body>
 </html>
