@@ -95,6 +95,16 @@
   .note .h1{font-weight:700;font-size:16px;margin:8px 0 4px}
   .note .h2{font-weight:700;font-size:12.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:14px 0 4px}
   .note .bullet{padding-left:10px}
+  .note .gap{height:8px}
+
+  /* intel briefing stories */
+  .intel{padding:15px 14px;border-bottom:1px solid var(--border)}
+  .intel:last-child{border-bottom:none}
+  .intel .ih{font-weight:700;font-size:15.5px;line-height:1.4}
+  .intel .ib{font-size:14.5px;line-height:1.55;color:var(--muted);margin-top:6px}
+  .intel .iw{font-size:14.5px;line-height:1.5;margin-top:9px;padding:9px 11px;background:var(--accent-soft);border-left:3px solid var(--accent);border-radius:0 10px 10px 0}
+  .intel .iw b{color:var(--accent)}
+  .intel .is{font-size:12px;color:var(--faint);margin-top:8px}
   .chips{display:flex;gap:8px;flex-wrap:wrap;padding:4px 0}
   .chip{background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:7px 13px;font-size:13px;box-shadow:var(--shadow-sm)}
   .chip b{color:var(--amber)}
@@ -375,6 +385,7 @@ function parseChecklist(text){
   return items;
 }
 const meta=(s,k)=>{const m=s.match(new RegExp(k+':([^|]+)'));return m?m[1].trim():'';};
+const inline=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*([^*]+)\*/g,'<i>$1</i>');
 const stripMeta=s=>s.split(' — ')[0].split(' | ')[0].trim();
 // calendar bodies lead with the date, so the title comes AFTER the dash
 const evTitle=b=>b.replace(/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?\s*[—-]?\s*/,'').split(' | ')[0].trim()||stripMeta(b);
@@ -419,6 +430,31 @@ function groupInto(cardEl,items,make){
     cardEl.insertAdjacentHTML('beforeend',`<div class="subsec">${esc(sec)}</div>`);
     arr.forEach(it=>cardEl.appendChild(make(it)));
   }
+}
+/* intel briefing: "**1. Headline**" blocks with body, "**Why it matters:**", "*Source: ...*" */
+function parseIntel(lines){
+  const items=[];let cur=null,mode='body';
+  for(const raw of lines){
+    const line=raw.replace(/\r$/,'').trim();
+    if(!line)continue;
+    const h=line.match(/^\*\*\d+\.\s*(.+?)\*\*$/);
+    if(h){cur={title:h[1],body:[],why:[],src:''};items.push(cur);mode='body';continue;}
+    if(!cur)continue;
+    const w=line.match(/^\*\*Why it matters:\*\*\s*(.*)$/i);
+    if(w){mode='why';if(w[1])cur.why.push(w[1]);continue;}
+    const s=line.match(/^\*Source:\s*(.+?)\*$/i);
+    if(s){cur.src=s[1];mode='body';continue;}
+    (mode==='why'?cur.why:cur.body).push(line);
+  }
+  return items;
+}
+function intelEl(st){
+  const div=document.createElement('div');div.className='intel';
+  div.innerHTML=`<div class="ih">${inline(st.title)}</div>`
+    +(st.body.length?`<div class="ib">${st.body.map(inline).join('<br>')}</div>`:'')
+    +(st.why.length?`<div class="iw"><b>Why it matters:</b> ${st.why.map(inline).join(' ')}</div>`:'')
+    +(st.src?`<div class="is">Source: ${esc(st.src)}</div>`:'');
+  return div;
 }
 const taskMeta=it=>{
   const pri=meta(it.body,'pri'),due=meta(it.body,'due'),bits=[];
@@ -476,21 +512,35 @@ async function renderToday(){
     getFile(`daily/${t}.md`),getFile('data/habits.md')]);
   body.innerHTML='';
 
+  // split ## Intel out of the daily note — it gets its own section below the fold
+  let planLines=[],intelLines=[];
+  if(daily){
+    const all=daily.text.split('\n');
+    const ii=all.findIndex(l=>l.replace(/\r$/,'').trim()==='## Intel');
+    if(ii>=0){
+      let j=ii+1;
+      while(j<all.length&&!all[j].startsWith('## '))j++;
+      intelLines=all.slice(ii+1,j);
+      planLines=all.slice(0,ii).concat(all.slice(j));
+    }else planLines=all;
+  }
+
   // today's plan (daily note)
   body.insertAdjacentHTML('beforeend','<div class="sec">Today\'s Plan</div>');
   const c1=card();body.appendChild(c1);
   if(!daily){empty(c1,'No plan yet. Run <b>/daily</b> in Claude — it sorts every pending dump and hands you Top 3 + first move.');}
   else{
     const wrap=document.createElement('div');wrap.className='note';
-    for(const raw of daily.text.split('\n')){
+    for(const raw of planLines){
       const line=raw.replace(/\r$/,'');
+      if(!line.trim()){wrap.insertAdjacentHTML('beforeend','<div class="gap"></div>');continue;}
       const m=line.match(/^- \[( |x)\] (.*)$/);
       if(m){wrap.appendChild(itemHTML({line,checked:m[1]==='x',body:m[2]},`daily/${t}.md`));continue;}
       const el=document.createElement('div');
       if(line.startsWith('# ')){el.className='h1';el.textContent=line.slice(2);}
       else if(line.startsWith('## ')){el.className='h2';el.textContent=line.slice(3);}
-      else if(line.startsWith('- ')){el.className='bullet';el.textContent='• '+line.slice(2);}
-      else el.innerHTML=esc(line).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+      else if(line.startsWith('- ')){el.className='bullet';el.innerHTML='• '+inline(line.slice(2));}
+      else el.innerHTML=inline(line);
       wrap.appendChild(el);
     }
     c1.appendChild(wrap);
@@ -526,6 +576,20 @@ async function renderToday(){
     if(od>=3)bits.push(`<span class="pri1">⚠ ${od} days overdue</span>`);
     c3.appendChild(itemHTML(it,'data/loops.md',bits.join(' · ')));
   });
+
+  // intel briefing — the 7am industry news, readable instead of buried in the note
+  if(intelLines.some(l=>l.trim())){
+    const stories=parseIntel(intelLines);
+    body.insertAdjacentHTML('beforeend','<div class="sec">Intel — Industry Brief</div>');
+    const fi=fold('Morning intel',stories.length?stories.length+' stories':'',true);
+    body.appendChild(fi.head);body.appendChild(fi.card);
+    if(stories.length)stories.forEach(st=>fi.card.appendChild(intelEl(st)));
+    else{
+      const wrap=document.createElement('div');wrap.className='note';
+      intelLines.forEach(l=>{const ln=l.replace(/\r$/,'');if(ln.trim()){const e=document.createElement('div');e.innerHTML=inline(ln);wrap.appendChild(e);}});
+      fi.card.appendChild(wrap);
+    }
+  }
 
   // habit streaks
   if(habits){
