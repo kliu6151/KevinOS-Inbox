@@ -277,6 +277,12 @@
     <div class="top"><h1>Money</h1><div class="sub">from HCP, Saturdays 5am</div></div>
     <div id="money-body" class="loading">Loading…</div>
   </div>
+
+  <!-- LEARN / EDUCATION -->
+  <div class="view" id="v-edu">
+    <div class="top"><h1>Learn</h1><div class="sub">training &amp; certifications</div></div>
+    <div id="edu-body" class="loading">Loading…</div>
+  </div>
 </main>
 
 <div id="sheet-ov" hidden>
@@ -302,6 +308,9 @@
   </button>
   <button data-v="money">
     <svg viewBox="0 0 24 24"><path d="M12 2.5v19M16.8 7.2c-.6-1.4-2.4-2.2-4.8-2.2-2.7 0-4.8 1.2-4.8 3.2s2.1 2.7 4.8 3.1c2.7.4 4.8 1.1 4.8 3.1s-2.1 3.2-4.8 3.2c-2.4 0-4.2-.8-4.8-2.2"/></svg><span>Money</span>
+  </button>
+  <button data-v="edu">
+    <svg viewBox="0 0 24 24"><path d="M12 4L2 9l10 5 10-5-10-5zM5 11.5V16c0 1.4 3.1 3 7 3s7-1.6 7-3v-4.5"/></svg><span>Learn</span>
   </button>
 </nav>
 
@@ -836,10 +845,48 @@ $('dev-back').onclick=()=>{
   $('v-dump').classList.add('active');
 };
 
+/* ---- LEARN / EDUCATION (renders learning/insulation.md with tappable progress) ---- */
+async function renderEdu(){
+  const body=$('edu-body');if(!body.innerHTML||body.querySelector('.loading'))body.innerHTML='<div class="loading">Loading…</div>';
+  const f=await getFile('learning/insulation.md');body.innerHTML='';
+  if(!f){const c=card();body.appendChild(c);empty(c,'No curriculum found. It lives at learning/insulation.md.');return;}
+  const lines=f.text.split('\n').map(l=>l.replace(/\r$/,''));
+  const total=lines.filter(l=>/^\s*- \[( |x)\] /.test(l)).length;
+  const done=lines.filter(l=>/^\s*- \[x\] /.test(l)).length;
+  if(total){
+    const chips=document.createElement('div');chips.className='chips';
+    const pct=Math.round(done/total*100);
+    chips.innerHTML=`<div class="chip">Progress <b>${done}/${total}</b></div><div class="chip">${pct}% done</div>`;
+    body.appendChild(chips);
+  }
+  const c=card();body.appendChild(c);
+  const wrap=document.createElement('div');wrap.className='note';
+  const md=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\[(.+?)\]\((https?:[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener" style="color:var(--accent)">$1</a>');
+  for(const line of lines){
+    const cb=line.match(/^\s*- \[( |x)\] (.*)$/);
+    if(cb){
+      const it={checked:cb[1]==='x',body:cb[2]};
+      const div=document.createElement('div');div.className='item'+(it.checked?' done':'');div.style.padding='11px 2px';
+      div.innerHTML=`<div class="box">✓</div><div class="txt">${md(it.body)}</div>`;
+      if(!it.checked)div.querySelector('.box').onclick=()=>toggleLine('learning/insulation.md',line,div).then(ok=>{if(ok)renderEdu();});
+      wrap.appendChild(div);continue;
+    }
+    const el=document.createElement('div');
+    if(line.startsWith('### ')){el.className='h1';el.style.fontSize='15px';el.textContent=line.slice(4);}
+    else if(line.startsWith('## ')){el.className='h2';el.textContent=line.slice(3);}
+    else if(line.startsWith('# ')){el.className='h1';el.textContent=line.slice(2);}
+    else if(line.match(/^\s*- /)){el.className='bullet';el.innerHTML='• '+md(line.replace(/^\s*- /,''));}
+    else if(line.trim()){el.innerHTML=md(line);}
+    else{el.className='gap';}
+    wrap.appendChild(el);
+  }
+  c.appendChild(wrap);
+}
+
 /* ---- nav + render orchestration ---- */
 let currentView='dump',lastRender=0;
-const renderers={today:renderToday,cal:renderCal,money:renderMoney};
-const viewBody={today:'today-body',cal:'cal-body',money:'money-body'};
+const renderers={today:renderToday,cal:renderCal,money:renderMoney,edu:renderEdu};
+const viewBody={today:'today-body',cal:'cal-body',money:'money-body',edu:'edu-body'};
 
 /* two-pass render: paint cached data instantly, then refresh from network.
    offline → banner over cached view, or an error card with retry if nothing cached. */
