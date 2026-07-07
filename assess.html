@@ -60,7 +60,7 @@
   <!-- ELECTRICAL CAPACITY -->
   <div class="card">
     <h2><span class="n">1</span> Electrical capacity screen</h2>
-    <div class="hint">Con Ed (Sept 1, 2026) wants proof the home's service can handle the added heat pumps. This is a preliminary screen — A1 confirms before install.</div>
+    <div class="hint">Con Ed (Sept 1, 2026) requires a <b>formal load calculation through their Project Control Center</b> — A1 / a licensed electrician produces that. This is a rep PRE-SCREEN only: flag likely panel-upgrade needs early so nothing surprises the customer.</div>
 
     <label>Main electrical service size</label>
     <select id="svc">
@@ -82,7 +82,7 @@
 
     <div class="out" id="capout"><div class="lbl">Result</div><div class="big">Enter values</div></div>
     <div class="steps" id="capsteps"></div>
-    <div class="disc">Preliminary NEC-style screen only. Not a stamped load calculation. A1 / a licensed electrician performs the official calculation Con Ed accepts.</div>
+    <div class="disc">Preliminary NEC-style pre-screen only — NOT the formal calc. Con Ed requires a formal load calculation submitted through their Project Control Center, produced by A1 / a licensed electrician.</div>
   </div>
 
   <!-- SAVINGS -->
@@ -102,6 +102,10 @@
     <input id="heatcost" type="number" inputmode="numeric" placeholder="from their bills, e.g. 2800" value="2800">
     <div class="hint">Heating portion only. From their oil/gas bills or annual spend.</div>
 
+    <label>Planned AirSync envelope work (tightening the home cuts the heating load first)</label>
+    <div class="checks" id="envs"></div>
+    <div class="hint">Air sealing + insulation lower the load the heat pump then has to cover — this is the AirSync stack, not heat pump alone.</div>
+
     <div class="out" id="savout"><div class="lbl">Estimated annual change</div><div class="big">Enter values</div></div>
     <div class="steps" id="savsteps"></div>
 
@@ -115,6 +119,7 @@
           <div><label>Heat pump COP — high</label><input id="cophi" type="number" inputmode="decimal" step="0.1" value="2.9"></div>
         </div>
         <div class="hint">COP = seasonal efficiency of the heat pump. Cold-climate units in NY typically land ~2.2–2.9 over a season. Current-system efficiencies assumed: gas 90%, oil 82%, propane 90%, electric 100%.</div>
+        <div id="envassump"></div>
       </div>
     </details>
     <div class="disc">Estimate only, not a guarantee. Actual savings depend on usage, weather, home envelope, and rates. Present as a range; never promise a fixed dollar figure. Rebates (Con Ed / NYSERDA) and added cooling value are on top of this and not included here.</div>
@@ -164,47 +169,64 @@ function capacity(){
     (cls==='bad'?`<br><b style="color:var(--red)">→ Panel/service upgrade opportunity — A1 can quote it.</b>`:'');
 }
 
+// envelope measures — each cuts the heating load; combined multiplicatively (diminishing returns)
+const ENV=[
+  {id:'airseal',t:'Air sealing',pct:12},
+  {id:'attic',t:'Attic / roof insulation',pct:14},
+  {id:'walls',t:'Wall insulation',pct:10},
+  {id:'base',t:'Basement / rim-joist insulation',pct:6},
+];
+$('envs').innerHTML=ENV.map(m=>`<label class="chk"><input type="checkbox" id="en_${m.id}">${m.t}</label>`).join('');
+$('envassump').innerHTML='<label>Envelope heat-load reduction per measure (%)</label><div class="row" style="flex-wrap:wrap;gap:8px">'+
+  ENV.map(m=>`<div style="min-width:46%"><label style="margin-top:6px">${m.t}</label><input id="ep_${m.id}" type="number" inputmode="decimal" value="${m.pct}"></div>`).join('')+
+  '</div><div class="hint">Combined multiplicatively (two measures don’t simply add), and real results vary with the home. Tune these to Airsync’s actual before/after data.</div>';
+
 // $/MMBtu delivered heat for the current fuel
 const FUEL={
-  oil:{price:4.20,mmbtu:0.139,eff:0.82,unit:'gal'},      // $/gal
-  gas:{price:1.60,mmbtu:0.1,eff:0.90,unit:'therm'},       // $/therm
-  propane:{price:3.60,mmbtu:0.0916,eff:0.90,unit:'gal'},  // $/gal
-  electric:{price:null,mmbtu:0.003412,eff:1.0,unit:'kWh'} // uses elec rate
+  oil:{price:4.20,mmbtu:0.139,eff:0.82},      // $/gal
+  gas:{price:1.60,mmbtu:0.1,eff:0.90},         // $/therm
+  propane:{price:3.60,mmbtu:0.0916,eff:0.90},  // $/gal
+  electric:{price:null,mmbtu:0.003412,eff:1.0} // uses elec rate
 };
 function savings(){
   const fuel=$('fuel').value, cost=+$('heatcost').value||0;
   const erate=+$('erate').value||0.30, copLo=+$('coplo').value||2.2, copHi=+$('cophi').value||2.9;
   const f=FUEL[fuel];
-  // $ per delivered MMBtu, current fuel
   const curPricePerUnit = fuel==='electric'? erate : f.price;
   const curCostPerMMBtu = curPricePerUnit / f.eff / f.mmbtu;
-  // annual delivered heat implied by their spend
   const deliveredMMBtu = cost>0 ? cost / curCostPerMMBtu : 0;
-  // heat pump $ per delivered MMBtu across COP range
+  // envelope load reduction (multiplicative)
+  let keep=1; ENV.forEach(m=>{ if($('en_'+m.id).checked) keep*=(1-(+$('ep_'+m.id).value||0)/100); });
+  const envRed=1-keep;
+  const reducedMMBtu=deliveredMMBtu*keep;
+  // cost of the reduced load, delivered by heat pump, across COP range
   const hpCostPerMMBtu = cop => erate / cop / 0.003412;
-  const newHi = deliveredMMBtu * hpCostPerMMBtu(copLo); // low COP = higher cost
-  const newLo = deliveredMMBtu * hpCostPerMMBtu(copHi);
+  const newHi = reducedMMBtu * hpCostPerMMBtu(copLo); // low COP = higher cost
+  const newLo = reducedMMBtu * hpCostPerMMBtu(copHi);
   const saveLo = cost-newHi, saveHi = cost-newLo;
   const el=$('savout'), st=$('savsteps');
   if(cost<=0){el.className='out';el.innerHTML='<div class="lbl">Estimated annual change</div><div class="big">Enter heating cost</div>';st.innerHTML='';return;}
-  const positive = saveHi>0;
   const rangeTxt = saveLo>0
     ? `Save ${fmt(saveLo)}–${fmt(saveHi)}/yr`
     : saveHi>0
       ? `About −${fmt(-saveLo)} to +${fmt(saveHi)}/yr`
       : `May cost ${fmt(-saveHi)}–${fmt(-saveLo)} more/yr`;
   el.className='out '+(saveLo>0?'ok':saveHi>0?'warn':'bad');
-  el.innerHTML=`<div class="lbl">Estimated annual heating change</div><div class="big">${rangeTxt}</div>`;
+  el.innerHTML=`<div class="lbl">Est. annual heating change — full AirSync stack</div><div class="big">${rangeTxt}</div>`;
   st.innerHTML=`Current: <b>${fmt(cost)}/yr</b> on ${fuel==='gas'?'natural gas':fuel} (≈ ${fmt(curCostPerMMBtu)}/MMBtu delivered)<br>`+
-    `Heat pump at ${erate.toFixed(2)}/kWh: ≈ ${fmt(hpCostPerMMBtu(copHi))}–${fmt(hpCostPerMMBtu(copLo))}/MMBtu (COP ${copHi}–${copLo})<br>`+
-    `Same heat delivered ≈ <b>${deliveredMMBtu.toFixed(1)} MMBtu/yr</b> → heat pump ${fmt(newLo)}–${fmt(newHi)}/yr`+
-    (fuel==='gas'?`<br><b style="color:var(--amber)">Note: vs cheap natural gas at NY electric rates, a heat pump often costs more to run. Lead with comfort, AC, rebates, and getting off fossil fuel — not fuel savings.</b>`:'')+
-    (fuel==='oil'||fuel==='propane'||fuel==='electric'?`<br><b style="color:var(--green)">Strong savings story vs ${fuel==='electric'?'electric resistance':fuel} — plus rebates and cooling on top.</b>`:'');
+    (envRed>0
+      ? `Envelope work cuts the heating load ≈ <b>${Math.round(envRed*100)}%</b> → ${reducedMMBtu.toFixed(1)} MMBtu/yr the heat pump must cover<br>`
+      : `No envelope work selected — heat pump covers the full ${deliveredMMBtu.toFixed(1)} MMBtu/yr<br>`)+
+    `Heat pump at ${erate.toFixed(2)}/kWh (COP ${copHi}–${copLo}): <b>${fmt(newLo)}–${fmt(newHi)}/yr</b><br>`+
+    (fuel==='gas'
+      ? `<b style="color:var(--amber)">vs cheap natural gas, the heat-pump swap alone may not save — but the envelope work does, and comfort + AC + rebates stack on top.</b>`
+      : `<b style="color:var(--green)">Envelope + heat pump vs ${fuel==='electric'?'electric resistance':fuel}: strong savings, before rebates and cooling.</b>`);
 }
 
 ['svc','sqft','hpmca'].forEach(id=>$(id).addEventListener('input',capacity));
 LOADS.forEach(l=>$('ld_'+l.id).addEventListener('change',capacity));
 ['fuel','heatcost','erate','coplo','cophi'].forEach(id=>$(id).addEventListener('input',savings));
+ENV.forEach(m=>{$('en_'+m.id).addEventListener('change',savings);$('ep_'+m.id).addEventListener('input',savings);});
 capacity();savings();
 </script>
 </body>
