@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e14">
+<title>AirSync Home Assessment</title>
+<style>
+  :root{
+    --bg:#0b0e14;--panel:#151a24;--panel2:#11151e;--border:#242d3d;--border2:#2f3a50;
+    --text:#e9eef6;--muted:#8e99ab;--faint:#5a6577;--accent:#5aa2ff;--accent-soft:rgba(90,162,255,.12);
+    --green:#31b873;--red:#ff6a5e;--amber:#e0a33e;--radius:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);
+    background-image:radial-gradient(1200px 500px at 50% -220px,rgba(90,162,255,.07),transparent);min-height:100vh;
+    padding:env(safe-area-inset-top) 0 40px}
+  main{padding:14px 16px;max-width:620px;margin:0 auto}
+  header{padding:18px 2px 6px}
+  header h1{font-size:22px;font-weight:750;letter-spacing:-.02em}
+  header h1 span{color:var(--accent)}
+  header p{color:var(--muted);font-size:13.5px;margin-top:4px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px;margin-top:16px;box-shadow:0 1px 2px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.22)}
+  .card h2{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .card h2 .n{width:22px;height:22px;border-radius:7px;background:var(--accent-soft);color:var(--accent);
+    display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+  .card .hint{color:var(--muted);font-size:12.5px;margin-top:4px;line-height:1.5}
+  label{display:block;font-size:13px;color:var(--muted);margin:14px 0 5px;font-weight:600}
+  input,select{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--border2);border-radius:11px;
+    padding:12px;font-size:16px;outline:none;font-family:inherit}
+  input:focus,select:focus{border-color:var(--accent)}
+  .row{display:flex;gap:10px}.row>div{flex:1}
+  .checks{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+  .chk{display:flex;align-items:center;gap:11px;padding:11px 4px;border-bottom:1px solid var(--border);font-size:15px}
+  .chk:last-child{border-bottom:none}
+  .chk input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
+  .out{margin-top:16px;padding:15px;border-radius:13px;border:1px solid var(--border2);background:var(--panel2)}
+  .out .big{font-size:26px;font-weight:750;letter-spacing:-.02em}
+  .out .lbl{font-size:12.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+  .out.ok{border-color:rgba(49,184,115,.5)}.out.ok .big{color:var(--green)}
+  .out.warn{border-color:rgba(224,163,62,.5)}.out.warn .big{color:var(--amber)}
+  .out.bad{border-color:rgba(255,106,94,.5)}.out.bad .big{color:var(--red)}
+  .steps{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.7;font-variant-numeric:tabular-nums}
+  .steps b{color:var(--text)}
+  .disc{font-size:12px;color:var(--faint);margin-top:12px;line-height:1.5;font-style:italic}
+  details{margin-top:12px;border-top:1px solid var(--border);padding-top:10px}
+  summary{font-size:13px;color:var(--accent);cursor:pointer;font-weight:600}
+  .assump{margin-top:10px}.assump label{margin-top:8px}
+  .foot{text-align:center;color:var(--faint);font-size:11.5px;padding:22px 0 6px;line-height:1.6}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>AirSync <span>Home Assessment</span></h1>
+    <p>Rep tool — electrical capacity screen + heat-pump savings estimate. Preliminary; A1 confirms the electrical, savings are estimates.</p>
+  </header>
+
+  <!-- ELECTRICAL CAPACITY -->
+  <div class="card">
+    <h2><span class="n">1</span> Electrical capacity screen</h2>
+    <div class="hint">Con Ed (Sept 1, 2026) wants proof the home's service can handle the added heat pumps. This is a preliminary screen — A1 confirms before install.</div>
+
+    <label>Main electrical service size</label>
+    <select id="svc">
+      <option value="100">100 A</option>
+      <option value="150">150 A</option>
+      <option value="200" selected>200 A</option>
+      <option value="400">400 A</option>
+    </select>
+
+    <label>Home size (sq ft, heated area)</label>
+    <input id="sqft" type="number" inputmode="numeric" placeholder="e.g. 1800" value="1800">
+
+    <label>Existing major electric loads in the home</label>
+    <div class="checks" id="loads"></div>
+
+    <label>Added heat pumps — total Minimum Circuit Ampacity (MCA)</label>
+    <input id="hpmca" type="number" inputmode="decimal" placeholder="sum of unit MCA from spec sheets, e.g. 45" value="0">
+    <div class="hint">Add up the MCA (amps) of every outdoor unit from the equipment spec sheets on the estimate.</div>
+
+    <div class="out" id="capout"><div class="lbl">Result</div><div class="big">Enter values</div></div>
+    <div class="steps" id="capsteps"></div>
+    <div class="disc">Preliminary NEC-style screen only. Not a stamped load calculation. A1 / a licensed electrician performs the official calculation Con Ed accepts.</div>
+  </div>
+
+  <!-- SAVINGS -->
+  <div class="card">
+    <h2><span class="n">2</span> Heat-pump savings estimate</h2>
+    <div class="hint">Compares the customer's current heating cost to a heat pump at NY electric rates. Honest ranges — savings are large vs oil/propane/electric, small or even negative vs cheap natural gas.</div>
+
+    <label>Current main heating fuel</label>
+    <select id="fuel">
+      <option value="oil">Heating oil</option>
+      <option value="gas">Natural gas</option>
+      <option value="propane">Propane</option>
+      <option value="electric">Electric resistance / baseboard</option>
+    </select>
+
+    <label>Customer's current annual heating cost ($/year)</label>
+    <input id="heatcost" type="number" inputmode="numeric" placeholder="from their bills, e.g. 2800" value="2800">
+    <div class="hint">Heating portion only. From their oil/gas bills or annual spend.</div>
+
+    <div class="out" id="savout"><div class="lbl">Estimated annual change</div><div class="big">Enter values</div></div>
+    <div class="steps" id="savsteps"></div>
+
+    <details>
+      <summary>Assumptions (edit to calibrate)</summary>
+      <div class="assump">
+        <label>Con Ed electric rate ($/kWh)</label>
+        <input id="erate" type="number" inputmode="decimal" step="0.01" value="0.30">
+        <div class="row">
+          <div><label>Heat pump COP — low</label><input id="coplo" type="number" inputmode="decimal" step="0.1" value="2.2"></div>
+          <div><label>Heat pump COP — high</label><input id="cophi" type="number" inputmode="decimal" step="0.1" value="2.9"></div>
+        </div>
+        <div class="hint">COP = seasonal efficiency of the heat pump. Cold-climate units in NY typically land ~2.2–2.9 over a season. Current-system efficiencies assumed: gas 90%, oil 82%, propane 90%, electric 100%.</div>
+      </div>
+    </details>
+    <div class="disc">Estimate only, not a guarantee. Actual savings depend on usage, weather, home envelope, and rates. Present as a range; never promise a fixed dollar figure. Rebates (Con Ed / NYSERDA) and added cooling value are on top of this and not included here.</div>
+  </div>
+
+  <div class="foot">AirSync HVAC &amp; Insulation · internal rep tool · v0<br>Figures are preliminary estimates for discussion, not a contract or guarantee.</div>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const fmt=n=>'$'+Math.round(n).toLocaleString();
+
+// existing-load adders (VA) for the capacity screen, NEC-style nameplate/demand estimates
+const LOADS=[
+  {id:'range',t:'Electric range / oven',va:8000},
+  {id:'dryer',t:'Electric clothes dryer',va:5000},
+  {id:'ewh',t:'Electric water heater',va:4500},
+  {id:'ev',t:'EV charger (Level 2)',va:11520},
+  {id:'oven2',t:'Electric cooktop (separate)',va:6000},
+];
+$('loads').innerHTML=LOADS.map(l=>`<label class="chk"><input type="checkbox" data-va="${l.va}" id="ld_${l.id}">${l.t}</label>`).join('');
+
+function capacity(){
+  const A=+$('svc').value, sqft=+$('sqft').value||0, hpMca=+$('hpmca').value||0;
+  const svcVA=A*240;
+  // general lighting/receptacle load (NEC 3 VA/sqft) + 1500 VA x2 small-appliance + 1500 laundry
+  let general=sqft*3+1500*2+1500;
+  let appliance=0; LOADS.forEach(l=>{if($('ld_'+l.id) && $('ld_'+l.id).checked) appliance+=l.va;});
+  // NEC 220.83 demand: first 10kVA at 100%, remainder at 40% (existing dwelling adding load)
+  const base=general+appliance;
+  const existingDemand=base<=10000?base:10000+(base-10000)*0.4;
+  const hpVA=hpMca*240; // heat pump running load at 100%
+  const total=existingDemand+hpVA;
+  const pct=total/svcVA*100;
+  const el=$('capout'), st=$('capsteps');
+  let cls,msg;
+  if(hpMca<=0){el.className='out';el.innerHTML='<div class="lbl">Result</div><div class="big">Enter heat-pump MCA</div>';st.innerHTML='';return;}
+  if(pct<=80){cls='ok';msg='Likely OK';}
+  else if(pct<=100){cls='warn';msg='Borderline — A1 must verify';}
+  else{cls='bad';msg='Likely needs a service/panel upgrade';}
+  el.className='out '+cls;
+  el.innerHTML=`<div class="lbl">Preliminary result</div><div class="big">${msg}</div><div class="lbl" style="margin-top:6px">Estimated load ≈ ${Math.round(pct)}% of a ${A}A service</div>`;
+  st.innerHTML=`Service: <b>${A}A × 240V = ${svcVA.toLocaleString()} VA</b><br>`+
+    `Estimated existing demand (NEC 220.83): <b>${Math.round(existingDemand).toLocaleString()} VA</b><br>`+
+    `Added heat pumps: <b>${hpMca} A × 240V = ${hpVA.toLocaleString()} VA</b><br>`+
+    `Total ≈ <b>${Math.round(total).toLocaleString()} VA</b> of ${svcVA.toLocaleString()} available`+
+    (cls==='bad'?`<br><b style="color:var(--red)">→ Panel/service upgrade opportunity — A1 can quote it.</b>`:'');
+}
+
+// $/MMBtu delivered heat for the current fuel
+const FUEL={
+  oil:{price:4.20,mmbtu:0.139,eff:0.82,unit:'gal'},      // $/gal
+  gas:{price:1.60,mmbtu:0.1,eff:0.90,unit:'therm'},       // $/therm
+  propane:{price:3.60,mmbtu:0.0916,eff:0.90,unit:'gal'},  // $/gal
+  electric:{price:null,mmbtu:0.003412,eff:1.0,unit:'kWh'} // uses elec rate
+};
+function savings(){
+  const fuel=$('fuel').value, cost=+$('heatcost').value||0;
+  const erate=+$('erate').value||0.30, copLo=+$('coplo').value||2.2, copHi=+$('cophi').value||2.9;
+  const f=FUEL[fuel];
+  // $ per delivered MMBtu, current fuel
+  const curPricePerUnit = fuel==='electric'? erate : f.price;
+  const curCostPerMMBtu = curPricePerUnit / f.eff / f.mmbtu;
+  // annual delivered heat implied by their spend
+  const deliveredMMBtu = cost>0 ? cost / curCostPerMMBtu : 0;
+  // heat pump $ per delivered MMBtu across COP range
+  const hpCostPerMMBtu = cop => erate / cop / 0.003412;
+  const newHi = deliveredMMBtu * hpCostPerMMBtu(copLo); // low COP = higher cost
+  const newLo = deliveredMMBtu * hpCostPerMMBtu(copHi);
+  const saveLo = cost-newHi, saveHi = cost-newLo;
+  const el=$('savout'), st=$('savsteps');
+  if(cost<=0){el.className='out';el.innerHTML='<div class="lbl">Estimated annual change</div><div class="big">Enter heating cost</div>';st.innerHTML='';return;}
+  const positive = saveHi>0;
+  const rangeTxt = saveLo>0
+    ? `Save ${fmt(saveLo)}–${fmt(saveHi)}/yr`
+    : saveHi>0
+      ? `About −${fmt(-saveLo)} to +${fmt(saveHi)}/yr`
+      : `May cost ${fmt(-saveHi)}–${fmt(-saveLo)} more/yr`;
+  el.className='out '+(saveLo>0?'ok':saveHi>0?'warn':'bad');
+  el.innerHTML=`<div class="lbl">Estimated annual heating change</div><div class="big">${rangeTxt}</div>`;
+  st.innerHTML=`Current: <b>${fmt(cost)}/yr</b> on ${fuel==='gas'?'natural gas':fuel} (≈ ${fmt(curCostPerMMBtu)}/MMBtu delivered)<br>`+
+    `Heat pump at ${erate.toFixed(2)}/kWh: ≈ ${fmt(hpCostPerMMBtu(copHi))}–${fmt(hpCostPerMMBtu(copLo))}/MMBtu (COP ${copHi}–${copLo})<br>`+
+    `Same heat delivered ≈ <b>${deliveredMMBtu.toFixed(1)} MMBtu/yr</b> → heat pump ${fmt(newLo)}–${fmt(newHi)}/yr`+
+    (fuel==='gas'?`<br><b style="color:var(--amber)">Note: vs cheap natural gas at NY electric rates, a heat pump often costs more to run. Lead with comfort, AC, rebates, and getting off fossil fuel — not fuel savings.</b>`:'')+
+    (fuel==='oil'||fuel==='propane'||fuel==='electric'?`<br><b style="color:var(--green)">Strong savings story vs ${fuel==='electric'?'electric resistance':fuel} — plus rebates and cooling on top.</b>`:'');
+}
+
+['svc','sqft','hpmca'].forEach(id=>$(id).addEventListener('input',capacity));
+LOADS.forEach(l=>$('ld_'+l.id).addEventListener('change',capacity));
+['fuel','heatcost','erate','coplo','cophi'].forEach(id=>$(id).addEventListener('input',savings));
+capacity();savings();
+</script>
+</body>
+</html>
