@@ -82,6 +82,26 @@
   .item.done .box{background:linear-gradient(180deg,var(--green),var(--green2));border-color:var(--green);color:#fff;transform:scale(1.05)}
   .txt{font-size:16px;line-height:1.45;flex:1}
   .meta{font-size:12.5px;color:var(--muted);margin-top:3px}
+  /* concept A: 44px checkbox hit area (visual box stays 24px) */
+  .hit{flex:none;padding:10px;margin:-10px;display:flex}
+  /* concept A: implementation intention under the task title, never truncated */
+  .intent{font-size:14px;line-height:1.5;color:var(--muted);margin-top:4px}
+  /* concept A: top-3 progress + completion acknowledgment */
+  .prog{display:flex;align-items:center;gap:10px;padding:2px 2px 0}
+  .pdots{display:flex;gap:6px}
+  .pdot{width:10px;height:10px;border-radius:50%;background:var(--border2)}
+  .pdot.on{background:linear-gradient(180deg,var(--green),var(--green2))}
+  .pt{font-size:13px;color:var(--muted);font-weight:650}
+  .ack{margin:10px 0 0;padding:12px 14px;border-radius:12px;font-size:14.5px;font-weight:600;
+    color:var(--green);background:rgba(49,184,115,.1);border:1px solid rgba(49,184,115,.3)}
+  /* concept A: first-move callout */
+  .fm{margin-top:14px;padding:12px 14px;background:var(--accent-soft);border-left:3px solid var(--accent);
+    border-radius:0 12px 12px 0;font-size:15px;line-height:1.55}
+  .fm b{color:var(--accent)}
+  /* concept A: read-only rows in the full-plan fold (the interactive copies live above) */
+  .ro{display:flex;gap:8px;padding:5px 0;font-size:14.5px;line-height:1.5}
+  .ro.done{opacity:.5;text-decoration:line-through}
+  .ro .glyph{flex:none;color:var(--faint)}
   .pri1{color:var(--red);font-weight:600}
   .today-badge{color:var(--accent);font-weight:600}
   .empty{padding:16px;color:var(--muted);font-size:14.5px;line-height:1.5}
@@ -237,7 +257,7 @@
     nav button.on:hover{color:var(--accent)}
     .cal-cell:hover{background:rgba(255,255,255,.04)}
     .more:hover{text-decoration:underline}
-    .box:hover{border-color:var(--green)}
+    .hit:hover .box{border-color:var(--green)}
   }
 </style>
 </head>
@@ -398,6 +418,10 @@ function openSheet(it,file,title){
     if(kv&&kv[2])rows.push([kv[1].replace(/-/g,' '),kv[2]]);
     else if(seg)rows.push(['Note',seg]);
   });
+  if(!rows.length){ // never show an empty sheet — fall back to the full line text
+    const rest=it.body.split(' — ').slice(1).join(' — ');
+    rows.push(['Note',rest||it.body]);
+  }
   $('sheet-rows').innerHTML=rows.map(([k,v])=>`<div class="srow"><div class="k">${esc(k)}</div><div>${esc(v)}</div></div>`).join('');
   $('sheet-ov').hidden=false;
 }
@@ -433,12 +457,30 @@ function itemHTML(it,file,extra='',title){
   const t=title||stripMeta(it.body);
   const div=document.createElement('div');
   div.className='item'+(it.checked?' done':'');
-  div.innerHTML=`<div class="box">✓</div><div style="flex:1"><div class="txt">${esc(t)}</div>${extra?`<div class="meta">${extra}</div>`:''}</div>`;
+  div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${esc(t)}</div>${extra?`<div class="meta">${extra}</div>`:''}</div>`;
   if(!it.checked){
-    div.querySelector('.box').onclick=e=>{e.stopPropagation();toggleLine(file,it.line,div).then(ok=>{if(ok)setTimeout(()=>runRender(currentView),600);});};
+    div.querySelector('.hit').onclick=e=>{e.stopPropagation();toggleLine(file,it.line,div).then(ok=>{if(ok)afterToggle(file);});};
     div.onclick=()=>openSheet(it,file,t);
   }
   return div;
+}
+/* daily-plan item: title + untruncated implementation intention; everything visible, no sheet needed */
+function planItem(it,file){
+  const di=it.body.indexOf(' — ');
+  const title=di>0?it.body.slice(0,di):it.body;
+  const intent=di>0?it.body.slice(di+3).trim():'';
+  const div=document.createElement('div');
+  div.className='item'+(it.checked?' done':'');
+  div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${inline(title)}</div>${intent?`<div class="intent">${inline(intent)}</div>`:''}</div>`;
+  if(!it.checked)div.querySelector('.hit').onclick=e=>{e.stopPropagation();toggleLine(file,it.line,div).then(ok=>{if(ok)afterToggle(file);});};
+  return div;
+}
+/* after a successful check: Today updates in place (no layout jump, folds keep state);
+   other tabs re-render as before (money totals, calendar lists) */
+function afterToggle(file){
+  updateBadge();
+  if(currentView==='today'){renderProgress();return;}
+  setTimeout(()=>runRender(currentView),600);
 }
 function card(){const c=document.createElement('div');c.className='card';return c;}
 function empty(card,msg){card.innerHTML=`<div class="empty">${msg}</div>`;}
@@ -470,19 +512,75 @@ function groupInto(cardEl,items,make){
     arr.forEach(it=>cardEl.appendChild(make(it)));
   }
 }
-/* intel briefing: "**1. Headline**" blocks with body, "**Why it matters:**", "*Source: ...*" */
+/* ---- daily-note section parsing (concept A) ---- */
+function noteSections(text){
+  const secs=[];let pre=[],cur=null;
+  for(const raw of text.split('\n')){
+    const line=raw.replace(/\r$/,'');
+    if(line.startsWith('## ')){cur={title:line.slice(3).trim(),lines:[]};secs.push(cur);continue;}
+    if(line.startsWith('# '))continue;
+    (cur?cur.lines:pre).push(line);
+  }
+  return {pre,secs};
+}
+const secByName=(secs,re)=>secs.find(s=>re.test(s.title));
+const checkboxLines=lines=>lines.map(l=>{const m=l.match(/^- \[( |x)\] (.*)$/);return m?{line:l,checked:m[1]==='x',body:m[2]}:null;}).filter(Boolean);
+/* Top 3 state from the cached daily note (cache is updated on every successful toggle) */
+function top3State(){
+  const d=cacheGet(`daily/${todayStr()}.md`);
+  if(!d)return null;
+  const sec=secByName(noteSections(d.text).secs,/^top 3/i);
+  if(!sec)return null;
+  const items=checkboxLines(sec.lines);
+  return items.length?{done:items.filter(i=>i.checked).length,total:items.length}:null;
+}
+/* progress dots + acknowledgment; lives in #prog-wrap at the top of Today */
+function renderProgress(){
+  const w=$('prog-wrap');if(!w)return;
+  const st=top3State();
+  if(!st){w.innerHTML='';return;}
+  w.innerHTML=`<div class="prog"><span class="pdots">${Array.from({length:st.total},(_,i)=>`<span class="pdot${i<st.done?' on':''}"></span>`).join('')}</span><span class="pt">${st.done} of ${st.total}</span></div>`
+    +(st.done>=st.total?'<div class="ack">Top 3 cleared. Anything else today is bonus — or dump it for tomorrow.</div>':'');
+}
+/* presentation-layer dedup: a task/loop is "covered" by a plan line when they share
+   ≥2 meaningful tokens AND the overlap is ≥60% of the smaller token set.
+   Limitation: a full paraphrase with no shared tokens slips through; two different
+   tasks about the same subject can rarely over-match. Source data is never touched. */
+const STOPW=new Set(['the','a','an','to','for','of','in','on','re','and','or','with','at','from','by','it','is','are','was','be','before','after','via','per']);
+const simTokens=s=>{const set=new Set();for(const w of s.toLowerCase().split(/[^a-z0-9+#]+/)){if(w.length>1&&!STOPW.has(w))set.add(w);}return set;};
+function similar(a,b){
+  const A=simTokens(a.split(' | ')[0]),B=simTokens(b.split(' | ')[0]);
+  if(A.size<2||B.size<2)return false;
+  let n=0;A.forEach(x=>{if(B.has(x))n++;});
+  return n>=2&&n/Math.min(A.size,B.size)>=0.6;
+}
+const dueLoopMeta=it=>{
+  const bits=[];
+  const w=meta(it.body,'waiting-on');if(w)bits.push('waiting on '+w);
+  const od=Math.round((new Date(todayStr())-new Date(meta(it.body,'nudge')))/864e5);
+  if(od>=3)bits.push(`<span class="pri1">⚠ ${od} days overdue</span>`);
+  return bits.join(' · ');
+};
+
+/* intel briefing: "**1. Headline**" blocks with body, "**Why it matters:**", "*Source: ...*".
+   Tolerant of trailing "(source)" text after the headline's closing ** — routine output drifts. */
 function parseIntel(lines){
   const items=[];let cur=null,mode='body';
   for(const raw of lines){
     const line=raw.replace(/\r$/,'').trim();
     if(!line)continue;
-    const h=line.match(/^\*\*\d+\.\s*(.+?)\*\*$/);
-    if(h){cur={title:h[1],body:[],why:[],src:''};items.push(cur);mode='body';continue;}
+    const h=line.match(/^\*\*(\d+)[.)]\s*(.+?)\*\*(.*)$/);
+    if(h){
+      cur={title:h[2],body:[],why:[],src:''};
+      const trail=h[3].trim();
+      if(trail){const p=trail.match(/^\((.+)\)$/);if(p)cur.src=p[1];else cur.body.push(trail);}
+      items.push(cur);mode='body';continue;
+    }
     if(!cur)continue;
-    const w=line.match(/^\*\*Why it matters:\*\*\s*(.*)$/i);
+    const w=line.match(/^\*\*Why it matters:?\*\*:?\s*(.*)$/i);
     if(w){mode='why';if(w[1])cur.why.push(w[1]);continue;}
-    const s=line.match(/^\*Source:\s*(.+?)\*$/i);
-    if(s){cur.src=s[1];mode='body';continue;}
+    const s=line.match(/^[*_]?Source:\s*(.+?)[*_]?$/i);
+    if(s){cur.src=cur.src?cur.src+' · '+s[1]:s[1];mode='body';continue;}
     (mode==='why'?cur.why:cur.body).push(line);
   }
   return items;
@@ -540,49 +638,70 @@ save.onclick=async()=>{
   save.disabled=false;
 };
 
-/* ---- TODAY (plan → schedule → needs attention → streaks → held pile) ---- */
+/* ---- TODAY (concept A: progress → top 3 w/ intentions → first move → follow-ups →
+        schedule → needs attention (deduped, capped) → intel (folded) → streaks → held → full plan) ---- */
 async function renderToday(){
   const body=$('today-body');
   $('today-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
   if(!keepView)body.innerHTML=skel();
-  const t=todayStr(),horizon=plusDays(3);
+  const t=todayStr(),horizon=plusDays(3),dailyPath=`daily/${t}.md`;
   const [cal,loops,tasks,daily,habits]=await Promise.all([
     getFile('data/calendar.md'),getFile('data/loops.md'),getFile('data/tasks.md'),
-    getFile(`daily/${t}.md`),getFile('data/habits.md')]);
+    getFile(dailyPath),getFile('data/habits.md')]);
   body.innerHTML='';
 
-  // split ## Intel out of the daily note — it gets its own section below the fold
-  let planLines=[],intelLines=[];
-  if(daily){
-    const all=daily.text.split('\n');
-    const ii=all.findIndex(l=>l.replace(/\r$/,'').trim()==='## Intel');
-    if(ii>=0){
-      let j=ii+1;
-      while(j<all.length&&!all[j].startsWith('## '))j++;
-      intelLines=all.slice(ii+1,j);
-      planLines=all.slice(0,ii).concat(all.slice(j));
-    }else planLines=all;
+  // parse the daily note into ## sections; Intel gets its own fold further down
+  const ns=daily?noteSections(daily.text):{pre:[],secs:[]};
+  const intelSec=secByName(ns.secs,/^intel\b/i);
+  const top3Sec=secByName(ns.secs,/^top 3/i);
+  const top3=top3Sec?checkboxLines(top3Sec.lines):[];
+  const fmSec=secByName(ns.secs,/^first move/i);
+  const dfSec=secByName(ns.secs,/^due follow/i);
+  const noteFollowups=dfSec?checkboxLines(dfSec.lines):[];
+  const rqSec=secByName(ns.secs,/^rebate submit/i);
+
+  // top-3 progress (filled by renderProgress; updated in place after each check)
+  body.insertAdjacentHTML('beforeend','<div id="prog-wrap"></div>');
+
+  if(!daily){
+    body.insertAdjacentHTML('beforeend','<div class="sec">Today\'s Plan</div>');
+    const c0=card();body.appendChild(c0);
+    empty(c0,'No plan yet. Run <b>/daily</b> in Claude — it sorts every pending dump and hands you Top 3 + first move.');
   }
 
-  // today's plan (daily note)
-  body.insertAdjacentHTML('beforeend','<div class="sec">Today\'s Plan</div>');
-  const c1=card();body.appendChild(c1);
-  if(!daily){empty(c1,'No plan yet. Run <b>/daily</b> in Claude — it sorts every pending dump and hands you Top 3 + first move.');}
-  else{
-    const wrap=document.createElement('div');wrap.className='note';
-    for(const raw of planLines){
-      const line=raw.replace(/\r$/,'');
-      if(!line.trim()){wrap.insertAdjacentHTML('beforeend','<div class="gap"></div>');continue;}
+  // TOP 3 — full implementation intentions, never truncated
+  if(top3.length){
+    body.insertAdjacentHTML('beforeend','<div class="sec">Top 3</div>');
+    const c1=card();body.appendChild(c1);
+    top3.forEach(it=>c1.appendChild(planItem(it,dailyPath)));
+  }
+
+  // FIRST MOVE — the one action that starts the day, above everything secondary
+  if(fmSec){
+    const fmTxt=fmSec.lines.map(l=>l.trim()).filter(Boolean).map(inline).join('<br>');
+    if(fmTxt)body.insertAdjacentHTML('beforeend',`<div class="fm"><b>First move:</b> ${fmTxt}</div>`);
+  }
+  renderProgress();
+
+  // DUE FOLLOW-UPS from the plan (checkbox lines only; prose stays in the full-plan fold)
+  if(noteFollowups.length){
+    body.insertAdjacentHTML('beforeend','<div class="sec">Due Follow-ups</div>');
+    const cf=card();body.appendChild(cf);
+    noteFollowups.forEach(it=>cf.appendChild(planItem(it,dailyPath)));
+  }
+
+  // REBATE SUBMIT QUEUE (Sundays) — actionable money items stay visible
+  if(rqSec&&rqSec.lines.some(l=>l.trim())){
+    body.insertAdjacentHTML('beforeend','<div class="sec">Rebate Submit Queue</div>');
+    const cq=card();body.appendChild(cq);
+    const wq=document.createElement('div');wq.className='note';
+    for(const line of rqSec.lines){
+      if(!line.trim())continue;
       const m=line.match(/^- \[( |x)\] (.*)$/);
-      if(m){wrap.appendChild(itemHTML({line,checked:m[1]==='x',body:m[2]},`daily/${t}.md`));continue;}
-      const el=document.createElement('div');
-      if(line.startsWith('# ')){el.className='h1';el.textContent=line.slice(2);}
-      else if(line.startsWith('## ')){el.className='h2';el.textContent=line.slice(3);}
-      else if(line.startsWith('- ')){el.className='bullet';el.innerHTML='• '+inline(line.slice(2));}
-      else el.innerHTML=inline(line);
-      wrap.appendChild(el);
+      if(m){cq.appendChild(planItem({line,checked:m[1]==='x',body:m[2]},dailyPath));continue;}
+      const e=document.createElement('div');e.innerHTML=inline(line.replace(/^- /,'• '));wq.appendChild(e);
     }
-    c1.appendChild(wrap);
+    if(wq.childNodes.length)cq.insertBefore(wq,cq.firstChild);
   }
 
   // schedule (today + next 3 days), capped at 5
@@ -599,33 +718,39 @@ async function renderToday(){
     return itemHTML(it,'data/calendar.md',label,evTitle(it.body));
   });
 
-  // needs attention: due follow-ups + priority/due tasks
+  // NEEDS ATTENTION — deduped against the plan, max 3 visible, rest behind "Also on the radar"
   const loopsAll=loops?parseChecklist(loops.text).filter(it=>!it.checked):[];
   const tasksAll=tasks?parseChecklist(tasks.text).filter(it=>!it.checked):[];
   const dueLoops=loopsAll.filter(it=>{const n=meta(it.body,'nudge');return n&&n<=t;});
   const hotTasks=tasksAll.filter(it=>{const d=meta(it.body,'due');return (d&&d<=t)||meta(it.body,'pri')==='1';});
+  const planTexts=top3.map(i=>i.body).concat(noteFollowups.map(i=>i.body));
+  const hot=[
+    ...hotTasks.map(it=>({it,file:'data/tasks.md',info:taskMeta(it)})),
+    ...dueLoops.map(it=>({it,file:'data/loops.md',info:dueLoopMeta(it)}))
+  ].map(h=>({...h,dup:planTexts.some(p=>similar(p,h.it.body))}));
+  const freshHot=hot.filter(h=>!h.dup),dupHot=hot.filter(h=>h.dup);
+  const visibleHot=freshHot.slice(0,3),radar=freshHot.slice(3).concat(dupHot);
   body.insertAdjacentHTML('beforeend','<div class="sec">Needs Attention</div>');
   const c3=card();body.appendChild(c3);
-  if(!dueLoops.length&&!hotTasks.length)empty(c3,'Nothing due. The system is holding your loops — head clear.');
-  hotTasks.forEach(it=>c3.appendChild(itemHTML(it,'data/tasks.md',taskMeta(it))));
-  dueLoops.forEach(it=>{
-    const bits=[];
-    const w=meta(it.body,'waiting-on');if(w)bits.push('waiting on '+w);
-    const od=Math.round((new Date(t)-new Date(meta(it.body,'nudge')))/864e5);
-    if(od>=3)bits.push(`<span class="pri1">⚠ ${od} days overdue</span>`);
-    c3.appendChild(itemHTML(it,'data/loops.md',bits.join(' · ')));
-  });
+  if(!hot.length)empty(c3,'Nothing due. The system is holding your loops — head clear.');
+  else if(!visibleHot.length)empty(c3,'Everything urgent today is already covered by your Top 3.');
+  visibleHot.forEach(h=>c3.appendChild(itemHTML(h.it,h.file,h.info)));
+  if(radar.length){
+    const fr=fold('Also on the radar',radar.length+' more');
+    body.appendChild(fr.head);body.appendChild(fr.card);
+    radar.forEach(h=>fr.card.appendChild(itemHTML(h.it,h.file,(h.dup?'<span class="today-badge">≈ in Top 3</span>'+(h.info?' · ':''):'')+h.info)));
+  }
 
-  // intel briefing — the 7am industry news, readable instead of buried in the note
-  if(intelLines.some(l=>l.trim())){
-    const stories=parseIntel(intelLines);
+  // intel briefing — collapsed by default; open it when you want the news
+  if(intelSec&&intelSec.lines.some(l=>l.trim())){
+    const stories=parseIntel(intelSec.lines);
     body.insertAdjacentHTML('beforeend','<div class="sec">Intel — Industry Brief</div>');
-    const fi=fold('Morning intel',stories.length?stories.length+' stories':'',true);
+    const fi=fold('Morning intel',stories.length?stories.length+' stories':'',false);
     body.appendChild(fi.head);body.appendChild(fi.card);
     if(stories.length)stories.forEach(st=>fi.card.appendChild(intelEl(st)));
     else{
       const wrap=document.createElement('div');wrap.className='note';
-      intelLines.forEach(l=>{const ln=l.replace(/\r$/,'');if(ln.trim()){const e=document.createElement('div');e.innerHTML=inline(ln);wrap.appendChild(e);}});
+      intelSec.lines.forEach(l=>{if(l.trim()){const e=document.createElement('div');e.innerHTML=inline(l);wrap.appendChild(e);}});
       fi.card.appendChild(wrap);
     }
   }
@@ -657,6 +782,27 @@ async function renderToday(){
       body.appendChild(f2.head);body.appendChild(f2.card);
       groupInto(f2.card,heldLoops,it=>itemHTML(it,'data/loops.md',loopMeta(it)));
     }
+  }
+
+  // FULL PLAN — the note as written, read-only (checkboxes are interactive in the sections above).
+  // Opens by default only when the note has no Top 3 to extract, so nothing is ever hidden.
+  if(daily){
+    body.insertAdjacentHTML('beforeend','<div class="sec">Full Plan</div>');
+    const fp=fold('The plan as written','',!top3.length);
+    const wp=document.createElement('div');wp.className='note';
+    const docLines=[...ns.pre,...ns.secs.filter(s=>s!==intelSec).flatMap(s=>['## '+s.title,...s.lines])];
+    for(const line of docLines){
+      if(!line.trim()){wp.insertAdjacentHTML('beforeend','<div class="gap"></div>');continue;}
+      const m=line.match(/^- \[( |x)\] (.*)$/);
+      const e=document.createElement('div');
+      if(m){e.className='ro'+(m[1]==='x'?' done':'');e.innerHTML=`<span class="glyph">${m[1]==='x'?'✓':'○'}</span><span>${inline(m[2])}</span>`;}
+      else if(line.startsWith('## ')){e.className='h2';e.textContent=line.slice(3);}
+      else if(line.startsWith('- ')){e.className='bullet';e.innerHTML='• '+inline(line.slice(2));}
+      else e.innerHTML=inline(line);
+      wp.appendChild(e);
+    }
+    fp.card.appendChild(wp);
+    body.appendChild(fp.head);body.appendChild(fp.card);
   }
 }
 
@@ -774,9 +920,9 @@ function ledgerRow(line){
 
   const div=document.createElement('div');
   div.className='item'+(it.checked?' done':'');
-  div.innerHTML=`${cm?'<div class="box">✓</div>':''}<div class="lwrap"><div class="lmain"><div class="txt">${esc(name)}${chip?`<span class="ljob">${esc(chip)}</span>`:''}</div>${metaBits.length?`<div class="meta">${esc(metaBits.join(' · '))}</div>`:''}</div>${(amt||age)?`<div class="lamt">${amt?`<div class="amt">${fmtAmt(amt)}</div>`:''}${age?`<div class="age${warn?' warn':''}">${age}${warn?' ⚠':''}</div>`:''}</div>`:''}</div>`;
+  div.innerHTML=`${cm?'<div class="hit"><div class="box">✓</div></div>':''}<div class="lwrap"><div class="lmain"><div class="txt">${esc(name)}${chip?`<span class="ljob">${esc(chip)}</span>`:''}</div>${metaBits.length?`<div class="meta">${esc(metaBits.join(' · '))}</div>`:''}</div>${(amt||age)?`<div class="lamt">${amt?`<div class="amt">${fmtAmt(amt)}</div>`:''}${age?`<div class="age${warn?' warn':''}">${age}${warn?' ⚠':''}</div>`:''}</div>`:''}</div>`;
   if(cm&&!it.checked){
-    div.querySelector('.box').onclick=e=>{e.stopPropagation();toggleLine('data/money.md',it.line,div).then(ok=>{if(ok)setTimeout(()=>runRender(currentView),600);});};
+    div.querySelector('.hit').onclick=e=>{e.stopPropagation();toggleLine('data/money.md',it.line,div).then(ok=>{if(ok)afterToggle('data/money.md');});};
     div.onclick=()=>openSheet(it,'data/money.md',name+(chip?' '+chip:''));
   }
   return div;
@@ -820,6 +966,7 @@ async function renderMoney(){
 async function renderDev(){
   const body=$('dev-body');body.innerHTML='<div class="loading">Loading…</div>';
   const f=await getFile('ROADMAP.md');body.innerHTML='';
+  body.classList.remove('loading');
   const c=card();body.appendChild(c);
   if(!f){empty(c,'No ROADMAP.md found.');return;}
   const wrap=document.createElement('div');wrap.className='note';
@@ -852,8 +999,8 @@ function eduLine(wrap,line){
   if(cb){
     const it={checked:cb[1]==='x',body:cb[2]};
     const div=document.createElement('div');div.className='item'+(it.checked?' done':'');div.style.padding='10px 2px';
-    div.innerHTML=`<div class="box">✓</div><div class="txt">${eduMd(it.body)}</div>`;
-    if(!it.checked)div.querySelector('.box').onclick=()=>toggleLine('learning/insulation.md',line,div); // marks done in place, keeps folds
+    div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div class="txt">${eduMd(it.body)}</div>`;
+    if(!it.checked)div.querySelector('.hit').onclick=()=>toggleLine('learning/insulation.md',line,div); // marks done in place, keeps folds
     wrap.appendChild(div);return;
   }
   const el=document.createElement('div');
@@ -921,6 +1068,9 @@ const viewBody={today:'today-body',cal:'cal-body',money:'money-body',edu:'edu-bo
 async function runRender(name){
   const fn=renderers[name];if(!fn||!token())return;
   const bodyEl=$(viewBody[name]);
+  // the initial "Loading…" container class centers + mutes ALL text; it must not
+  // survive into rendered content (skeleton/empty/error states carry their own styles)
+  bodyEl.classList.remove('loading');
   let painted=false;
   if(hasCache()){
     cacheOnly=true;
@@ -946,13 +1096,19 @@ async function runRender(name){
   updateBadge();
 }
 
-/* red count on the Today tab: due/priority tasks + due follow-ups, from cache */
+/* Today badge: remaining Top 3 when today's plan exists (counts down to zero as Kevin
+   completes the plan); falls back to the due/priority count on days with no plan */
 function updateBadge(){
-  const t=todayStr();
-  const tk=cacheGet('data/tasks.md'),lp=cacheGet('data/loops.md');
-  let n=0;
-  if(tk)n+=parseChecklist(tk.text).filter(it=>{const d=meta(it.body,'due');return !it.checked&&((d&&d<=t)||meta(it.body,'pri')==='1');}).length;
-  if(lp)n+=parseChecklist(lp.text).filter(it=>{const nd=meta(it.body,'nudge');return !it.checked&&nd&&nd<=t;}).length;
+  const st=top3State();
+  let n;
+  if(st)n=st.total-st.done;
+  else{
+    const t=todayStr();
+    const tk=cacheGet('data/tasks.md'),lp=cacheGet('data/loops.md');
+    n=0;
+    if(tk)n+=parseChecklist(tk.text).filter(it=>{const d=meta(it.body,'due');return !it.checked&&((d&&d<=t)||meta(it.body,'pri')==='1');}).length;
+    if(lp)n+=parseChecklist(lp.text).filter(it=>{const nd=meta(it.body,'nudge');return !it.checked&&nd&&nd<=t;}).length;
+  }
   const btn=document.querySelector('nav button[data-v="today"]');
   let b=btn.querySelector('.nbadge');
   if(!n){if(b)b.remove();return;}
