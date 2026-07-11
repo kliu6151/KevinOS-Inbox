@@ -396,7 +396,7 @@ function skel(){return '<div class="card">'+[78,52,68,38].map(w=>`<div class="sk
 
 /* ---- checkbox toggle: tolerant line match (ignores \r and edge whitespace) ---- */
 const norm=s=>s.replace(/\r/g,'').trim();
-async function toggleLine(path,line,el){
+async function toggleLine(path,line,el,quiet){
   if(el)el.classList.add('done');
   try{
     const f=await getFile(path);
@@ -413,7 +413,8 @@ async function toggleLine(path,line,el){
     return true;
   }catch(e){
     if(el)el.classList.remove('done');
-    alert('Sync failed: '+e.message);
+    if(quiet)console.warn('quiet toggle failed for',path,e.message); // /recap reconciles stragglers
+    else alert('Sync failed: '+e.message);
     return false;
   }
 }
@@ -481,7 +482,10 @@ function itemHTML(it,file,extra='',title){
   }
   return div;
 }
-/* daily-plan item: title + untruncated implementation intention; everything visible, no sheet needed */
+/* daily-plan item: title + untruncated implementation intention; everything visible, no sheet needed.
+   Checking a plan item also quietly checks its hidden duplicate in tasks.md/loops.md
+   (the same match that hides it from Needs Attention) — one tap closes both records. */
+let dupCascade={}; // plan line -> [{file,line}] of matching open tasks/loops, rebuilt each Today render
 function planItem(it,file){
   const di=it.body.indexOf(' — ');
   const title=di>0?it.body.slice(0,di):it.body;
@@ -489,7 +493,13 @@ function planItem(it,file){
   const div=document.createElement('div');
   div.className='item'+(it.checked?' done':'');
   div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${inline(title)}</div>${intent?`<div class="intent">${inline(intent)}</div>`:''}</div>`;
-  if(!it.checked)div.querySelector('.hit').onclick=e=>{e.stopPropagation();toggleLine(file,it.line,div).then(ok=>{if(ok)afterToggle(file);});};
+  if(!it.checked)div.querySelector('.hit').onclick=async e=>{
+    e.stopPropagation();
+    const ok=await toggleLine(file,it.line,div);
+    if(!ok)return;
+    for(const d of (dupCascade[norm(it.line)]||[]))await toggleLine(d.file,d.line,null,true);
+    afterToggle(file);
+  };
   return div;
 }
 /* after a successful check: Today updates in place (no layout jump, folds keep state);
@@ -677,6 +687,24 @@ async function renderToday(){
   const noteFollowups=dfSec?checkboxLines(dfSec.lines):[];
   const rqSec=secByName(ns.secs,/^rebate submit/i);
 
+  // dedup: anything the plan already covers (Top 3 / due follow-ups) appears ONLY there.
+  // Matching tasks/loops are hidden from every other section, and checking the plan item
+  // cascades to them (dupCascade). Not shown twice, not checked twice.
+  const loopsAll=loops?parseChecklist(loops.text).filter(it=>!it.checked):[];
+  const tasksAll=tasks?parseChecklist(tasks.text).filter(it=>!it.checked):[];
+  const planItems=top3.concat(noteFollowups);
+  dupCascade={};
+  const hiddenDups=new Set();
+  for(const p of planItems){
+    const dups=[
+      ...tasksAll.filter(it=>similar(p.body,it.body)).map(it=>({file:'data/tasks.md',line:it.line})),
+      ...loopsAll.filter(it=>similar(p.body,it.body)).map(it=>({file:'data/loops.md',line:it.line}))
+    ];
+    if(dups.length)dupCascade[norm(p.line)]=dups;
+    dups.forEach(d=>hiddenDups.add(d.line));
+  }
+  const isDup=it=>hiddenDups.has(it.line);
+
   // top-3 progress (filled by renderProgress; updated in place after each check)
   body.insertAdjacentHTML('beforeend','<div id="prog-wrap"></div>');
 
@@ -730,7 +758,10 @@ async function renderToday(){
   const c2=card();body.appendChild(c2);
   const events=cal?parseChecklist(cal.text).filter(it=>{
     const d=(it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];
-    return !it.checked&&d&&d>=t&&d<=horizon;
+    if(it.checked||!d||d<t||d>horizon)return false;
+    // untimed reminder lines already covered by the plan don't repeat here; timed appointments always show
+    if(!/\d{2}:\d{2}/.test(it.body)&&planItems.some(p=>similar(p.body,evTitle(it.body))))return false;
+    return true;
   }).sort((a,b)=>a.body.localeCompare(b.body)):[];
   if(!events.length)empty(c2,'Nothing scheduled through '+horizon+'. If that\'s wrong, dump it — dates are sacred here.');
   appendCapped(c2,events,it=>{
@@ -739,27 +770,23 @@ async function renderToday(){
     return itemHTML(it,'data/calendar.md',label,evTitle(it.body));
   });
 
-  // NEEDS ATTENTION — deduped against the plan, max 3 visible, rest behind "Also on the radar"
-  const loopsAll=loops?parseChecklist(loops.text).filter(it=>!it.checked):[];
-  const tasksAll=tasks?parseChecklist(tasks.text).filter(it=>!it.checked):[];
-  const dueLoops=loopsAll.filter(it=>{const n=meta(it.body,'nudge');return n&&n<=t;});
-  const hotTasks=tasksAll.filter(it=>{const d=meta(it.body,'due');return (d&&d<=t)||meta(it.body,'pri')==='1';});
-  const planTexts=top3.map(i=>i.body).concat(noteFollowups.map(i=>i.body));
+  // NEEDS ATTENTION — plan-covered items are hidden entirely (they live in Top 3);
+  // max 3 visible, overflow behind "Also on the radar"
+  const dueLoops=loopsAll.filter(it=>!isDup(it)&&(()=>{const n=meta(it.body,'nudge');return n&&n<=t;})());
+  const hotTasks=tasksAll.filter(it=>!isDup(it)&&(()=>{const d=meta(it.body,'due');return (d&&d<=t)||meta(it.body,'pri')==='1';})());
   const hot=[
     ...hotTasks.map(it=>({it,file:'data/tasks.md',info:taskMeta(it)})),
     ...dueLoops.map(it=>({it,file:'data/loops.md',info:dueLoopMeta(it)}))
-  ].map(h=>({...h,dup:planTexts.some(p=>similar(p,h.it.body))}));
-  const freshHot=hot.filter(h=>!h.dup),dupHot=hot.filter(h=>h.dup);
-  const visibleHot=freshHot.slice(0,3),radar=freshHot.slice(3).concat(dupHot);
+  ];
+  const visibleHot=hot.slice(0,3),radar=hot.slice(3);
   body.insertAdjacentHTML('beforeend','<div class="sec">Needs Attention</div>');
   const c3=card();body.appendChild(c3);
-  if(!hot.length)empty(c3,'Nothing due. The system is holding your loops — head clear.');
-  else if(!visibleHot.length)empty(c3,'Everything urgent today is already covered by your Top 3.');
+  if(!hot.length)empty(c3,hiddenDups.size?'Everything urgent today is already in your Top 3.':'Nothing due. The system is holding your loops — head clear.');
   visibleHot.forEach(h=>c3.appendChild(itemHTML(h.it,h.file,h.info)));
   if(radar.length){
     const fr=fold('Also on the radar',radar.length+' more');
     body.appendChild(fr.head);body.appendChild(fr.card);
-    radar.forEach(h=>fr.card.appendChild(itemHTML(h.it,h.file,(h.dup?'<span class="today-badge">≈ in Top 3</span>'+(h.info?' · ':''):'')+h.info)));
+    radar.forEach(h=>fr.card.appendChild(itemHTML(h.it,h.file,h.info)));
   }
 
   // intel briefing — collapsed by default; open it when you want the news
@@ -787,9 +814,9 @@ async function renderToday(){
     }
   }
 
-  // held pile — everything open that is NOT due yet, collapsed by default
-  const heldTasks=tasksAll.filter(it=>!hotTasks.includes(it));
-  const heldLoops=loopsAll.filter(it=>!dueLoops.includes(it));
+  // held pile — everything open that is NOT due yet (and not covered by the plan), collapsed by default
+  const heldTasks=tasksAll.filter(it=>!hotTasks.includes(it)&&!isDup(it));
+  const heldLoops=loopsAll.filter(it=>!dueLoops.includes(it)&&!isDup(it));
   if(heldTasks.length||heldLoops.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Held — not lost</div>');
     if(heldTasks.length){
@@ -958,7 +985,10 @@ function moneyLineEl(line){
   return el;
 }
 async function renderMoney(){
-  const body=$('money-body');if(!keepView)body.innerHTML=skel();
+  const body=$('money-body');
+  // remember which folds the user opened/closed so a check-off re-render doesn't collapse them
+  const prevFolds=new Map([...body.querySelectorAll('.fold')].map(h=>[h.querySelector('.ft').textContent,h.classList.contains('open')]));
+  if(!keepView)body.innerHTML=skel();
   const f=await getFile('data/money.md');body.innerHTML='';
   if(!f){const c=card();body.appendChild(c);empty(c,'No money.md yet — the weekend pipeline builds it.');return;}
   // split into preamble + ## sections
@@ -972,7 +1002,7 @@ async function renderMoney(){
   if(pre.length){const pc=card();body.appendChild(pc);pre.forEach(l=>pc.appendChild(moneyLineEl(l)));}
   const openByDefault=t=>/this month/i.test(t);
   secs.forEach(s=>{
-    const open=/status:/i.test(s.title)||openByDefault(s.title);
+    const open=prevFolds.has(s.title)?prevFolds.get(s.title):(/status:/i.test(s.title)||openByDefault(s.title));
     const openLines=s.lines.filter(l=>l.startsWith('- [ ]'));
     const nWarn=openLines.filter(l=>l.includes('⚠')).length;   // only count warnings still open
     const total=openLines.reduce((sum,l)=>sum+((l.split(' | ')[0].match(AMT_RE)||[]).map(parseAmt).reduce((a,b)=>a+b,0)),0);
