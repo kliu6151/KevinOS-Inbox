@@ -161,6 +161,10 @@
   .fold .fc{font-family:var(--mono);color:var(--muted);font-weight:500;font-size:11.5px;letter-spacing:.03em}
   .fold .fw{font-family:var(--mono);color:var(--red);font-weight:600;font-size:11.5px}
   .foldcard{margin-top:6px}
+  /* nested sub-dropdowns (### subsections inside a money section fold) */
+  .fold.subfold{margin:10px 10px 0;width:calc(100% - 20px);background:var(--bg);border-radius:8px;font-size:14px;padding:11px 12px}
+  .foldcard.subfoldcard{margin:6px 10px 10px;width:calc(100% - 20px);background:var(--bg);border-radius:8px}
+  .foldcard.subfoldcard:last-child{margin-bottom:12px}
 
   /* month calendar */
   .cal-head{display:flex;align-items:center;justify-content:space-between;padding:4px 2px 12px}
@@ -1008,7 +1012,26 @@ async function renderMoney(){
     const total=openLines.reduce((sum,l)=>sum+((l.split(' | ')[0].match(AMT_RE)||[]).map(parseAmt).reduce((a,b)=>a+b,0)),0);
     const label=openLines.length?openLines.length+' open'+(total?' · '+compactAmt(total):''):'';
     const sf=fold(s.title,label,open,nWarn);
-    appendCapped(sf.card,s.lines,moneyLineEl,12);
+    // '### ' subsections (HPWH serials) render as nested sub-dropdowns inside the section fold
+    const subs=[];let pre2=[],cur2=null;
+    for(const l of s.lines){
+      if(l.startsWith('### ')){cur2={title:l.slice(4).trim(),lines:[]};subs.push(cur2);continue;}
+      (cur2?cur2.lines:pre2).push(l);
+    }
+    if(!subs.length)appendCapped(sf.card,s.lines,moneyLineEl,12);
+    else{
+      pre2.forEach(l=>sf.card.appendChild(moneyLineEl(l)));
+      subs.forEach(sub=>{
+        const subOpen2=sub.lines.filter(l=>l.startsWith('- [ ]'));
+        const w2=subOpen2.filter(l=>l.includes('⚠')).length;
+        const lbl=sub.lines.filter(l=>l.startsWith('- [')).length?(subOpen2.length?subOpen2.length+' open':sub.lines.filter(l=>l.startsWith('- [x]')).length+' done'):'';
+        const isOpen=prevFolds.has(sub.title)?prevFolds.get(sub.title):/needs serial/i.test(sub.title);
+        const sf2=fold(sub.title,lbl,isOpen,w2);
+        sf2.head.classList.add('subfold');sf2.card.classList.add('subfoldcard');
+        appendCapped(sf2.card,sub.lines,moneyLineEl,12);
+        sf.card.appendChild(sf2.head);sf.card.appendChild(sf2.card);
+      });
+    }
     body.appendChild(sf.head);body.appendChild(sf.card);
   });
 }
