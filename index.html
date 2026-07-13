@@ -344,6 +344,7 @@
     <div id="sheet-title"></div>
     <div id="sheet-rows"></div>
     <button class="btn" id="sheet-done">Mark done ✓</button>
+    <button class="btn2" id="sheet-edit" hidden>Edit event ✎</button>
     <button class="btn2 danger" id="sheet-cancel" hidden>Cancel event ✕</button>
     <div id="cancel-wrap" hidden>
       <div class="fld"><label>Why cancelled? — optional</label><textarea id="cancel-reason" placeholder="Blank is fine. A reason helps the system decide the follow-up."></textarea></div>
@@ -480,8 +481,9 @@ function openSheet(it,file,title){
     rows.push(['Note',rest||it.body]);
   }
   $('sheet-rows').innerHTML=rows.map(([k,v])=>`<div class="srow"><div class="k">${esc(k)}</div><div>${esc(v)}</div></div>`).join('');
-  // cancel is a calendar-only concept: events get cancelled, tasks/loops just stay open
+  // edit/cancel are calendar-only concepts: events change or get cancelled, tasks/loops just stay open
   $('sheet-done').hidden=false;$('sheet-close').hidden=false;
+  $('sheet-edit').hidden=file!=='data/calendar.md';
   $('sheet-cancel').hidden=file!=='data/calendar.md';
   $('cancel-wrap').hidden=true;$('cancel-reason').value='';
   $('sheet-ov').hidden=false;
@@ -502,11 +504,17 @@ $('sheet-done').onclick=async()=>{
    briefing interprets the reason — reschedule, follow-up loop, or drop ---- */
 $('sheet-cancel').onclick=()=>{
   $('cancel-wrap').hidden=false;
-  $('sheet-cancel').hidden=true;$('sheet-done').hidden=true;$('sheet-close').hidden=true;
+  $('sheet-cancel').hidden=true;$('sheet-edit').hidden=true;$('sheet-done').hidden=true;$('sheet-close').hidden=true;
 };
 $('cancel-back').onclick=()=>{
   $('cancel-wrap').hidden=true;
-  $('sheet-cancel').hidden=false;$('sheet-done').hidden=false;$('sheet-close').hidden=false;
+  $('sheet-cancel').hidden=false;$('sheet-edit').hidden=false;$('sheet-done').hidden=false;$('sheet-close').hidden=false;
+};
+$('sheet-edit').onclick=()=>{
+  if(!sheetCtx)return;
+  const it=sheetCtx.it;
+  closeSheet();
+  openEvForm(null,it);
 };
 $('cancel-confirm').onclick=async()=>{
   if(!sheetCtx)return;
@@ -1028,11 +1036,27 @@ async function renderCal(){
   drawCal();
 }
 
-/* ---- manual add event: writes a standard checkbox line into calendar.md's
-   ## Upcoming section (date-sorted), so check-off and the sheet work unchanged ---- */
-function openEvForm(dateStr){
-  $('ev-title').value='';$('ev-time').value='';$('ev-addr').value='';$('ev-desc').value='';
-  $('ev-date').value=dateStr||todayStr();
+/* ---- manual add/edit event: writes a standard checkbox line into calendar.md's
+   ## Upcoming section (date-sorted), so check-off and the sheet work unchanged.
+   Edit mode (it passed) pre-fills from the line and rewrites it in place,
+   preserving meta segments the form doesn't own (type:, prep, …) ---- */
+let evEditCtx=null;
+function openEvForm(dateStr,it){
+  evEditCtx=null;
+  if(it){
+    const segs=it.body.split('|').map(s=>s.trim()).slice(1);
+    evEditCtx={line:it.line,extras:segs.filter(s=>s&&!/^(where|notes)\s*:/i.test(s))};
+    $('ev-title').value=evTitle(it.body);
+    $('ev-date').value=evDate(it)||todayStr();
+    $('ev-time').value=evTime(it);
+    $('ev-addr').value=meta(it.body,'where');
+    $('ev-desc').value=meta(it.body,'notes');
+  }else{
+    $('ev-title').value='';$('ev-time').value='';$('ev-addr').value='';$('ev-desc').value='';
+    $('ev-date').value=dateStr||todayStr();
+  }
+  document.querySelector('#ev-sheet .sh-title').textContent=it?'Edit event':'Add event';
+  $('ev-save').textContent=it?'Save changes':'Add to calendar';
   $('ev-status').textContent='';$('ev-status').className='';
   $('ev-save').disabled=false;
   $('ev-ov').hidden=false;
@@ -1047,15 +1071,31 @@ $('ev-save').onclick=async()=>{
   if(!title){st.className='err';st.textContent='Give it a name.';return;}
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){st.className='err';st.textContent='Pick a date.';return;}
   $('ev-save').disabled=true;st.className='';st.textContent='Saving…';
-  const line=`- [ ] ${date}${time?' '+time:''} — ${title}${addr?` | where: ${addr}`:''}${desc?` | notes: ${desc}`:''}`;
+  const extras=evEditCtx&&evEditCtx.extras.length?' | '+evEditCtx.extras.join(' | '):'';
+  const line=`- [ ] ${date}${time?' '+time:''} — ${title}${addr?` | where: ${addr}`:''}${desc?` | notes: ${desc}`:''}${extras}`;
   try{
-    await addCalLine(line,title);
+    if(evEditCtx)await updateCalLine(evEditCtx.line,line,title);
+    else await addCalLine(line,title);
     $('ev-ov').hidden=true;
     calSel=date;calMonth=new Date(+date.slice(0,4),+date.slice(5,7)-1,1);
     runRender(currentView);
   }catch(e){st.className='err';st.textContent='Failed: '+e.message;}
   $('ev-save').disabled=false;
 };
+async function updateCalLine(oldLine,line,title){
+  const path='data/calendar.md';
+  const f=await getFile(path);
+  if(!f)throw new Error('calendar file not found');
+  if(f.stale)throw new Error('offline — reconnect and try again');
+  const lines=f.text.split('\n');
+  const i=lines.findIndex(l=>norm(l)===norm(oldLine));
+  if(i<0)throw new Error('item changed elsewhere — pull down to refresh');
+  lines[i]=line;
+  const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
+    message:`cal: edit via app — ${title.slice(0,60)}`,sha:f.sha,
+    content:enc(lines.join('\n'))})});
+  try{localStorage.setItem('fc_'+path,JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
+}
 async function addCalLine(line,title){
   const path='data/calendar.md';
   const f=await getFile(path);
