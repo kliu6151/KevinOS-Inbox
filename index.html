@@ -62,8 +62,8 @@
   }
   .btn:active{transform:scale(.98)}
   .btn:disabled{background:var(--panel);color:var(--muted);box-shadow:none;filter:none}
-  #status{text-align:center;padding:10px;font-size:14px;color:var(--muted);min-height:38px}
-  #status.ok{color:var(--green)} #status.err{color:var(--red)}
+  #status,#ev-status{text-align:center;padding:10px;font-size:14px;color:var(--muted);min-height:38px}
+  #status.ok,#ev-status.ok{color:var(--green)} #status.err,#ev-status.err{color:var(--red)}
   .tiny{text-align:center;padding:8px 0}
   .tiny a{color:var(--faint);font-size:12px;text-decoration:none}
 
@@ -191,12 +191,12 @@
   .day-title{margin:18px 2px 8px;font-size:14px;font-weight:700}
 
   /* detail sheet */
-  #sheet-ov{
+  #sheet-ov,#ev-ov{
     position:fixed;inset:0;background:rgba(4,6,10,.68);z-index:50;
     display:flex;align-items:flex-end;backdrop-filter:blur(4px);
   }
-  #sheet-ov[hidden]{display:none}
-  #sheet{
+  #sheet-ov[hidden],#ev-ov[hidden]{display:none}
+  #sheet,#ev-sheet{
     width:100%;background:linear-gradient(180deg,var(--panel),var(--panel2));
     border-radius:22px 22px 0 0;border-top:1px solid var(--border2);
     padding:20px 18px calc(20px + env(safe-area-inset-bottom));
@@ -204,8 +204,8 @@
     animation:sheetUp .28s cubic-bezier(.2,.8,.25,1);
   }
   @keyframes sheetUp{from{transform:translateY(48px);opacity:.5}to{transform:none;opacity:1}}
-  #sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--border2);margin:0 auto 16px}
-  #sheet-title{font-size:19px;font-weight:700;line-height:1.35;margin-bottom:14px;letter-spacing:-.01em}
+  #sheet .grab,#ev-sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--border2);margin:0 auto 16px}
+  #sheet-title,.sh-title{font-size:19px;font-weight:700;line-height:1.35;margin-bottom:14px;letter-spacing:-.01em}
   .srow{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:15px}
   .srow .k{color:var(--muted);flex:none;min-width:92px}
   .btn2{
@@ -214,6 +214,20 @@
     box-shadow:var(--shadow-sm);transition:transform .12s,border-color .15s;
   }
   .btn2:active{transform:scale(.98)}
+  .btn2.danger{color:var(--red)}
+  .btn.red{background:var(--red);color:#fff}
+  /* add-event / cancel-reason form fields */
+  .fld{margin-top:12px}
+  .fld label{display:block;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .fld input,.fld textarea{
+    width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);
+    border-radius:10px;padding:12px;font-size:16px;line-height:1.4;outline:none;
+    color-scheme:dark;box-shadow:none;transition:border-color .15s;
+  }
+  .fld input:focus,.fld textarea:focus{border-color:var(--accent);box-shadow:none}
+  .fld textarea{min-height:74px}
+  .frow{display:flex;gap:10px}
+  .frow .fld{flex:1;min-width:0}
 
   /* bottom nav (mobile) */
   nav{
@@ -260,8 +274,8 @@
     }
     nav button.on{background:rgba(255,176,32,.08)}
     .nbadge{position:static;margin-left:auto}
-    #sheet-ov{align-items:center;justify-content:center;padding:24px}
-    #sheet{max-width:480px;border-radius:22px;border:1px solid var(--border2)}
+    #sheet-ov,#ev-ov{align-items:center;justify-content:center;padding:24px}
+    #sheet,#ev-sheet{max-width:480px;border-radius:22px;border:1px solid var(--border2)}
   }
   @media (hover:hover){
     .item:hover{background:rgba(255,255,255,.025)}
@@ -330,7 +344,30 @@
     <div id="sheet-title"></div>
     <div id="sheet-rows"></div>
     <button class="btn" id="sheet-done">Mark done ✓</button>
+    <button class="btn2 danger" id="sheet-cancel" hidden>Cancel event ✕</button>
+    <div id="cancel-wrap" hidden>
+      <div class="fld"><label>Why cancelled? — optional</label><textarea id="cancel-reason" placeholder="Blank is fine. A reason helps the system decide the follow-up."></textarea></div>
+      <button class="btn red" id="cancel-confirm">Confirm cancel</button>
+      <button class="btn2" id="cancel-back">Back</button>
+    </div>
     <button class="btn2" id="sheet-close">Close</button>
+  </div>
+</div>
+
+<div id="ev-ov" hidden>
+  <div id="ev-sheet">
+    <div class="grab"></div>
+    <div class="sh-title">Add event</div>
+    <div class="fld"><label>What</label><input id="ev-title" type="text" placeholder="Site visit — Johnson HPWH" autocomplete="off"></div>
+    <div class="frow">
+      <div class="fld"><label>Date</label><input id="ev-date" type="date"></div>
+      <div class="fld"><label>Time — optional</label><input id="ev-time" type="time"></div>
+    </div>
+    <div class="fld"><label>Address — optional</label><input id="ev-addr" type="text" placeholder="123 Main St, Queens" autocomplete="off"></div>
+    <div class="fld"><label>Details — optional</label><textarea id="ev-desc" placeholder="What to bring, who to meet, why it matters…"></textarea></div>
+    <div id="ev-status"></div>
+    <button class="btn" id="ev-save">Add to calendar</button>
+    <button class="btn2" id="ev-close">Close</button>
   </div>
 </div>
 
@@ -443,6 +480,10 @@ function openSheet(it,file,title){
     rows.push(['Note',rest||it.body]);
   }
   $('sheet-rows').innerHTML=rows.map(([k,v])=>`<div class="srow"><div class="k">${esc(k)}</div><div>${esc(v)}</div></div>`).join('');
+  // cancel is a calendar-only concept: events get cancelled, tasks/loops just stay open
+  $('sheet-done').hidden=false;$('sheet-close').hidden=false;
+  $('sheet-cancel').hidden=file!=='data/calendar.md';
+  $('cancel-wrap').hidden=true;$('cancel-reason').value='';
   $('sheet-ov').hidden=false;
 }
 function closeSheet(){$('sheet-ov').hidden=true;sheetCtx=null;}
@@ -455,6 +496,50 @@ $('sheet-done').onclick=async()=>{
   $('sheet-done').disabled=false;
   if(ok){closeSheet();runRender(currentView);}
 };
+
+/* ---- cancel event: optional reason, then the line goes to '- [~]' (invisible to
+   every renderer but kept for memory) and a note lands in inbox/ so the morning
+   briefing interprets the reason — reschedule, follow-up loop, or drop ---- */
+$('sheet-cancel').onclick=()=>{
+  $('cancel-wrap').hidden=false;
+  $('sheet-cancel').hidden=true;$('sheet-done').hidden=true;$('sheet-close').hidden=true;
+};
+$('cancel-back').onclick=()=>{
+  $('cancel-wrap').hidden=true;
+  $('sheet-cancel').hidden=false;$('sheet-done').hidden=false;$('sheet-close').hidden=false;
+};
+$('cancel-confirm').onclick=async()=>{
+  if(!sheetCtx)return;
+  $('cancel-confirm').disabled=true;
+  const reason=$('cancel-reason').value.trim().replace(/\s*\n\s*/g,'; ').replace(/\|/g,'/');
+  const ok=await cancelEvent(sheetCtx.file,sheetCtx.it,reason);
+  $('cancel-confirm').disabled=false;
+  if(ok){closeSheet();runRender(currentView);}
+};
+async function cancelEvent(path,it,reason){
+  try{
+    const f=await getFile(path);
+    if(!f)throw new Error('file not found');
+    if(f.stale)throw new Error('offline — reconnect and try again');
+    const lines=f.text.split('\n');
+    const i=lines.findIndex(l=>norm(l)===norm(it.line));
+    if(i<0)throw new Error('item changed elsewhere — pull down to refresh');
+    lines[i]=lines[i].replace('- [ ]','- [~]')+` | cancelled: ${todayStr()}${reason?' — '+reason:''}`;
+    const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
+      message:`cancel via app: ${evTitle(it.body).slice(0,60)}`,sha:f.sha,
+      content:enc(lines.join('\n'))})});
+    try{localStorage.setItem('fc_'+path,JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
+  }catch(e){alert('Cancel failed: '+e.message);return false;}
+  // hand the decision to the system — self-describing dump, no routine change needed
+  try{
+    const d=new Date(),p=n=>String(n).padStart(2,'0');
+    const name=`dump-${todayStr()}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}-cancel`;
+    const note=`Cancelled calendar event (via app): ${evTitle(it.body)}\nWas scheduled: ${evDate(it)||'?'}${evTime(it)?' '+evTime(it):''}\nReason given: ${reason||'none'}\n\n[app cancel flow] Interpret the reason and decide the follow-up: reschedule (new calendar.md date), a loop with a nudge date in data/loops.md, or drop it — record which and why.\n`;
+    await api(`contents/inbox/${name}.md`,{method:'PUT',body:JSON.stringify({
+      message:'inbox: event cancelled via app',content:enc(note)})});
+  }catch(e){alert('Event cancelled, but the follow-up note failed to save ('+e.message+') — dump it manually so it isn\'t lost.');}
+  return true;
+}
 
 /* ---- parsers ---- */
 function parseChecklist(text){
@@ -904,6 +989,11 @@ function drawCal(){
     c.appendChild(itemHTML(it,'data/calendar.md',late,evTitle(it.body)));
   });
 
+  const add=document.createElement('button');
+  add.className='btn2';add.textContent='＋ Add event';
+  add.onclick=()=>openEvForm(calSel);
+  body.appendChild(add);
+
   // missed (before today) — decide, don't ignore
   const missed=calEvs.filter(it=>evDate(it)<t);
   if(missed.length){
@@ -936,6 +1026,60 @@ async function renderCal(){
   $('cal-count').textContent=calEvs.length?calEvs.length+' scheduled':'';
   if(!calMonth){calMonth=new Date();calMonth.setDate(1);calSel=todayStr();}
   drawCal();
+}
+
+/* ---- manual add event: writes a standard checkbox line into calendar.md's
+   ## Upcoming section (date-sorted), so check-off and the sheet work unchanged ---- */
+function openEvForm(dateStr){
+  $('ev-title').value='';$('ev-time').value='';$('ev-addr').value='';$('ev-desc').value='';
+  $('ev-date').value=dateStr||todayStr();
+  $('ev-status').textContent='';$('ev-status').className='';
+  $('ev-save').disabled=false;
+  $('ev-ov').hidden=false;
+  setTimeout(()=>$('ev-title').focus(),60);
+}
+$('ev-close').onclick=()=>{$('ev-ov').hidden=true;};
+$('ev-ov').onclick=e=>{if(e.target.id==='ev-ov')$('ev-ov').hidden=true;};
+$('ev-save').onclick=async()=>{
+  const clean=s=>s.trim().replace(/\s*\n\s*/g,'; ').replace(/\|/g,'/'); // '|' and newlines would break the line format
+  const title=clean($('ev-title').value),date=$('ev-date').value,time=$('ev-time').value,
+        addr=clean($('ev-addr').value),desc=clean($('ev-desc').value),st=$('ev-status');
+  if(!title){st.className='err';st.textContent='Give it a name.';return;}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){st.className='err';st.textContent='Pick a date.';return;}
+  $('ev-save').disabled=true;st.className='';st.textContent='Saving…';
+  const line=`- [ ] ${date}${time?' '+time:''} — ${title}${addr?` | where: ${addr}`:''}${desc?` | notes: ${desc}`:''}`;
+  try{
+    await addCalLine(line,title);
+    $('ev-ov').hidden=true;
+    calSel=date;calMonth=new Date(+date.slice(0,4),+date.slice(5,7)-1,1);
+    runRender(currentView);
+  }catch(e){st.className='err';st.textContent='Failed: '+e.message;}
+  $('ev-save').disabled=false;
+};
+async function addCalLine(line,title){
+  const path='data/calendar.md';
+  const f=await getFile(path);
+  if(!f)throw new Error('calendar file not found');
+  if(f.stale)throw new Error('offline — reconnect and try again');
+  const lines=f.text.split('\n');
+  const s=lines.findIndex(l=>/^## Upcoming/.test(l));
+  if(s<0)lines.push(line);
+  else{
+    let end=lines.length;
+    for(let j=s+1;j<lines.length;j++)if(lines[j].startsWith('## ')){end=j;break;}
+    let ins=end;
+    while(ins>s+1&&!lines[ins-1].trim())ins--; // stay inside the section, above its trailing blanks
+    const d=line.match(/\d{4}-\d{2}-\d{2}/)[0];
+    for(let j=s+1;j<ins;j++){
+      const m=lines[j].match(/^- \[[ x~]\] (\d{4}-\d{2}-\d{2})/);
+      if(m&&m[1]>d){ins=j;break;}
+    }
+    lines.splice(ins,0,line);
+  }
+  const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
+    message:`cal: add via app — ${title.slice(0,60)}`,sha:f.sha,
+    content:enc(lines.join('\n'))})});
+  try{localStorage.setItem('fc_'+path,JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
 }
 
 /* ---- MONEY (money.md as a ledger: name left, amount right, aging badge) ---- */
