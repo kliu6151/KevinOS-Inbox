@@ -229,6 +229,31 @@
   .frow{display:flex;gap:10px}
   .frow .fld{flex:1;min-width:0}
 
+  /* outcome bar — sits above the nav; green rail = done, in the Dispatch Board vernacular */
+  #outbar{
+    position:fixed;left:12px;right:12px;bottom:calc(72px + env(safe-area-inset-bottom));z-index:45;
+    background:var(--panel);border:1px solid var(--border2);border-left:3px solid var(--green);
+    border-radius:14px;padding:10px 12px;box-shadow:0 8px 32px rgba(0,0,0,.45);
+    opacity:0;transform:translateY(12px);pointer-events:none;
+    transition:opacity .2s,transform .2s;
+  }
+  #outbar.show{opacity:1;transform:none;pointer-events:auto}
+  #ob-ask,#ob-edit{display:flex;align-items:center;gap:10px}
+  #ob-ask[hidden],#ob-edit[hidden]{display:none}
+  .ob-done{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;color:var(--green);flex:none}
+  .ob-q{font-size:14px;color:var(--muted);flex:1;min-width:0}
+  #ob-add,#ob-save{
+    flex:none;background:none;border:1px solid var(--border2);border-radius:9px;
+    padding:8px 13px;color:var(--amber);font-size:13.5px;font-weight:700;
+  }
+  #ob-skip{flex:none;background:none;border:none;color:var(--faint);font-size:15px;padding:8px 6px}
+  #ob-text{
+    flex:1;min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--border);
+    border-radius:9px;padding:10px 12px;font-size:16px;outline:none;color-scheme:dark;
+  }
+  #ob-text:focus{border-color:var(--accent)}
+  @media (min-width:880px){#outbar{left:calc(232px + 24px);right:auto;width:420px;bottom:24px}}
+
   /* bottom nav (mobile) */
   nav{
     position:fixed;bottom:0;left:0;right:0;display:flex;z-index:40;
@@ -372,6 +397,20 @@
   </div>
 </div>
 
+<!-- outcome bar: after a check-off, offer one optional line of "what happened" -->
+<div id="outbar">
+  <div id="ob-ask">
+    <span class="ob-done">DONE ✓</span>
+    <span class="ob-q">What happened?</span>
+    <button id="ob-add">Add note</button>
+    <button id="ob-skip" aria-label="Skip">✕</button>
+  </div>
+  <div id="ob-edit" hidden>
+    <input id="ob-text" type="text" placeholder="e.g. money landed / left voicemail / filed without floor 2" autocomplete="off" maxlength="140">
+    <button id="ob-save">Save</button>
+  </div>
+</div>
+
 <nav>
   <div class="brand">Kevin<span>OS</span></div>
   <button data-v="dump" class="on">
@@ -438,6 +477,9 @@ function skel(){return '<div class="card">'+[78,52,68,38].map(w=>`<div class="sk
 
 /* ---- checkbox toggle: tolerant line match (ignores \r and edge whitespace) ---- */
 const norm=s=>s.replace(/\r/g,'').trim();
+/* files where check-off gets a done: stamp + outcome offer — money.md (pipeline owns
+   that format, checks are stage advances) and learning/ (progress %) stay untouched */
+const outcomeFile=p=>/^(data\/(tasks|loops|calendar)\.md|daily\/)/.test(p);
 async function toggleLine(path,line,el,quiet){
   if(el)el.classList.add('done');
   try{
@@ -448,11 +490,12 @@ async function toggleLine(path,line,el,quiet){
     const i=lines.findIndex(l=>norm(l)===norm(line));
     if(i<0)throw new Error('item changed elsewhere — pull down to refresh');
     lines[i]=lines[i].replace('- [ ]','- [x]');
+    if(outcomeFile(path)&&!/\bdone:\d{4}-\d{2}-\d{2}/.test(lines[i]))lines[i]+=` | done:${todayStr()}`;
     const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
       message:`done via app: ${norm(line).slice(6,60)}`,sha:f.sha,
       content:enc(lines.join('\n'))})});
     try{localStorage.setItem('fc_'+path,JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
-    return true;
+    return lines[i]; // the checked+stamped line — offerOutcome appends to THIS text
   }catch(e){
     if(el)el.classList.remove('done');
     if(quiet)console.warn('quiet toggle failed for',path,e.message); // /recap reconciles stragglers
@@ -460,6 +503,46 @@ async function toggleLine(path,line,el,quiet){
     return false;
   }
 }
+/* append ' | outcome: …' to an already-checked line (second commit, only if Kevin types) */
+async function appendToLine(path,line,suffix){
+  try{
+    const f=await getFile(path);
+    if(!f)throw new Error('file not found');
+    if(f.stale)throw new Error('offline — reconnect and try again');
+    const lines=f.text.split('\n');
+    const i=lines.findIndex(l=>norm(l)===norm(line));
+    if(i<0)throw new Error('item changed elsewhere');
+    lines[i]+=suffix;
+    const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
+      message:`outcome via app: ${suffix.replace(/^\s*\|\s*/,'').slice(0,60)}`,sha:f.sha,
+      content:enc(lines.join('\n'))})});
+    try{localStorage.setItem('fc_'+path,JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
+    return true;
+  }catch(e){alert('Note failed: '+e.message);return false;}
+}
+/* outcome bar: after a check-off, offer (never demand) one line of "what happened" */
+let obCtx=null,obTimer=null;
+function offerOutcome(path,newLine){
+  if(!outcomeFile(path)||!newLine)return;
+  obCtx={path,line:newLine};
+  clearTimeout(obTimer);
+  $('ob-ask').hidden=false;$('ob-edit').hidden=true;$('ob-text').value='';
+  $('outbar').classList.add('show');
+  obTimer=setTimeout(hideOutbar,8000);
+}
+function hideOutbar(){clearTimeout(obTimer);$('outbar').classList.remove('show');obCtx=null;}
+$('ob-skip').onclick=hideOutbar;
+$('ob-add').onclick=()=>{clearTimeout(obTimer);$('ob-ask').hidden=true;$('ob-edit').hidden=false;$('ob-text').focus();};
+$('ob-text').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('ob-save').click();}};
+$('ob-save').onclick=async()=>{
+  if(!obCtx)return hideOutbar();
+  const t=$('ob-text').value.trim().replace(/\s*\n\s*/g,'; ').replace(/\|/g,'/');
+  if(!t)return hideOutbar();
+  $('ob-save').disabled=true;
+  const ok=await appendToLine(obCtx.path,obCtx.line,` | outcome: ${t}`);
+  $('ob-save').disabled=false;
+  if(ok)hideOutbar();
+};
 
 /* ---- detail sheet ---- */
 let sheetCtx=null;
@@ -493,10 +576,11 @@ $('sheet-close').onclick=closeSheet;
 $('sheet-ov').onclick=e=>{if(e.target.id==='sheet-ov')closeSheet();};
 $('sheet-done').onclick=async()=>{
   if(!sheetCtx)return;
+  const file=sheetCtx.file;
   $('sheet-done').disabled=true;
-  const ok=await toggleLine(sheetCtx.file,sheetCtx.it.line,null);
+  const ok=await toggleLine(file,sheetCtx.it.line,null);
   $('sheet-done').disabled=false;
-  if(ok){closeSheet();runRender(currentView);}
+  if(ok){closeSheet();runRender(currentView);offerOutcome(file,ok);}
 };
 
 /* ---- cancel event: optional reason, then the line goes to '- [~]' (invisible to
@@ -574,7 +658,7 @@ function itemHTML(it,file,extra='',title){
   div.className='item'+(it.checked?' done':'')+(late?' late':'');
   div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${esc(t)}</div>${extra?`<div class="meta">${extra}</div>`:''}</div>`;
   if(!it.checked){
-    div.querySelector('.hit').onclick=e=>{e.stopPropagation();toggleLine(file,it.line,div).then(ok=>{if(ok)afterToggle(file);});};
+    div.querySelector('.hit').onclick=e=>{e.stopPropagation();toggleLine(file,it.line,div).then(ok=>{if(ok){afterToggle(file);offerOutcome(file,ok);}});};
     div.onclick=()=>openSheet(it,file,t);
   }
   return div;
@@ -596,6 +680,7 @@ function planItem(it,file){
     if(!ok)return;
     for(const d of (dupCascade[norm(it.line)]||[]))await toggleLine(d.file,d.line,null,true);
     afterToggle(file);
+    offerOutcome(file,ok);
   };
   return div;
 }
