@@ -371,6 +371,12 @@
     <button class="btn" id="sheet-done">Mark done ✓</button>
     <button class="btn2" id="sheet-edit" hidden>Edit event ✎</button>
     <button class="btn2 danger" id="sheet-cancel" hidden>Cancel event ✕</button>
+    <button class="btn2" id="sheet-stuck" hidden>Not done — say why ⏸</button>
+    <div id="stuck-wrap" hidden>
+      <div class="fld"><label>Why isn't it done?</label><textarea id="stuck-reason" placeholder="Blocked by what? Waiting on who? The morning briefing reads this and plans around it."></textarea></div>
+      <button class="btn" id="stuck-confirm" style="background:var(--amber);color:var(--amber-ink)">Save reason</button>
+      <button class="btn2" id="stuck-back">Back</button>
+    </div>
     <div id="cancel-wrap" hidden>
       <div class="fld"><label>Why cancelled? — optional</label><textarea id="cancel-reason" placeholder="Blank is fine. A reason helps the system decide the follow-up."></textarea></div>
       <button class="btn red" id="cancel-confirm">Confirm cancel</button>
@@ -547,7 +553,7 @@ $('ob-save').onclick=async()=>{
 /* ---- detail sheet ---- */
 let sheetCtx=null;
 function openSheet(it,file,title){
-  sheetCtx={it,file};
+  sheetCtx={it,file,title};
   $('sheet-title').textContent=title;
   const rows=[];
   const d=it.body.match(/(\d{4}-\d{2}-\d{2})( (\d{2}:\d{2}))?/);
@@ -568,6 +574,10 @@ function openSheet(it,file,title){
   $('sheet-done').hidden=false;$('sheet-close').hidden=false;
   $('sheet-edit').hidden=file!=='data/calendar.md';
   $('sheet-cancel').hidden=file!=='data/calendar.md';
+  // "why isn't it done" applies to anything Kevin owns; money.md belongs to the pipeline
+  $('sheet-stuck').hidden=!/^data\/(tasks|loops|calendar)\.md$/.test(file);
+  $('stuck-wrap').hidden=true;
+  $('stuck-reason').value=meta(it.body,'stuck').replace(/^\d{4}-\d{2}-\d{2}\s*[—-]?\s*/,'');
   $('cancel-wrap').hidden=true;$('cancel-reason').value='';
   $('sheet-ov').hidden=false;
 }
@@ -588,11 +598,11 @@ $('sheet-done').onclick=async()=>{
    briefing interprets the reason — reschedule, follow-up loop, or drop ---- */
 $('sheet-cancel').onclick=()=>{
   $('cancel-wrap').hidden=false;
-  $('sheet-cancel').hidden=true;$('sheet-edit').hidden=true;$('sheet-done').hidden=true;$('sheet-close').hidden=true;
+  $('sheet-cancel').hidden=true;$('sheet-edit').hidden=true;$('sheet-done').hidden=true;$('sheet-close').hidden=true;$('sheet-stuck').hidden=true;
 };
 $('cancel-back').onclick=()=>{
   $('cancel-wrap').hidden=true;
-  $('sheet-cancel').hidden=false;$('sheet-edit').hidden=false;$('sheet-done').hidden=false;$('sheet-close').hidden=false;
+  $('sheet-cancel').hidden=false;$('sheet-edit').hidden=false;$('sheet-done').hidden=false;$('sheet-close').hidden=false;$('sheet-stuck').hidden=false;
 };
 $('sheet-edit').onclick=()=>{
   if(!sheetCtx)return;
@@ -630,6 +640,54 @@ async function cancelEvent(path,it,reason){
     await api(`contents/inbox/${name}.md`,{method:'PUT',body:JSON.stringify({
       message:'inbox: event cancelled via app',content:enc(note)})});
   }catch(e){alert('Event cancelled, but the follow-up note failed to save ('+e.message+') — dump it manually so it isn\'t lost.');}
+  return true;
+}
+
+/* ---- not-done reason: the item stays open, but the line gets '| stuck: date — why'
+   (latest note wins; older ones live in git history) and a note lands in inbox/ so
+   the morning briefing plans around the reason instead of re-nagging the item ---- */
+$('sheet-stuck').onclick=()=>{
+  $('stuck-wrap').hidden=false;
+  $('sheet-stuck').hidden=true;$('sheet-cancel').hidden=true;$('sheet-edit').hidden=true;$('sheet-done').hidden=true;$('sheet-close').hidden=true;
+  $('stuck-reason').focus();
+};
+$('stuck-back').onclick=()=>{
+  $('stuck-wrap').hidden=true;
+  $('sheet-stuck').hidden=false;$('sheet-done').hidden=false;$('sheet-close').hidden=false;
+  const isCal=sheetCtx&&sheetCtx.file==='data/calendar.md';
+  $('sheet-cancel').hidden=!isCal;$('sheet-edit').hidden=!isCal;
+};
+$('stuck-confirm').onclick=async()=>{
+  if(!sheetCtx)return;
+  const reason=$('stuck-reason').value.trim().replace(/\s*\n\s*/g,'; ').replace(/\|/g,'/');
+  if(!reason){$('stuck-reason').focus();return;} // the whole point is the why — no empty saves
+  $('stuck-confirm').disabled=true;
+  const ok=await stuckNote(sheetCtx.file,sheetCtx.it,reason,sheetCtx.title);
+  $('stuck-confirm').disabled=false;
+  if(ok){closeSheet();runRender(currentView);}
+};
+async function stuckNote(path,it,reason,title){
+  try{
+    const f=await getFile(path);
+    if(!f)throw new Error('file not found');
+    if(f.stale)throw new Error('offline — reconnect and try again');
+    const lines=f.text.split('\n');
+    const i=lines.findIndex(l=>norm(l)===norm(it.line));
+    if(i<0)throw new Error('item changed elsewhere — pull down to refresh');
+    lines[i]=lines[i].replace(/\s*\|\s*stuck:[^|]*/,'').replace(/\s+$/,'')+` | stuck: ${todayStr()} — ${reason}`;
+    const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
+      message:`stuck via app: ${(title||stripMeta(it.body)).slice(0,60)}`,sha:f.sha,
+      content:enc(lines.join('\n'))})});
+    try{localStorage.setItem('fc_'+path,JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
+  }catch(e){alert('Save failed: '+e.message);return false;}
+  // same hand-off as the cancel flow — self-describing dump, no routine change needed
+  try{
+    const d=new Date(),p=n=>String(n).padStart(2,'0');
+    const name=`dump-${todayStr()}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}-stuck`;
+    const note=`Not-done reason (via app): ${title||stripMeta(it.body)}\nItem: ${path}\nReason: ${reason}\n\n[app stuck flow] Kevin flagged why this open item is not done. Treat the reason as ground truth: if it names a blocker, plan around it (waiting-on loop with a nudge date, reschedule, or an unblocking first action); if it reads like avoidance, name that plainly per the coach rules. The 'stuck:' segment stays on the line — update or clear it when the situation changes.\n`;
+    await api(`contents/inbox/${name}.md`,{method:'PUT',body:JSON.stringify({
+      message:'inbox: not-done reason via app',content:enc(note)})});
+  }catch(e){alert('Reason saved to the item, but the briefing note failed ('+e.message+') — dump it manually so the morning plan sees it.');}
   return true;
 }
 
@@ -763,11 +821,14 @@ function similar(a,b){
   let n=0;A.forEach(x=>{if(B.has(x))n++;});
   return n>=2&&n/Math.min(A.size,B.size)>=0.6;
 }
+// Kevin's own "why it isn't done" note, shown wherever the item shows
+const stuckBit=it=>{const s=meta(it.body,'stuck');return s?`⏸ ${esc(s)}`:'';};
 const dueLoopMeta=it=>{
   const bits=[];
   const w=meta(it.body,'waiting-on');if(w)bits.push('waiting on '+w);
   const od=Math.round((new Date(todayStr())-new Date(meta(it.body,'nudge')))/864e5);
   if(od>=3)bits.push(`<span class="pri1">⚠ ${od} days overdue</span>`);
+  const st=stuckBit(it);if(st)bits.push(st);
   return bits.join(' · ');
 };
 
@@ -806,6 +867,7 @@ const taskMeta=it=>{
   const pri=meta(it.body,'pri'),due=meta(it.body,'due'),bits=[];
   if(pri==='1')bits.push('<span class="pri1">priority</span>');
   if(due)bits.push(due<=todayStr()?'<span class="pri1">due '+due+'</span>':'due '+due);
+  const st=stuckBit(it);if(st)bits.push(st);
   return bits.join(' · ');
 };
 const loopMeta=it=>{
@@ -818,6 +880,7 @@ const loopMeta=it=>{
     else if(od>=0)bits.push('<span class="pri1">nudge due</span>');
     else bits.push('nudge '+n);
   }
+  const st=stuckBit(it);if(st)bits.push(st);
   return bits.join(' · ');
 };
 
@@ -1078,7 +1141,8 @@ function drawCal(){
   const items=(byDay[calSel]||[]).sort((a,b)=>evTime(a).localeCompare(evTime(b)));
   if(!items.length)empty(c,'Nothing this day.');
   items.forEach(it=>{
-    const late=calSel<t?'<span class="pri1">past — reschedule or check off</span>':evTime(it);
+    let late=calSel<t?'<span class="pri1">past — reschedule or check off</span>':evTime(it);
+    const st=stuckBit(it);if(st)late+=(late?' · ':'')+st;
     c.appendChild(itemHTML(it,'data/calendar.md',late,evTitle(it.body)));
   });
 
@@ -1092,7 +1156,10 @@ function drawCal(){
   if(missed.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Missed — decide</div>');
     const mc=card();body.appendChild(mc);
-    appendCapped(mc,missed,it=>itemHTML(it,'data/calendar.md',`<span class="pri1">was ${evDate(it)}</span>`,evTitle(it.body)));
+    appendCapped(mc,missed,it=>{
+      const st=stuckBit(it);
+      return itemHTML(it,'data/calendar.md',`<span class="pri1">was ${evDate(it)}</span>`+(st?' · '+st:''),evTitle(it.body));
+    });
   }
 
   // upcoming agenda (next 30 days), capped at 8
