@@ -1100,7 +1100,7 @@ async function renderToday(){
 }
 
 /* ---- CALENDAR (month grid + day agenda) ---- */
-let calMonth=null,calSel=null,calEvs=[];
+let calMonth=null,calSel=null,calEvs=[],calVirtual={};
 const evDate=it=>(it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];
 const evTime=it=>((it.body.match(/\d{4}-\d{2}-\d{2} (\d{2}:\d{2})/)||[])[1])||'';
 
@@ -1110,6 +1110,10 @@ function drawCal(){
   const y=calMonth.getFullYear(),m=calMonth.getMonth();
   const p=n=>String(n).padStart(2,'0');
   const byDay={};calEvs.forEach(it=>{const d=evDate(it);(byDay[d]=byDay[d]||[]).push(it);});
+  // Today⇄Cal sync: dated non-calendar items (today's plan, due: tasks, nudge: loops)
+  // share the grid and agendas. Presentation-layer only — calVirtual is rebuilt from the
+  // source files each render, so the two tabs cannot drift.
+  const anyDay=ds=>byDay[ds]||calVirtual[ds];
 
   // header
   body.insertAdjacentHTML('beforeend',`<div class="cal-head">
@@ -1126,7 +1130,7 @@ function drawCal(){
     const ds=`${y}-${p(m+1)}-${p(d)}`;
     const cell=document.createElement('button');
     cell.className='cal-cell'+(ds===t?' today':'')+(ds===calSel?' sel':'')+(byDay[ds]&&ds<t?' past-due':'');
-    cell.innerHTML=`${d}${byDay[ds]?'<span class="dot"></span>':''}`;
+    cell.innerHTML=`${d}${anyDay(ds)?'<span class="dot"></span>':''}`;
     cell.onclick=()=>{calSel=ds;drawCal();};
     grid.appendChild(cell);
   }
@@ -1139,12 +1143,14 @@ function drawCal(){
   body.insertAdjacentHTML('beforeend',`<div class="day-title">${selDate.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}${calSel===t?' — today':''}</div>`);
   const c=card();body.appendChild(c);
   const items=(byDay[calSel]||[]).sort((a,b)=>evTime(a).localeCompare(evTime(b)));
-  if(!items.length)empty(c,'Nothing this day.');
+  const virt=calVirtual[calSel]||[];
+  if(!items.length&&!virt.length)empty(c,'Nothing this day.');
   items.forEach(it=>{
     let late=calSel<t?'<span class="pri1">past — reschedule or check off</span>':evTime(it);
     const st=stuckBit(it);if(st)late+=(late?' · ':'')+st;
     c.appendChild(itemHTML(it,'data/calendar.md',late,evTitle(it.body)));
   });
+  virt.forEach(v=>c.appendChild(itemHTML(v.it,v.file,v.label)));
 
   const add=document.createElement('button');
   add.className='btn2';add.textContent='＋ Add event';
@@ -1162,27 +1168,52 @@ function drawCal(){
     });
   }
 
-  // upcoming agenda (next 30 days), capped at 8
+  // upcoming agenda (next 30 days), events + dated plan/due/nudge items, capped at 8
   const horizon=plusDays(30);
-  const upcoming=calEvs.filter(it=>{const d=evDate(it);return d>=t&&d<=horizon;})
-    .sort((a,b)=>a.body.localeCompare(b.body));
+  const merged=calEvs.filter(it=>{const d=evDate(it);return d>=t&&d<=horizon;})
+    .map(it=>({d:evDate(it),time:evTime(it),it,file:'data/calendar.md',title:evTitle(it.body),meta:null}));
+  for(const [d,vs] of Object.entries(calVirtual)){
+    if(d<t||d>horizon)continue;
+    vs.forEach(v=>merged.push({d,time:'',it:v.it,file:v.file,title:null,meta:v.label}));
+  }
+  merged.sort((a,b)=>(a.d+a.time).localeCompare(b.d+b.time));
   body.insertAdjacentHTML('beforeend','<div class="sec">Next 30 Days</div>');
   const uc=card();body.appendChild(uc);
-  if(!upcoming.length)empty(uc,'Nothing coming up. Dump anything with a date and it lands here.');
+  if(!merged.length)empty(uc,'Nothing coming up. Dump anything with a date and it lands here.');
   let lastD='';
-  const rows=upcoming.map(it=>{
-    const d=evDate(it);
-    const label=(d!==lastD?new Date(d+'T00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}):'')+(evTime(it)?' '+evTime(it):'');
-    lastD=d;
-    return {it,label:d===t?`<span class="today-badge">TODAY</span>${evTime(it)?' '+evTime(it):''}`:label};
+  const rows=merged.map(r=>{
+    const label=(r.d!==lastD?new Date(r.d+'T00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}):'')+(r.time?' '+r.time:'');
+    lastD=r.d;
+    const shown=r.d===t?`<span class="today-badge">TODAY</span>${r.time?' '+r.time:''}`:label;
+    return {...r,label:r.meta?shown+(shown?' · ':'')+r.meta:shown};
   });
-  appendCapped(uc,rows,r=>itemHTML(r.it,'data/calendar.md',r.label,evTitle(r.it.body)),8);
+  appendCapped(uc,rows,r=>itemHTML(r.it,r.file,r.label,r.title||undefined),8);
 }
 
 async function renderCal(){
   const body=$('cal-body');if(!keepView)body.innerHTML=skel();
-  const f=await getFile('data/calendar.md');
+  const t=todayStr(),dailyPath=`daily/${t}.md`;
+  const [f,tk,lp,dl]=await Promise.all([
+    getFile('data/calendar.md'),getFile('data/tasks.md'),getFile('data/loops.md'),getFile(dailyPath)]);
   calEvs=f?parseChecklist(f.text).filter(it=>!it.checked&&it.body.match(/\d{4}-\d{2}-\d{2}/)):[];
+  // Today⇄Cal sync (2026-07-20): the calendar is the date-lens over EVERYTHING dated —
+  // today's plan items land on today, tasks land on their due: date, loops on their
+  // nudge: date. Rebuilt from source files each render; nothing is written anywhere.
+  // Past-due items stay OFF the calendar — Today's Needs Attention already owns them.
+  calVirtual={};
+  const add=(d,it,file,label)=>{(calVirtual[d]=calVirtual[d]||[]).push({it,file,label});};
+  const plan=[];
+  if(dl){
+    const ns=noteSections(dl.text);
+    const s3=secByName(ns.secs,/^top 3/i),df=secByName(ns.secs,/^due follow/i);
+    [...(s3?checkboxLines(s3.lines):[]),...(df?checkboxLines(df.lines):[])]
+      .filter(x=>!x.checked).forEach(x=>{plan.push(x);add(t,x,dailyPath,'<span class="today-badge">PLAN</span>');});
+  }
+  const covered=b=>plan.some(p=>similar(p.body,b)); // plan-covered items show once, as PLAN
+  if(tk)parseChecklist(tk.text).filter(it=>!it.checked).forEach(it=>{
+    const d=meta(it.body,'due');if(d&&d>=t&&!covered(it.body))add(d,it,'data/tasks.md',taskMeta(it));});
+  if(lp)parseChecklist(lp.text).filter(it=>!it.checked).forEach(it=>{
+    const n=meta(it.body,'nudge');if(n&&n>=t&&!covered(it.body))add(n,it,'data/loops.md',loopMeta(it));});
   $('cal-count').textContent=calEvs.length?calEvs.length+' scheduled':'';
   if(!calMonth){calMonth=new Date();calMonth.setDate(1);calSel=todayStr();}
   drawCal();
