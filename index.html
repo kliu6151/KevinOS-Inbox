@@ -191,12 +191,12 @@
   .day-title{margin:18px 2px 8px;font-size:14px;font-weight:700}
 
   /* detail sheet */
-  #sheet-ov,#ev-ov{
+  #sheet-ov,#ev-ov,#pk-ov{
     position:fixed;inset:0;background:rgba(4,6,10,.68);z-index:50;
     display:flex;align-items:flex-end;backdrop-filter:blur(4px);
   }
-  #sheet-ov[hidden],#ev-ov[hidden]{display:none}
-  #sheet,#ev-sheet{
+  #sheet-ov[hidden],#ev-ov[hidden],#pk-ov[hidden]{display:none}
+  #sheet,#ev-sheet,#pk-sheet{
     width:100%;background:linear-gradient(180deg,var(--panel),var(--panel2));
     border-radius:22px 22px 0 0;border-top:1px solid var(--border2);
     padding:20px 18px calc(20px + env(safe-area-inset-bottom));
@@ -204,7 +204,7 @@
     animation:sheetUp .28s cubic-bezier(.2,.8,.25,1);
   }
   @keyframes sheetUp{from{transform:translateY(48px);opacity:.5}to{transform:none;opacity:1}}
-  #sheet .grab,#ev-sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--border2);margin:0 auto 16px}
+  #sheet .grab,#ev-sheet .grab,#pk-sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--border2);margin:0 auto 16px}
   #sheet-title,.sh-title{font-size:19px;font-weight:700;line-height:1.35;margin-bottom:14px;letter-spacing:-.01em}
   .srow{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:15px}
   .srow .k{color:var(--muted);flex:none;min-width:92px}
@@ -253,6 +253,77 @@
   }
   #ob-text:focus{border-color:var(--accent)}
   @media (min-width:880px){#outbar{left:calc(232px + 24px);right:auto;width:420px;bottom:24px}}
+
+  /* ---- PEAK: health / fitness / recovery ----
+     Same Dispatch Board vernacular: flat panels, hairline borders, 3px status rails,
+     mono for every number. Nothing here is decorative — if a number can't be explained
+     on tap, it doesn't ship. */
+  .pk-card{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--border2);border-radius:var(--radius);padding:14px 16px;margin-top:12px}
+  .pk-card.amber{border-left-color:var(--amber)}
+  .pk-card.green{border-left-color:var(--green)}
+  .pk-card.red{border-left-color:var(--red)}
+  .pk-eyebrow{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+  .pk-score{display:flex;align-items:baseline;gap:14px}
+  .pk-num{font-family:var(--mono);font-size:42px;font-weight:700;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .pk-den{font-family:var(--mono);font-size:12px;color:var(--faint)}
+  .pk-verdict{font-size:16px;font-weight:650;line-height:1.35}
+  .pk-detail{font-size:14px;color:var(--muted);line-height:1.5;margin-top:3px}
+  .pk-conf{display:inline-flex;align-items:center;gap:5px;margin-top:10px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 8px}
+  .pk-conf.tap{cursor:pointer}
+  .pk-why{font-size:13.5px;color:var(--muted);line-height:1.5;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+  .pk-btn{margin-top:12px;padding:15px;width:100%;background:var(--amber);color:var(--amber-ink);border:none;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:.01em}
+  .pk-btn.ghost{background:var(--panel);color:var(--text);border:1px solid var(--border2)}
+  .pk-btn:active{transform:scale(.985)}
+  /* hair timeline strip */
+  .pk-tl{display:flex;align-items:center;gap:0;margin:12px 0 8px}
+  .pk-tl .n{width:9px;height:9px;border-radius:50%;background:var(--border2);flex:none}
+  .pk-tl .n.on{background:var(--amber)}
+  .pk-tl .n.done{background:var(--green)}
+  .pk-tl .b{flex:1;height:2px;background:var(--border2)}
+  .pk-tl .b.done{background:var(--green)}
+  .pk-tlx{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:var(--faint);letter-spacing:.06em}
+  /* metric bars */
+  .pk-row{display:flex;align-items:center;gap:10px;padding:7px 0}
+  .pk-lab{font-size:14px;color:var(--muted);width:74px;flex:none}
+  .pk-bar{flex:1;height:7px;border-radius:4px;background:var(--bg);border:1px solid var(--border);overflow:hidden}
+  .pk-fill{height:100%;background:var(--muted)}
+  .pk-fill.ok{background:var(--green)}
+  .pk-val{font-family:var(--mono);font-size:12.5px;color:var(--text);width:74px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+  /* week dots */
+  .pk-week{display:flex;gap:6px;margin-top:8px}
+  .pk-day{flex:1;text-align:center}
+  .pk-day .d{font-family:var(--mono);font-size:9.5px;color:var(--faint);letter-spacing:.08em}
+  .pk-day .m{width:100%;height:6px;border-radius:2px;background:var(--border2);margin-top:5px}
+  .pk-day .m.full{background:var(--green)}
+  .pk-day .m.part{background:var(--amber)}
+  .pk-day .m.future{background:var(--border)}
+  /* exercise rows */
+  .pk-ex{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+  .pk-ex:last-child{border-bottom:none}
+  .pk-ex .i{font-family:var(--mono);font-size:12px;color:var(--faint);width:16px;flex:none;padding-top:2px}
+  .pk-ex .b{flex:1;min-width:0}
+  .pk-ex .nm{font-size:15px;font-weight:600;line-height:1.35}
+  .pk-ex .pr{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
+  .pk-ex .sub{font-size:12.5px;color:var(--faint);margin-top:3px;font-style:italic}
+  .pk-swap{flex:none;background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:14px;width:34px;height:34px}
+  /* check-in controls */
+  .pk-q{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px}
+  .pk-opts{display:flex;gap:8px;flex-wrap:wrap}
+  .pk-opt{flex:1;min-width:62px;padding:13px 8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:14.5px;font-weight:600;text-align:center}
+  .pk-opt.on{background:rgba(255,176,32,.12);border-color:var(--amber);color:var(--amber)}
+  .pk-slider{width:100%;margin-top:6px;accent-color:var(--amber)}
+  .pk-sliderval{font-family:var(--mono);font-size:22px;font-weight:700;float:right;color:var(--amber)}
+  /* set logger */
+  .pk-set{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:13.5px}
+  .pk-set .k{color:var(--faint);width:44px;flex:none;letter-spacing:.06em}
+  .pk-set .v{flex:1}
+  .pk-set .ck{color:var(--green)}
+  .pk-step{display:flex;align-items:center;gap:6px}
+  .pk-step button{width:36px;height:36px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:17px;line-height:1}
+  .pk-step input{width:56px;height:36px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);text-align:center;font-family:var(--mono);font-size:15px;outline:none;color-scheme:dark}
+  .pk-steplab{font-family:var(--mono);font-size:9.5px;color:var(--faint);text-align:center;letter-spacing:.08em;text-transform:uppercase}
+  .pk-warn{margin-top:12px;padding:10px 13px;border-radius:10px;font-size:13px;line-height:1.5;color:var(--amber);background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.3)}
+  .pk-spark{display:block}
 
   /* bottom nav (mobile) */
   nav{
@@ -304,8 +375,8 @@
     }
     nav button.on{background:rgba(255,176,32,.08)}
     .nbadge{position:static;margin-left:auto}
-    #sheet-ov,#ev-ov{align-items:center;justify-content:center;padding:24px}
-    #sheet,#ev-sheet{max-width:480px;border-radius:22px;border:1px solid var(--border2)}
+    #sheet-ov,#ev-ov,#pk-ov{align-items:center;justify-content:center;padding:24px}
+    #sheet,#ev-sheet,#pk-sheet{max-width:480px;border-radius:22px;border:1px solid var(--border2)}
   }
   @media (hover:hover){
     .item:hover{background:rgba(255,255,255,.025)}
@@ -361,6 +432,12 @@
     <div id="money-body" class="loading">Loading…</div>
   </div>
 
+  <!-- PEAK: health, fitness, recovery -->
+  <div class="view" id="v-peak">
+    <div class="top"><h1>Peak</h1><div class="sub" id="peak-sub"></div></div>
+    <div id="peak-body" class="loading">Loading…</div>
+  </div>
+
   <!-- BRIEF: industry intel + markets/world, split into two sections -->
   <div class="view" id="v-brief">
     <div class="top"><h1>Brief</h1><div class="sub" id="brief-date"></div></div>
@@ -394,6 +471,17 @@
       <button class="btn2" id="cancel-back">Back</button>
     </div>
     <button class="btn2" id="sheet-close">Close</button>
+  </div>
+</div>
+
+<!-- PEAK: check-in / set logger / quick-entry sheet -->
+<div id="pk-ov" hidden>
+  <div id="pk-sheet">
+    <div class="grab"></div>
+    <div class="sh-title" id="pk-title">Check in</div>
+    <div id="pk-sheet-body"></div>
+    <button class="pk-btn" id="pk-primary">Generate workout</button>
+    <button class="btn2" id="pk-close">Close</button>
   </div>
 </div>
 
@@ -441,6 +529,9 @@
   </button>
   <button data-v="money">
     <svg viewBox="0 0 24 24"><path d="M12 2.5v19M16.8 7.2c-.6-1.4-2.4-2.2-4.8-2.2-2.7 0-4.8 1.2-4.8 3.2s2.1 2.7 4.8 3.1c2.7.4 4.8 1.1 4.8 3.1s-2.1 3.2-4.8 3.2c-2.4 0-4.2-.8-4.8-2.2"/></svg><span>Money</span>
+  </button>
+  <button data-v="peak">
+    <svg viewBox="0 0 24 24"><path d="M3 17l5-7 4 5 3-4 6 6M3 17h18"/><circle cx="17" cy="5" r="2"/></svg><span>Peak</span>
   </button>
   <button data-v="brief">
     <svg viewBox="0 0 24 24"><path d="M4 5h13a2 2 0 0 1 2 2v11a2 2 0 0 0 2-2V8M4 5v13a2 2 0 0 0 2 2h13M7 9h7M7 12.5h7M7 16h4"/></svg><span>Brief</span>
@@ -1487,6 +1578,795 @@ $('dev-back').onclick=()=>{
   $('v-dump').classList.add('active');
 };
 
+/* ================= PEAK KEVIN =================
+   Health / fitness / recovery module. Spec: KevinOS docs/peak-kevin/.
+
+   SYNC NOTE: the pure decision functions below (pkPhase / pkHair / pkRecovery /
+   pkNutrition / pkRunning) mirror ops/peak/peak-lib.js in the DATA repo, which the
+   Sunday review runs. The app has no build step and cannot import from that repo, so
+   the two copies must be changed together — canonical rules live in
+   docs/peak-kevin/ENGINES.md and are covered by ops/peak/selftest.js.
+
+   The WORKOUT GENERATOR (pkGenerate) lives here ONLY, on purpose: it must run offline
+   on job-site LTE, instantly, and reproducibly. An LLM round-trip would be slow, would
+   fail in a basement, and would make the strength trend meaningless.
+
+   PRIVACY: this repo is PUBLIC. No dose, medication name, health default, or personal
+   metric is hardcoded here — everything renders from the private repo's data files.
+   Keep it that way. */
+const PK={cfg:null,proto:null,ex:null,tpl:null,run:null,days:{},metrics:[],hairLines:[],loaded:false};
+const PKF={cfg:'data/peak/config.json',proto:'data/peak/hair/protocol.json',ex:'data/peak/library/exercises.json',
+  tpl:'data/peak/library/templates.json',run:'data/peak/library/running.json',metrics:'data/peak/progress/metrics.md',hair:'data/peak/hair/log.md'};
+const pkMonth=d=>d.slice(0,7);
+const pkAdd=(s,n)=>{const[y,m,dd]=s.split('-').map(Number);const d=new Date(Date.UTC(y,m-1,dd,12));d.setUTCDate(d.getUTCDate()+n);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;};
+const pkDiff=(a,b)=>Math.round((new Date(a+'T12:00:00Z')-new Date(b+'T12:00:00Z'))/864e5);
+const PKDOW=['sun','mon','tue','wed','thu','fri','sat'];
+const pkDow=s=>PKDOW[new Date(s+'T12:00:00Z').getUTCDay()];
+const pkMonday=s=>pkAdd(s,-((new Date(s+'T12:00:00Z').getUTCDay()+6)%7));
+
+/* date expressions: id is LAZY — milestone ids contain '-' ("prospect-half"), so a greedy
+   id swallows the offset in "prospect-half-16w" and silently resolves to null */
+function pkResolve(expr,ms){
+  if(!expr)return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(expr))return expr;
+  const m=expr.match(/^milestone:(.+?)\s*(?:([+-])\s*(\d+)\s*([dwm]))?$/);
+  if(!m)return null;
+  const t=(ms||[]).find(x=>x.id===m[1]);
+  if(!t)return null;
+  if(!m[2])return t.date;
+  const n=Number(m[3]),days=m[4]==='w'?n*7:m[4]==='m'?n*30:n;
+  return pkAdd(t.date,(m[2]==='-'?-1:1)*days);
+}
+function pkPhase(date,cfg){
+  const ms=cfg.milestones||[];
+  for(const ph of cfg.phases||[]){
+    if(ph.id==='default')continue;
+    const s=ph.start?pkResolve(ph.start,ms):null,e=ph.end?pkResolve(ph.end,ms):null;
+    if((ph.start&&!s)||(ph.end&&!e))continue;   // unresolvable bound = config error, not "always"
+    if(s&&date<s)continue;
+    if(e&&date>=e)continue;
+    if(s||e)return ph;
+  }
+  return (cfg.phases||[]).find(x=>x.id==='default')||{id:'default',mode:'maintain'};
+}
+function pkHair(date,cfg,proto){
+  if(!proto)return null;
+  const ms=(cfg.milestones||[]).find(m=>m.id===(proto.milestone||'hair-transplant'));
+  if(!ms)return null;
+  const day=pkDiff(date,ms.date);
+  const tl=(proto.timeline||[]).slice().sort((a,b)=>a.day-b.day);
+  let cur=null,next=null;
+  for(const t of tl){if(t.day<=day)cur=t;else if(!next)next=t;}
+  const blackouts=(proto.blackouts||[]).filter(b=>{
+    const f=pkResolve(b.from,cfg.milestones),t=pkResolve(b.to,cfg.milestones);
+    return f&&t&&date>=f&&date<t;});
+  const meds=(proto.medications||[]).filter(m=>{
+    const s=pkResolve(m.start,cfg.milestones);
+    if(s&&date<s)return false;
+    if(m.cadence&&m.cadence.type==='weekly')return (m.cadence.days||[]).includes(pkDow(date));
+    return true;});
+  return {day,started:day>=0,date:ms.date,cur,next,blackouts,meds,timeline:tl,
+          verifyPending:!(cfg.postop&&cfg.postop.entered_by_kevin)};
+}
+const pkBlack=(h,rule)=>h?(h.blackouts||[]).find(b=>b.rule===rule):null;
+
+function pkAcwrPenalty(r){if(r===null||r===undefined)return 1;if(r<0.8)return .8;if(r<=1.3)return 1;if(r<=1.5)return .6;return .2;}
+function pkRecovery({sleepHours,sleepQuality,soreness,energy,acwr}){
+  const p={},cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+  p.sleep=sleepHours!=null?cl(sleepHours/8,0,1)*35:null;
+  p.quality=sleepQuality!=null?(sleepQuality/5)*20:null;
+  if(soreness==null)p.soreness=null;
+  else{const a=Array.isArray(soreness)?soreness.filter(x=>x&&x!=='none'):[];
+       const sev=a.length===0?0:a.length>=3?1:a.length===2?.7:.4;
+       p.soreness=(1-sev)*15;}
+  p.energy=energy!=null?(energy/10)*15:null;
+  p.load=pkAcwrPenalty(acwr)*15;
+  // without something Kevin actually reported there is no score — the load term alone
+  // would otherwise render 100 ("green light") off an empty check-in
+  if(!['sleep','quality','soreness','energy'].some(k=>p[k]!=null))return null;
+  const W={sleep:35,quality:20,soreness:15,energy:15,load:15};
+  const got=Object.entries(p).filter(([,v])=>v!=null);
+  const tot=got.reduce((a,[k])=>a+W[k],0);
+  if(!tot)return null;
+  return {score:Math.round((got.reduce((a,[,v])=>a+v,0)/tot)*100),confidence:'low',parts:p,
+          missing:Object.entries(p).filter(([,v])=>v==null).map(([k])=>k)};
+}
+function pkVerdict(score,cfg,missing){
+  const r=(cfg&&cfg.recovery)||{};
+  if(score==null)return{band:'unknown',verdict:'Check in to get a read.',detail:'',volume:1,rpeCap:8};
+  // never hand out a green light on inferred sleep. The score reweights around missing
+  // inputs, which is honest, but "PR attempts allowed" is a real decision and it should
+  // not rest on data Kevin never gave.
+  const blindSleep=(missing||[]).includes('sleep');
+  if(score>=(r.greenlight_at||80)&&!blindSleep)return{band:'green',verdict:'Green light.',detail:'Full volume. PR attempts allowed.',volume:1,rpeCap:9};
+  if(score>=(r.greenlight_at||80)&&blindSleep)return{band:'ok',verdict:'Train. Full volume.',detail:'No sleep logged — holding off on PR attempts.',volume:1,rpeCap:8};
+  if(score>=(r.reduce_volume_below||60))return{band:'ok',verdict:'Train. Full volume.',detail:'Normal progression.',volume:1,rpeCap:8};
+  if(score>=(r.force_recovery_below||40))return{band:'light',verdict:'Train light.',detail:'Volume cut 30%, capped at RPE 7, no progression.',volume:.7,rpeCap:7};
+  return{band:'recover',verdict:'Recover.',detail:'No lifting today.',volume:0,rpeCap:0};
+}
+function pkNutrition({date,cfg,weightLb,phase}){
+  const pr=cfg.profile||{},t=cfg.targets||{},ph=phase||pkPhase(date,cfg);
+  const age=pr.birth_date?Math.floor(pkDiff(date,pr.birth_date)/365.25):null;
+  const ov=cfg.nutrition&&cfg.nutrition.maintenance_override;
+  let maint=ov||null;
+  if(!maint&&weightLb&&pr.height_in&&age!=null){
+    const bmr=10*(weightLb*.4536)+6.25*(pr.height_in*2.54)-5*age+(pr.sex==='female'?-161:5);
+    const A={sedentary:1.35,light:1.45,moderate:1.55,high:1.7};
+    maint=Math.round(bmr*((A[pr.activity_baseline]||1.55)+.05));
+  }
+  const locked=(ph.locks||[]).includes('no_deficit');
+  let rate=ph.mode==='cut'?(ph.rate_lb_per_week||-.75):ph.mode==='lean-gain'?.35:0;
+  if(locked&&rate<0)rate=0;
+  const kcal=maint?Math.round(maint+(rate*3500)/7):null;
+  const perLb=ph.protein_g_per_lb||t.protein_g_per_lb||1;
+  const protein=weightLb?Math.round(weightLb*perLb):null;
+  const fat=weightLb&&kcal?Math.round(Math.max(weightLb*(t.fat_g_per_lb_floor||.25),(.2*kcal)/9)):null;
+  const carb=kcal&&protein!=null&&fat!=null?Math.round((kcal-protein*4-fat*9)/4):null;
+  return {phase:ph.id,mode:ph.mode,locked,why:locked?(ph.why||null):null,maintenance:maint,kcal,
+    band:kcal?[kcal-150,kcal+150]:null,protein,carb,fat,
+    fiber:kcal?Math.round((kcal/1000)*(t.fiber_g_per_1000kcal||14)):null,
+    water:weightLb?Math.round(weightLb*(t.water_oz_per_lb||.6)):null,
+    source:ov?'calibrated':maint?'estimated':'needs-profile'};
+}
+
+/* ---- peak log parsing (mirrors peak-lib.parsePeakLog) ---- */
+function pkParseLog(text){
+  const days={};let cur=null,inSets=false;
+  for(const raw of String(text||'').split('\n')){
+    const line=raw.replace(/\r$/,'');
+    const h=line.match(/^##\s+(\d{4}-\d{2}-\d{2})/);
+    if(h){cur=days[h[1]]={date:h[1],checkin:null,metrics:{},session:null,sets:[],compliance:{},notes:[]};inSets=false;continue;}
+    if(!cur)continue;
+    if(/^sets:\s*$/.test(line)){inSets=true;continue;}
+    if(inSets){
+      const s=line.match(/^-\s+([\w-]+)\s*\|\s*(\d+)x([\d-]+)\s*@\s*([^|]+?)(?:\s*\|\s*rpe\s*(.+))?$/i);
+      if(s){cur.sets.push({exercise:s[1],sets:+s[2],reps:s[3],load:s[4].trim(),rpe:(s[5]||'').trim()});continue;}
+      if(!line.startsWith('-'))inSets=false;else continue;
+    }
+    const cb=line.match(/^- \[( |x)\]\s+(\d{4}-\d{2}-\d{2})\s+(.*)$/);
+    if(cb){cur.compliance[pkCKey(cb[3])]={done:cb[1]==='x',label:cb[3].trim(),line};continue;}
+    const kv=line.match(/^(checkin|metrics|session|note):\s*(.*)$/);
+    if(kv){
+      if(kv[1]==='note'){cur.notes.push(kv[2].trim());continue;}
+      const o={};
+      for(const seg of kv[2].split('|')){const m=seg.trim().match(/^([\w-]+)\s*:\s*(.*)$/);if(m)o[m[1]]=m[2].trim();}
+      if(kv[1]==='metrics')cur.metrics=o;else if(kv[1]==='checkin')cur.checkin=o;else cur.session=Object.assign(o,{raw:kv[2].trim()});
+    }
+  }
+  return days;
+}
+function pkCKey(l){
+  const s=l.toLowerCase();
+  if(/^meds am/.test(s))return'meds_am';
+  if(/^meds pm/.test(s))return'meds_pm';
+  if(/protein/.test(s))return'protein';
+  if(/calorie/.test(s))return'calories';
+  if(/water/.test(s))return'water';
+  if(/supplement/.test(s))return'supplements';
+  if(/night routine|skincare/.test(s))return'night_routine';
+  if(/stretch/.test(s))return'stretching';
+  return s.replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,32);
+}
+function pkParseMetrics(text){
+  const out=[];
+  for(const raw of String(text||'').split('\n')){
+    const m=raw.match(/^-\s*(\d{4}-\d{2}-\d{2})\s*\|\s*([\w-]+)\s*\|\s*(-?[\d.]+)\s*\|\s*([^|]*)\|\s*([^|]*)\|\s*(.*)$/);
+    if(m)out.push({date:m[1],metric:m[2],value:+m[3],unit:m[4].trim(),source:m[5].trim(),confidence:m[6].trim()});
+  }
+  return out;
+}
+const pkSeries=(ms,name)=>ms.filter(m=>m.metric===name).sort((a,b)=>a.date.localeCompare(b.date));
+const pkLatest=(ms,name)=>{const s=pkSeries(ms,name);return s.length?s[s.length-1]:null;};
+
+/* ---- training load / ACWR ---- */
+function pkLoad(day){
+  if(!day||!day.session)return 0;
+  if(day.sets&&day.sets.length){
+    let t=0;
+    for(const s of day.sets){const w=parseFloat(String(s.load).replace(/[^\d.]/g,''));const r=parseInt(String(s.reps).split('-')[0],10);
+      if(!isNaN(w)&&!isNaN(r))t+=w*r*s.sets;}
+    if(t)return t/1000;
+  }
+  const RL={easy:1,long:1.2,tempo:1.6,recovery:.7,intervals:1.8};
+  if(day.session.dist)return parseFloat(day.session.dist)*(RL[day.session.type]||1)*3;
+  const mins=parseFloat(String(day.session.dur||'').replace(/[^\d.]/g,''));
+  if(!isNaN(mins))return /activity/.test(day.session.raw||'')?mins*.08:(mins*parseFloat(day.session.rpe_avg||6))/10;
+  return 0;
+}
+function pkAcwr(days,today){
+  let a=0,c=0;
+  for(let i=0;i<7;i++)a+=pkLoad(days[pkAdd(today,-i)]);
+  for(let i=0;i<28;i++)c+=pkLoad(days[pkAdd(today,-i)]);
+  return c>0?a/(c/4):null;
+}
+/* ---- WORKOUT ENGINE (app-only; ENGINES.md §1) ----
+   Deterministic: same inputs, same session, every time. That reproducibility is what
+   makes the strength trend mean anything. */
+const PK_BUDGET={30:{sets:10,slots:3},45:{sets:15,slots:4},60:{sets:20,slots:6},90:{sets:28,slots:7}};
+const PK_REGION_PATTERNS={
+  chest:['horizontal_push'],back:['vertical_pull','horizontal_pull'],
+  shoulders:['vertical_push','lateral_delt'],arms:['biceps','triceps'],
+  legs:['squat','hinge','lunge','calf']};
+function pkPainPatterns(region){
+  const map={shoulder:['horizontal_push','vertical_push','lateral_delt','vertical_pull'],
+    elbow:['biceps','triceps','vertical_pull','horizontal_pull'],
+    back:['hinge','squat','horizontal_pull','carry'],
+    knee:['squat','lunge','hinge'],hip:['squat','hinge','lunge'],
+    ankle:['calf','lunge','squat'],wrist:['horizontal_push','triceps'],neck:['vertical_push']};
+  return map[region]||[];
+}
+function pkHistory(days,exId){
+  const dates=Object.keys(days).sort().reverse();
+  for(const d of dates){
+    const s=(days[d].sets||[]).filter(x=>x.exercise===exId);
+    if(!s.length)continue;
+    const load=parseFloat(String(s[0].load).replace(/[^\d.-]/g,''));
+    /* the reps field holds EVERY set ("8-8-6"), not just the first — progression must see
+       the set that fell short, or 8,8,6 reads as a clean top-of-range day and adds weight */
+    const reps=String(s[0].reps).split('-').map(n=>parseInt(n,10)).filter(n=>!isNaN(n));
+    const rpes=String(s[0].rpe||'').split(',').map(n=>parseFloat(n)).filter(n=>!isNaN(n));
+    return {date:d,load:isNaN(load)?null:load,reps,sets:s[0].sets,
+            maxRpe:rpes.length?Math.max(...rpes):null,raw:s[0]};
+  }
+  return null;
+}
+function pkGenerate(ci,ctx){
+  const {days,cfg,ex,tpl,hair,rec}=ctx;
+  const equip=new Set((cfg.equipment_profiles||{})[ci.loc]||[]);
+  const verdict=pkVerdict(rec?rec.score:null,cfg,rec?rec.missing:null);
+  const reasons=[];
+
+  // ---- Step 0: gates, first trip wins ----
+  const noTrain=pkBlack(hair,'no_training'),noLift=pkBlack(hair,'no_lifting');
+  if(noTrain)return pkRecoverySession(ctx,ci,'Hair day '+hair.day+' — '+noTrain.reason,true);
+  const pain=ci.pain&&ci.pain.region?ci.pain:null;
+  let exclude=new Set();
+  if(pain&&pain.severity==='real'){
+    if(pain.region==='all')return pkRecoverySession(ctx,ci,'Pain flagged — nothing loaded today.',false);
+    pkPainPatterns(pain.region).forEach(p=>exclude.add(p));
+    reasons.push(pain.region+' pain — those patterns are out');
+  }
+  if(rec&&rec.score<((cfg.recovery||{}).force_recovery_below||40))
+    return pkRecoverySession(ctx,ci,'Recovery '+rec.score+' — under '+((cfg.recovery||{}).force_recovery_below||40)+'.',false,true);
+
+  // ---- Step 1: template ----
+  const rot=(cfg.schedule||{}).split||['Upper A','Lower A','Upper B','Lower B'];
+  const avail=rot.filter(n=>tpl[n]);
+  let name=avail[0]||Object.keys(tpl).find(k=>!k.startsWith('_'));
+  const dates=Object.keys(days).sort().reverse();
+  let lastT=null,recentRegions=new Set();
+  for(const d of dates){
+    const s=days[d].session;
+    if(!s||!/strength/.test(s.raw||''))continue;
+    const t=(s.raw||'').split('|').map(x=>x.trim()).find(x=>tpl[x]);
+    if(t&&!lastT)lastT=t;
+    if(pkDiff(ci.date,d)<=2&&t&&tpl[t])(tpl[t].regions||[]).forEach(r=>recentRegions.add(r));
+    if(lastT)break;
+  }
+  if(lastT&&avail.length>1){const i=avail.indexOf(lastT);name=avail[(i+1)%avail.length];}
+  const sore=new Set((ci.sore||[]).filter(s=>s&&s!=='none'));
+  const clashes=n=>(tpl[n].regions||[]).some(r=>sore.has(r));
+  if(clashes(name)){const alt=avail.find(n=>!clashes(n));if(alt){reasons.push([...sore].join('/')+' still sore');name=alt;}}
+  if(ci.min<=30&&(!lastT||pkDiff(ci.date,dates.find(d=>days[d].session)||ci.date)>=3)&&tpl['Full Body'])name='Full Body';
+  if(noLift){
+    reasons.push(noLift.reason);
+    return pkRecoverySession(ctx,ci,'Hair day '+hair.day+' — '+noLift.reason,false,false,true);
+  }
+  const template=tpl[name];
+
+  // ---- Step 2: volume budget ----
+  const b=PK_BUDGET[ci.min]||PK_BUDGET[45];
+  let budget=b.sets;
+  if(rec&&rec.score<((cfg.recovery||{}).reduce_volume_below||60)){budget=Math.round(budget*.7);reasons.push('recovery '+rec.score);}
+  if(ci.energy<=4){budget=Math.round(budget*.7);reasons.push('energy '+ci.energy);}
+  if(pkPhase(ci.date,cfg).mode==='cut')budget=Math.round(budget*.9);
+  budget=Math.max(budget,6);
+
+  // ---- Steps 4+5: fill slots ----
+  const cat=Object.entries(ex).filter(([k])=>!k.startsWith('_'));
+  const used=new Set(),out=[];
+  let spent=0;
+  for(const slot of (template.slots||[])){
+    if(spent>=budget||out.length>=b.slots)break;
+    if(exclude.has(slot.pattern))continue;
+    let pool=cat.filter(([id,e])=>e.pattern===slot.pattern&&!used.has(id)
+      &&(e.equipment||[]).every(q=>equip.has(q))
+      &&!(pain&&(e.contraindications||[]).includes(pain.region)));
+    let note=null;
+    if(!pool.length){
+      // explicit equivalents before giving up — substitution is shown, never hidden
+      const anyPat=cat.filter(([,e])=>e.pattern===slot.pattern);
+      for(const [,e] of anyPat){
+        const eq=ci.loc==='home'?e.home_equivalent:e.gym_equivalent;
+        if(eq&&ex[eq]&&!used.has(eq)&&(ex[eq].equipment||[]).every(q=>equip.has(q))
+           &&!(pain&&(ex[eq].contraindications||[]).includes(pain.region))){
+          pool=[[eq,ex[eq]]];note='swapped in for '+e.name.toLowerCase()+' ('+ci.loc+' profile)';break;}
+      }
+    }
+    if(!pool.length)continue;
+    pool.sort((a,z)=>(a[1].priority||9)-(z[1].priority||9));
+    const [id,e]=pool[0];
+    used.add(id);
+    const h=pkHistory(days,id);
+    const rpe=Math.min(e.rpe||8,verdict.rpeCap||8);
+    let sets=e.sets||3;
+    if(spent+sets>budget)sets=Math.max(2,budget-spent);
+    spent+=sets;
+    const lo=(e.reps||[8,12])[0],hi=(e.reps||[8,12])[1];
+    let load=null,reps=lo+'-'+hi,cue=null;
+    if(!h){cue='calibration — find a weight, log what you do';}
+    else if(h.load!=null){
+      const topped=h.reps.length&&h.reps.every(r=>r>=hi)&&(h.maxRpe==null||h.maxRpe<=(e.rpe||8));
+      if(topped&&verdict.rpeCap>=(e.rpe||8)){load=h.load+(e.increment_lb||5);cue='up '+(e.increment_lb||5)+' lb from '+h.load;}
+      else if(h.reps.length&&h.reps.every(r=>r<lo)){load=Math.round((h.load*.9)/5)*5;cue='back off 10% — reps fell short twice';}
+      else{load=h.load;cue='same load, chase the top of the range';}
+    }
+    out.push({id,name:e.name,sets,reps,rpe,rest:e.rest_s||90,load,loadType:e.load_type,
+              note,cue,pattern:e.pattern,last:h});
+  }
+  const why=[];
+  why.push(name+', '+ci.min+' min, '+ci.loc);
+  if(reasons.length)why.push(reasons.join('; '));
+  if(verdict.band==='green')why.push('green light — PR attempts allowed');
+  else if(verdict.band==='light')why.push('holding loads, no progression');
+  return {kind:'strength',template:name,minutes:ci.min,exercises:out,verdict,
+          why:why.join(' · '),budget,spent};
+}
+function pkRecoverySession(ctx,ci,reason,blackout,overridable,light){
+  const {ex,cfg}=ctx;
+  const equip=new Set((cfg.equipment_profiles||{})[ci.loc]||[]);
+  const pick=pat=>Object.entries(ex).filter(([k,e])=>!k.startsWith('_')&&e.pattern===pat
+      &&(e.equipment||[]).every(q=>equip.has(q))).sort((a,z)=>(a[1].priority||9)-(z[1].priority||9))[0];
+  const items=[];
+  const mob=pick('mobility'),con=pick('conditioning');
+  if(con)items.push({id:con[0],name:con[1].name,sets:1,reps:light?'25-35 min':'20-30 min',rpe:3,rest:0,load:null,cue:'easy — nose-breathing pace'});
+  if(mob)items.push({id:mob[0],name:mob[1].name,sets:1,reps:'8-10 min',rpe:2,rest:0,load:null,cue:null});
+  return {kind:'recovery',template:'Recovery Day',minutes:ci.min,exercises:items,
+          verdict:{band:blackout?'red':'light'},why:reason,blackout:!!blackout,overridable:!!overridable,light:!!light};
+}
+
+/* ---- writers ---- */
+async function pkSave(path,text,message){
+  let sha=null;
+  try{const f=await getFile(path);if(f&&!f.stale)sha=f.sha;else if(f&&f.stale)throw new Error('offline — reconnect and try again');}catch(e){if(!/404/.test(e.message))throw e;}
+  const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify(
+    Object.assign({message,content:enc(text)},sha?{sha}:{}))});
+  try{localStorage.setItem('fc_'+path,JSON.stringify({text,sha:res.content.sha,ts:Date.now()}));}catch(e){}
+  return true;
+}
+/* upsert a `key: value` line inside the day's `## DATE` section, creating the section
+   (and the month file) when missing. Compliance checkboxes are appended dated. */
+async function pkWriteDay(date,patch,compliance,message){
+  const path=`data/peak/log/${pkMonth(date)}.md`;
+  let f=null;try{f=await getFile(path);}catch(e){}
+  if(f&&f.stale)throw new Error('offline — reconnect and try again');
+  let lines=f?f.text.split('\n'):[`# Peak log — ${pkMonth(date)}`,''];
+  let i=lines.findIndex(l=>l.startsWith('## '+date));
+  if(i<0){
+    const hs=pkPhase(date,PK.cfg),hh=pkHair(date,PK.cfg,PK.proto);
+    const hdr=`## ${date} · ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(date+'T12:00:00Z').getUTCDay()]}`
+      +(hh&&hh.started?` · hair D${hh.day}`:'')+` · ${hs.id}`;
+    // keep day sections in date order
+    let at=lines.length;
+    for(let k=0;k<lines.length;k++){const m=lines[k].match(/^## (\d{4}-\d{2}-\d{2})/);if(m&&m[1]>date){at=k;break;}}
+    lines.splice(at,0,hdr,'','');
+    i=at;
+  }
+  let end=i+1;while(end<lines.length&&!/^## /.test(lines[end]))end++;
+  const seg=lines.slice(i+1,end);
+  for(const [k,v] of Object.entries(patch||{})){
+    if(v==null)continue;
+    const idx=seg.findIndex(l=>l.startsWith(k+':'));
+    if(idx>=0)seg[idx]=`${k}: ${v}`;
+    else{const last=seg.map(l=>/^(checkin|metrics|session):/.test(l)).lastIndexOf(true);seg.splice(last+1,0,`${k}: ${v}`);}
+  }
+  for(const label of (compliance||[])){
+    if(seg.some(l=>l.includes(`] ${date} ${label}`)))continue;
+    seg.push(`- [ ] ${date} ${label}`);
+  }
+  lines=lines.slice(0,i+1).concat(seg,lines.slice(end));
+  await pkSave(path,lines.join('\n').replace(/\n{3,}/g,'\n\n'),message);
+}
+async function pkWriteMetrics(date,recs){
+  if(!recs.length)return;
+  const path=PKF.metrics;
+  let f=null;try{f=await getFile(path);}catch(e){}
+  const base=f?f.text.replace(/\s*$/,''):'# Metrics — normalized log\n\n## Log\n';
+  const add=recs.map(r=>`- ${date} | ${r.metric} | ${r.value} | ${r.unit} | ${r.source||'manual'} | ${r.confidence||'low'}`);
+  await pkSave(path,base+'\n'+add.join('\n')+'\n','peak metrics '+date);
+}
+/* ================= end Peak engines ================= */
+
+/* ---- PEAK: dashboard ---- */
+async function pkLoadAll(t){
+  const [cfg,proto,ex,tpl,run,mtx,hair,m0,m1]=await Promise.all([
+    getFile(PKF.cfg),getFile(PKF.proto),getFile(PKF.ex),getFile(PKF.tpl),getFile(PKF.run),
+    getFile(PKF.metrics),getFile(PKF.hair),
+    getFile(`data/peak/log/${pkMonth(t)}.md`),getFile(`data/peak/log/${pkMonth(pkAdd(t,-31))}.md`)]);
+  const J=f=>{if(!f)return null;try{return JSON.parse(f.text);}catch(e){return null;}};
+  PK.cfg=J(cfg);PK.proto=J(proto);PK.ex=J(ex)||{};PK.tpl=J(tpl)||{};PK.run=J(run);
+  /* Strip \r on load. JS's '.' does NOT match \r, so a trailing CR makes every
+     `(.*)$` parser silently return zero matches on CRLF files — and this repo is
+     edited on Windows, so files genuinely arrive with CRLF. */
+  const nl=f=>(f?f.text:'').replace(/\r/g,'');
+  PK.metrics=pkParseMetrics(nl(mtx));
+  PK.hairLines=nl(hair).split('\n');
+  PK.days=Object.assign({},pkParseLog(nl(m1)),pkParseLog(nl(m0)));
+  PK.loaded=!!PK.cfg;
+  return PK.loaded;
+}
+const pkSpark=vals=>{
+  if(!vals||vals.length<3)return '';
+  const w=60,h=16,mn=Math.min(...vals),mx=Math.max(...vals),rg=mx-mn||1;
+  const pts=vals.map((v,i)=>`${(i/(vals.length-1)*w).toFixed(1)},${(h-((v-mn)/rg)*h).toFixed(1)}`).join(' ');
+  return `<svg class="pk-spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" fill="none"><polyline points="${pts}" stroke="var(--muted)" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+};
+function pkMedsToday(t){
+  const out=[];
+  for(const l of PK.hairLines){
+    const m=l.match(/^- \[( |x)\] (\d{4}-\d{2}-\d{2}) meds (AM|PM) — (.*)$/);
+    if(m&&m[2]===t)out.push({line:l,checked:m[1]==='x',slot:m[3],label:m[4].trim()});
+  }
+  return out;
+}
+async function renderPeak(){
+  const body=$('peak-body');if(!keepView)body.innerHTML=skel();
+  const t=todayStr();
+  const ok=await pkLoadAll(t);
+  body.innerHTML='';
+  if(!ok){
+    const c=card();body.appendChild(c);
+    empty(c,'Peak isn\'t set up yet — <b>data/peak/config.json</b> is missing or unreadable in the KevinOS repo.');
+    return;
+  }
+  const cfg=PK.cfg,day=PK.days[t]||null,hair=pkHair(t,cfg,PK.proto),phase=pkPhase(t,cfg);
+  const wRec=pkLatest(PK.metrics,'weight'),weightLb=wRec?wRec.value:null;
+  $('peak-sub').textContent=(phase.label||phase.id)+(hair&&hair.started?' · hair D'+hair.day:'');
+
+  // config gaps are stated once, at the top — never silently guessed around
+  const gaps=[];
+  if(!(cfg.profile||{}).birth_date||!(cfg.profile||{}).height_in)gaps.push('height + date of birth');
+  if(!(cfg.postop||{}).entered_by_kevin)gaps.push("surgeon's post-op sheet (every hair date below is a [VERIFY] estimate)");
+  if(gaps.length)body.insertAdjacentHTML('beforeend',
+    `<div class="pk-warn"><b>Needs your input:</b> ${gaps.map(esc).join(' · ')}. Until then those numbers show as “—” rather than a guess.</div>`);
+
+  // ---- readiness ----
+  const ci=day&&day.checkin?day.checkin:null;
+  const sleepH=day&&day.metrics.sleep_h?parseFloat(day.metrics.sleep_h):null;
+  const rec=pkRecovery({sleepHours:sleepH,
+    sleepQuality:day&&day.metrics.sleep_q?parseFloat(day.metrics.sleep_q):null,
+    soreness:ci?String(ci.sore||'none').split('+'):null,
+    energy:ci?parseFloat(ci.energy):null,acwr:pkAcwr(PK.days,t)});
+  const vd=pkVerdict(rec?rec.score:null,cfg,rec?rec.missing:null);
+  /* ONE primary verdict per screen. A medical restriction outranks a good recovery score —
+     without this the card reads "Train. Full volume." directly above a card refusing to
+     let him train, and the contradiction is what teaches people to ignore the system. */
+  const medBlock=pkBlack(hair,'no_training')||pkBlack(hair,'no_lifting');
+  if(medBlock){
+    vd.band=pkBlack(hair,'no_training')?'recover':'light';
+    vd.verdict=pkBlack(hair,'no_training')?'Recover — medical.':'Light only — medical.';
+    vd.detail='Hair day '+hair.day+' · '+medBlock.reason;
+  }
+  const rc=document.createElement('div');
+  rc.className='pk-card '+(vd.band==='green'?'green':vd.band==='recover'?'red':'amber');
+  rc.innerHTML=`<div class="pk-eyebrow"><span>Readiness</span><span>${esc(new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}))}</span></div>
+    <div class="pk-score"><span class="pk-num">${rec?rec.score:'—'}</span><span class="pk-den">${rec?'/100':''}</span>
+    <span style="flex:1"><span class="pk-verdict">${esc(vd.verdict)}</span><div class="pk-detail">${esc(vd.detail||'')}</div></span></div>
+    ${rec?`<button class="pk-conf tap" id="pk-conf">${rec.confidence} confidence · self-reported ⓘ</button>`:''}`;
+  body.appendChild(rc);
+  if(rec)rc.querySelector('#pk-conf').onclick=()=>{
+    const P=rec.parts,f=n=>n==null?'not answered':Math.round(n)+' pts';
+    alert('Recovery '+rec.score+'/100\n\n'
+      +'Sleep hours   '+f(P.sleep)+' (of 35)\n'
+      +'Sleep quality '+f(P.quality)+' (of 20)\n'
+      +'Soreness      '+f(P.soreness)+' (of 15)\n'
+      +'Energy        '+f(P.energy)+' (of 15)\n'
+      +'Training load '+f(P.load)+' (of 15)\n\n'
+      +'Score = points earned ÷ points available, so unanswered inputs reweight rather than count as zero.\n'
+      +'Confidence is LOW because sleep and energy are self-reported. It rises when a device supplies them.');
+  };
+
+  // ---- today ----
+  const tc=document.createElement('div');
+  const w=PK.workout&&PK.workout.date===t?PK.workout.session:null;
+  if(!ci&&!w){
+    tc.className='pk-card amber';
+    tc.innerHTML=`<div class="pk-eyebrow"><span>Today</span><span>~30 sec</span></div>
+      <div class="pk-detail">No check-in yet. Five taps and the workout writes itself.</div>`;
+    const b=document.createElement('button');b.className='pk-btn';b.textContent='Check in →';
+    b.onclick=()=>pkOpenCheckin(t);tc.appendChild(b);
+  }else{
+    const s=w||pkGenerate(Object.assign({date:t,loc:ci.loc||'home',min:+(ci.min||45),
+      energy:+(ci.energy||6),sore:String(ci.sore||'none').split('+'),
+      pain:ci.pain&&ci.pain!=='none'?{region:ci.pain,severity:ci.pain_sev||'real'}:null}),
+      {days:PK.days,cfg,ex:PK.ex,tpl:PK.tpl,hair,rec});
+    PK.workout={date:t,session:s};
+    tc.className='pk-card '+(s.blackout?'red':s.kind==='recovery'?'red':'amber');
+    tc.innerHTML=`<div class="pk-eyebrow"><span>Today</span><span>${esc(s.template)} · ${s.minutes} min</span></div>
+      <div class="pk-detail" style="margin-bottom:10px">${esc(s.why)}</div>`;
+    s.exercises.forEach((e,i)=>{
+      const row=document.createElement('div');row.className='pk-ex';
+      row.innerHTML=`<div class="i">${i+1}</div><div class="b"><div class="nm">${esc(e.name)}</div>
+        <div class="pr">${e.sets>1?e.sets+' × ':''}${esc(String(e.reps))}${e.load!=null?'  ·  '+(e.loadType==='vest'?'+':'')+e.load+' lb':''}${e.rpe?'  ·  RPE '+e.rpe:''}${e.rest?'  ·  '+Math.floor(e.rest/60)+':'+String(e.rest%60).padStart(2,'0'):''}</div>
+        ${e.note?`<div class="sub">↳ ${esc(e.note)}</div>`:''}${e.cue?`<div class="sub">${esc(e.cue)}</div>`:''}</div>`;
+      tc.appendChild(row);
+    });
+    if(s.kind==='strength'){
+      const b=document.createElement('button');b.className='pk-btn';b.textContent='Log this session';
+      b.onclick=()=>pkOpenLogger(t,s);tc.appendChild(b);
+    }else{
+      const b=document.createElement('button');b.className='pk-btn ghost';b.textContent='Mark done ✓';
+      b.onclick=async()=>{b.disabled=true;
+        try{await pkWriteDay(t,{session:`recovery | ${s.minutes}m | src:engine | reason:${(s.why||'').replace(/\|/g,'/')}`},null,'peak recovery '+t);runRender('peak');}
+        catch(e){alert('Save failed: '+e.message);b.disabled=false;}};
+      tc.appendChild(b);
+      if(s.overridable){
+        const o=document.createElement('button');o.className='pk-btn ghost';o.textContent='Override — train anyway';
+        o.onclick=()=>{if(confirm('Overriding a forced recovery day.\n\nThis gets logged, and the Sunday review names the pattern if it becomes a habit. Not blocking you — just keeping the record honest.')){
+          PK.override=t;pkOpenCheckin(t,true);}};
+        tc.appendChild(o);
+      }
+    }
+  }
+  body.appendChild(tc);
+
+  // ---- hair ----
+  if(hair&&hair.started){
+    const hc=document.createElement('div');hc.className='pk-card';
+    const keys=hair.timeline.filter(x=>x.key||x.day===0).slice(0,5);
+    let strip='<div class="pk-tl">';
+    keys.forEach((k,i)=>{
+      if(i)strip+=`<span class="b${hair.day>=k.day?' done':''}"></span>`;
+      strip+=`<span class="n${hair.day>k.day?' done':hair.day>=k.day?' on':''}"></span>`;
+    });
+    strip+='</div><div class="pk-tlx">'+keys.map(k=>`<span>D${k.day}</span>`).join('')+'</div>';
+    hc.innerHTML=`<div class="pk-eyebrow"><span>Hair</span><span>Day ${hair.day}</span></div>${strip}
+      ${hair.cur?`<div class="pk-verdict" style="font-size:15px;margin-top:10px">${esc(hair.cur.label)}</div>`:''}
+      ${hair.cur&&hair.cur.note?`<div class="pk-detail">${esc(hair.cur.note)}</div>`:''}
+      ${hair.next?`<div class="pk-why">Next: <b>${esc(hair.next.label)}</b> in ${hair.next.day-hair.day} day${hair.next.day-hair.day===1?'':'s'}${hair.verifyPending?' <span style="color:var(--amber)">[VERIFY]</span>':''}</div>`:''}`;
+    const meds=pkMedsToday(t);
+    meds.forEach(m=>{
+      const d=document.createElement('div');d.className='item'+(m.checked?' done':'');d.style.padding='11px 0';
+      d.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt" style="font-size:15px">${m.slot} — ${esc(m.label)}</div></div>`;
+      if(!m.checked)d.querySelector('.hit').onclick=()=>toggleLine(PKF.hair,m.line,d).then(ok=>{if(ok)PK.hairLines=PK.hairLines.map(l=>l===m.line?ok:l);});
+      hc.appendChild(d);
+    });
+    if(!meds.length&&hair.day>=0)hc.insertAdjacentHTML('beforeend',
+      '<div class="pk-why">No medication lines for today — run <code>node ops/peak/seed.js</code> to extend the schedule.</div>');
+    body.appendChild(hc);
+  }
+
+  // ---- fuel ----
+  const nt=pkNutrition({date:t,cfg,weightLb,phase});
+  const fc=document.createElement('div');fc.className='pk-card';
+  const comp=day?day.compliance:{};
+  const bar=(lab,key,val)=>{
+    const done=comp[key]&&comp[key].done;
+    return `<div class="pk-row"><span class="pk-lab">${lab}</span>
+      <span class="pk-bar"><span class="pk-fill${done?' ok':''}" style="width:${done?100:0}%"></span></span>
+      <span class="pk-val">${val||'—'}</span></div>`;
+  };
+  fc.innerHTML=`<div class="pk-eyebrow"><span>Fuel</span><span>${nt.kcal?nt.band[0]+'–'+nt.band[1]+' kcal':'set profile'}</span></div>
+    ${bar('Protein','protein',nt.protein?nt.protein+' g':null)}
+    ${bar('Calories','calories',nt.kcal?'in band':null)}
+    ${bar('Water','water',nt.water?nt.water+' oz':null)}
+    ${bar('Supps','supplements','')}
+    ${nt.locked?`<div class="pk-why">🔒 ${esc(nt.why||'Deficit locked this phase.')}</div>`:''}
+    ${nt.source==='estimated'?'<div class="pk-why">Calorie target is still the seed estimate — it self-corrects once 14 days of weigh-ins exist.</div>':''}`;
+  body.appendChild(fc);
+
+  // ---- week ----
+  const wc=document.createElement('div');wc.className='pk-card';
+  const mon=pkMonday(t);let strip='<div class="pk-week">';
+  for(let i=0;i<7;i++){
+    const d=pkAdd(mon,i),dd=PK.days[d];
+    const cls=d>t?'future':dd&&dd.session?'full':dd?'part':'';
+    strip+=`<div class="pk-day"><div class="d">${['M','T','W','T','F','S','S'][i]}</div><div class="m ${cls}"></div></div>`;
+  }
+  strip+='</div>';
+  const wt=weightLb!=null?weightLb+' lb':'—';
+  const last7=pkSeries(PK.metrics,'weight').slice(-10).map(m=>m.value);
+  wc.innerHTML=`<div class="pk-eyebrow"><span>This week</span><span>${wt}</span></div>${strip}
+    ${last7.length>=3?`<div class="pk-row"><span class="pk-lab">Weight</span><span style="flex:1">${pkSpark(last7)}</span><span class="pk-val">${(last7[last7.length-1]-last7[0]).toFixed(1)} lb</span></div>`:''}`;
+  body.appendChild(wc);
+  const qb=document.createElement('button');qb.className='pk-btn ghost';qb.textContent='Log weight / sleep';
+  qb.onclick=()=>pkOpenQuick(t);body.appendChild(qb);
+
+  // ---- running ----
+  if(PK.run){
+    const race=(cfg.milestones||[]).find(m=>m.type==='race');
+    if(race){
+      const blk=(PK.run.blocks||{})[race.plan]||(PK.run.blocks||{})['half-16wk'];
+      const start=pkAdd(race.date,-(blk.weeks||16)*7);
+      const wks=Math.ceil(pkDiff(race.date,t)/7);
+      let mi=0;for(let i=0;i<7;i++){const d=PK.days[pkAdd(pkMonday(t),i)];if(d&&d.session&&d.session.dist)mi+=parseFloat(d.session.dist)||0;}
+      const f=fold('Running',t<start?`base · ${wks} wk to race`:`block wk ${Math.floor(pkDiff(t,start)/7)+1}/${blk.weeks}`);
+      body.appendChild(f.head);body.appendChild(f.card);
+      f.card.innerHTML=`<div class="note">${t<start
+        ?`Block opens <b>${start}</b> — ${Math.ceil(pkDiff(start,t)/7)} weeks out. Entry requirement <b>${blk.entry_requirement_mi_per_week} mi/wk</b>; base phase until then.`
+        :`Week ${Math.floor(pkDiff(t,start)/7)+1} of ${blk.weeks} toward ${esc(race.label)}.`}
+        <div class="gap"></div>This week so far: <b>${Math.round(mi*10)/10} mi</b>${race.date_confidence==='estimated'?'<div class="gap"></div><i>Race date is still an estimate — confirm at registration and the whole block re-plans.</i>':''}</div>`;
+    }
+  }
+
+  // ---- progress ----
+  const pf=fold('Progress','');
+  body.appendChild(pf.head);body.appendChild(pf.card);
+  const waist=pkLatest(PK.metrics,'waist'),neck=pkLatest(PK.metrics,'neck');
+  let bf=null;
+  if(waist&&neck&&(cfg.profile||{}).height_in){
+    const v=86.01*Math.log10(waist.value-neck.value)-70.041*Math.log10(cfg.profile.height_in)+36.76;
+    if(isFinite(v)&&v>0)bf={low:Math.max(3,Math.round(v-3)),high:Math.round(v+3)};
+  }
+  pf.card.innerHTML=`<div class="note">
+    Weight <b>${wt}</b>${wRec?` <span style="color:var(--faint)">(${wRec.date})</span>`:''}<div class="gap"></div>
+    Waist <b>${waist?waist.value+' in':'—'}</b><div class="gap"></div>
+    Est. body fat <b>${bf?bf.low+'–'+bf.high+'%':'—'}</b> ${bf?'<span style="color:var(--faint)">Navy method, ±3% — not a DEXA</span>':'<span style="color:var(--faint)">needs waist + neck + height</span>'}<div class="gap"></div>
+    Target <b>${(cfg.targets||{}).body_fat_pct?cfg.targets.body_fat_pct.join('–')+'%':'—'}</b></div>`;
+}
+$('pk-close').onclick=()=>{$('pk-ov').hidden=true;};
+$('pk-ov').onclick=e=>{if(e.target.id==='pk-ov')$('pk-ov').hidden=true;};
+
+/* check-in: five answers, defaults carried from yesterday — the common case is one tap */
+let pkCI={};
+function pkOpenCheckin(t,isOverride){
+  const prev=(()=>{for(let i=1;i<=7;i++){const d=PK.days[pkAdd(t,-i)];if(d&&d.checkin)return d.checkin;}return{};})();
+  pkCI={date:t,loc:prev.loc||PK.cfg.default_location||'home',min:+(prev.min||45),
+        energy:+(prev.energy||6),sore:[],pain:null,override:!!isOverride};
+  $('pk-title').textContent='Check in';
+  $('pk-primary').textContent='Generate workout';
+  const B=$('pk-sheet-body');
+  const opts=(name,vals,cur,fmt)=>`<div class="pk-opts" data-g="${name}">`+vals.map(v=>
+    `<button class="pk-opt${String(v)===String(cur)?' on':''}" data-v="${v}">${fmt?fmt(v):v}</button>`).join('')+'</div>';
+  B.innerHTML=`
+    <div class="pk-q">Where</div>${opts('loc',Object.keys(PK.cfg.equipment_profiles||{home:1,gym:1}),pkCI.loc,v=>v[0].toUpperCase()+v.slice(1))}
+    <div class="pk-q">Time</div>${opts('min',[30,45,60,90],pkCI.min)}
+    <div class="pk-q">Energy <span class="pk-sliderval" id="pk-ev">${pkCI.energy}</span></div>
+    <input class="pk-slider" id="pk-energy" type="range" min="1" max="10" value="${pkCI.energy}">
+    <div class="pk-q">Sore</div>${opts('sore',['none','chest','back','shoulders','arms','legs'],'none')}
+    <div class="pk-q">Pain or injury</div>${opts('pain',['no','yes'],'no')}
+    <div id="pk-painwrap" hidden>${opts('painreg',['shoulder','elbow','back','knee','hip','ankle'],'')}
+      <div class="pk-q">How bad</div>${opts('painsev',['niggle','real'],'niggle')}</div>`;
+  B.querySelectorAll('.pk-opts').forEach(g=>{
+    g.onclick=e=>{
+      const b=e.target.closest('.pk-opt');if(!b)return;
+      const name=g.dataset.g,v=b.dataset.v;
+      if(name==='sore'){
+        if(v==='none'){g.querySelectorAll('.pk-opt').forEach(x=>x.classList.toggle('on',x===b));pkCI.sore=[];}
+        else{g.querySelector('[data-v="none"]').classList.remove('on');b.classList.toggle('on');
+             pkCI.sore=[...g.querySelectorAll('.pk-opt.on')].map(x=>x.dataset.v);}
+        return;
+      }
+      g.querySelectorAll('.pk-opt').forEach(x=>x.classList.toggle('on',x===b));
+      if(name==='loc')pkCI.loc=v;
+      else if(name==='min')pkCI.min=+v;
+      else if(name==='pain'){$('pk-painwrap').hidden=v!=='yes';if(v!=='yes')pkCI.pain=null;}
+      else if(name==='painreg')pkCI.pain=Object.assign(pkCI.pain||{severity:'niggle'},{region:v});
+      else if(name==='painsev')pkCI.pain=Object.assign(pkCI.pain||{},{severity:v});
+    };
+  });
+  $('pk-energy').oninput=e=>{pkCI.energy=+e.target.value;$('pk-ev').textContent=e.target.value;};
+  $('pk-primary').onclick=pkSubmitCheckin;
+  $('pk-ov').hidden=false;
+}
+async function pkSubmitCheckin(){
+  const b=$('pk-primary');b.disabled=true;b.textContent='Saving…';
+  const t=pkCI.date;
+  const sore=pkCI.sore.length?pkCI.sore.join('+'):'none';
+  const line=`loc:${pkCI.loc} | min:${pkCI.min} | energy:${pkCI.energy} | sore:${sore} | pain:${pkCI.pain?pkCI.pain.region:'none'}`
+    +(pkCI.pain?` | pain_sev:${pkCI.pain.severity}`:'')+(pkCI.override?' | override:yes':'');
+  try{
+    await pkWriteDay(t,{checkin:line},pkComplianceLabels(t),'peak check-in '+t);
+    $('pk-ov').hidden=true;
+    PK.workout=null;
+    await runRender('peak');
+  }catch(e){alert('Check-in failed: '+e.message);}
+  b.disabled=false;b.textContent='Generate workout';
+}
+function pkComplianceLabels(t){
+  const nt=pkNutrition({date:t,cfg:PK.cfg,weightLb:(pkLatest(PK.metrics,'weight')||{}).value,phase:null});
+  const out=[];
+  if(nt.protein)out.push(`protein ≥ ${nt.protein}g`);
+  if(nt.kcal)out.push(`calories in band ${nt.kcal} ±150`);
+  if(nt.water)out.push(`water ≥ ${nt.water} oz`);
+  out.push('supplements');
+  return out;
+}
+/* quick metric entry — weight and sleep, the two that drive everything downstream */
+function pkOpenQuick(t){
+  $('pk-title').textContent='Log weight / sleep';
+  $('pk-primary').textContent='Save';
+  const last=pkLatest(PK.metrics,'weight');
+  $('pk-sheet-body').innerHTML=`
+    <div class="fld"><label>Weight (lb)</label><input id="pk-w" type="number" step="0.1" inputmode="decimal" placeholder="${last?last.value:'181.4'}"></div>
+    <div class="fld"><label>Sleep (hours)</label><input id="pk-sh" type="number" step="0.25" inputmode="decimal" placeholder="7"></div>
+    <div class="pk-q">Sleep quality</div>
+    <div class="pk-opts" id="pk-sq">${[1,2,3,4,5].map(n=>`<button class="pk-opt" data-v="${n}">${n}</button>`).join('')}</div>
+    <div class="pk-why" style="border:none;margin-top:14px">Blank stays blank. A missing number is honest; a zero is a lie, and the recovery score reweights around whatever you skip.</div>`;
+  let sq=null;
+  $('pk-sq').onclick=e=>{const b=e.target.closest('.pk-opt');if(!b)return;
+    $('pk-sq').querySelectorAll('.pk-opt').forEach(x=>x.classList.toggle('on',x===b));sq=+b.dataset.v;};
+  $('pk-primary').onclick=async()=>{
+    const btn=$('pk-primary');btn.disabled=true;btn.textContent='Saving…';
+    const w=parseFloat($('pk-w').value),sh=parseFloat($('pk-sh').value);
+    const recs=[],patch={};
+    const mparts=[];
+    if(!isNaN(w)){recs.push({metric:'weight',value:w,unit:'lb'});mparts.push('weight:'+w);}
+    if(!isNaN(sh)){recs.push({metric:'sleep_hours',value:sh,unit:'h'});mparts.push('sleep_h:'+sh);}
+    if(sq!=null){recs.push({metric:'sleep_quality',value:sq,unit:'1-5'});mparts.push('sleep_q:'+sq);}
+    if(!recs.length){$('pk-ov').hidden=true;btn.disabled=false;btn.textContent='Save';return;}
+    if(mparts.length)patch.metrics=mparts.join(' | ');
+    try{
+      await pkWriteDay(t,patch,null,'peak metrics '+t);
+      await pkWriteMetrics(t,recs);
+      $('pk-ov').hidden=true;await runRender('peak');
+    }catch(e){alert('Save failed: '+e.message);}
+    btn.disabled=false;btn.textContent='Save';
+  };
+  $('pk-ov').hidden=false;
+}
+/* set logger: prefilled from the prescription, so the usual interaction is Log × 3 */
+function pkOpenLogger(t,s){
+  $('pk-title').textContent=s.template;
+  $('pk-primary').textContent='Finish & save';
+  const logged=s.exercises.map(e=>({id:e.id,name:e.name,sets:[],target:e}));
+  const B=$('pk-sheet-body');
+  const draw=()=>{
+    B.innerHTML='';
+    logged.forEach((L,i)=>{
+      const d=document.createElement('div');d.style.marginBottom='16px';
+      const startLoad=L.target.load!=null?L.target.load:(L.sets.length?L.sets[L.sets.length-1].w:0);
+      const startReps=parseInt(String(L.target.reps).split('-')[0],10)||8;
+      d.innerHTML=`<div class="pk-eyebrow" style="margin-bottom:6px"><span>${esc(L.name)}</span><span>${L.sets.length}/${L.target.sets}</span></div>
+        ${L.sets.map((x,k)=>`<div class="pk-set"><span class="k">SET ${k+1}</span><span class="v">${x.w} lb × ${x.r}${x.rpe?'  ·  RPE '+x.rpe:''}</span><span class="ck">✓</span></div>`).join('')}
+        <div class="pk-step" style="margin-top:8px">
+          <span><div class="pk-steplab">lb</div><input type="number" inputmode="decimal" id="w${i}" value="${startLoad||''}"></span>
+          <span><div class="pk-steplab">reps</div><input type="number" inputmode="numeric" id="r${i}" value="${startReps}"></span>
+          <span><div class="pk-steplab">rpe</div><input type="number" inputmode="decimal" id="p${i}" value="${L.target.rpe||''}"></span>
+          <button class="pk-btn" style="margin:0;flex:1;padding:11px" data-log="${i}">Log set</button>
+        </div>`;
+      B.appendChild(d);
+    });
+    B.querySelectorAll('[data-log]').forEach(btn=>btn.onclick=()=>{
+      const i=+btn.dataset.log;
+      const w=parseFloat($('w'+i).value),r=parseInt($('r'+i).value,10),p=parseFloat($('p'+i).value);
+      if(isNaN(r))return alert('Reps needed — the rest can be blank.');
+      logged[i].sets.push({w:isNaN(w)?0:w,r,rpe:isNaN(p)?'':p});
+      draw();
+    });
+  };
+  draw();
+  $('pk-primary').onclick=async()=>{
+    const btn=$('pk-primary');btn.disabled=true;btn.textContent='Saving…';
+    const done=logged.filter(L=>L.sets.length);
+    const patch={session:`strength | ${s.template} | ${s.minutes}m | src:engine`
+      +(pkCI.override?' | override:yes':'')+(done.length?'':' | prescribed, unlogged')};
+    try{
+      await pkWriteDay(t,patch,null,'peak session '+t);
+      if(done.length){
+        const path=`data/peak/log/${pkMonth(t)}.md`;
+        const f=await getFile(path);
+        const lines=f.text.split('\n');
+        let i=lines.findIndex(l=>l.startsWith('## '+t));
+        let end=i+1;while(end<lines.length&&!/^## /.test(lines[end]))end++;
+        const block=['sets:'].concat(done.map(L=>{
+          const w=L.sets[0].w,reps=L.sets.map(x=>x.r).join('-'),rpe=L.sets.map(x=>x.rpe).filter(Boolean).join(',');
+          return `- ${L.id} | ${L.sets.length}x${reps} @ ${w}${rpe?' | rpe '+rpe:''}`;
+        }));
+        const at=lines.slice(i,end).findIndex(l=>/^sets:/.test(l));
+        if(at>=0){let e2=i+at+1;while(e2<end&&lines[e2].startsWith('- ')&&!/^- \[/.test(lines[e2]))e2++;
+          lines.splice(i+at,e2-(i+at),...block);}
+        else lines.splice(end,0,...block);
+        await pkSave(path,lines.join('\n'),'peak sets '+t);
+      }
+      $('pk-ov').hidden=true;PK.workout=null;await runRender('peak');
+    }catch(e){alert('Save failed: '+e.message);}
+    btn.disabled=false;btn.textContent='Finish & save';
+  };
+  $('pk-ov').hidden=false;
+}
+
 /* ---- BRIEF: industry intel + markets/world ----
    Split out of Today (which is about what Kevin DOES today) per his 2026-08-03 note.
    Both sections are written by the intel routine into the daily note as '## Intel' and
@@ -1598,8 +2478,8 @@ async function renderEdu(){
 
 /* ---- nav + render orchestration ---- */
 let currentView='dump',lastRender=0;
-const renderers={today:renderToday,cal:renderCal,money:renderMoney,brief:renderBrief,edu:renderEdu};
-const viewBody={today:'today-body',cal:'cal-body',money:'money-body',brief:'brief-body',edu:'edu-body'};
+const renderers={today:renderToday,cal:renderCal,money:renderMoney,peak:renderPeak,brief:renderBrief,edu:renderEdu};
+const viewBody={today:'today-body',cal:'cal-body',money:'money-body',peak:'peak-body',brief:'brief-body',edu:'edu-body'};
 
 /* two-pass render: paint cached data instantly, then refresh from network.
    offline → banner over cached view, or an error card with retry if nothing cached. */
