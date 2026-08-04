@@ -297,6 +297,8 @@
   .pk-day .m.full{background:var(--green)}
   .pk-day .m.part{background:var(--amber)}
   .pk-day .m.future{background:var(--border)}
+  /* rest reads as deliberate (outlined), not as a gap (empty) — it is data, not a miss */
+  .pk-day .m.rest{background:transparent;border:1px solid var(--muted)}
   /* exercise rows */
   .pk-ex{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
   .pk-ex:last-child{border-bottom:none}
@@ -327,6 +329,8 @@
   .pk-sugg{margin:2px 0 4px;padding:10px 12px;border-radius:10px;font-size:13.5px;line-height:1.5;
     color:var(--muted);background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--accent)}
   .pk-sugg b{color:var(--text)}
+  .pk-dbtn{background:none;border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:11.5px;padding:4px 8px;font-family:var(--mono)}
+  #pk-dlabel{font-family:var(--mono);font-size:11.5px;color:var(--text);padding:0 6px}
   .pk-spark{display:block}
 
   /* bottom nav (mobile) */
@@ -1690,13 +1694,31 @@ function pkVerdict(score,cfg,missing){
   if(score>=(r.force_recovery_below||40))return{band:'light',verdict:'Train light.',detail:'Volume cut 30%, capped at RPE 7, no progression.',volume:.7,rpeCap:7};
   return{band:'recover',verdict:'Recover.',detail:'No lifting today.',volume:0,rpeCap:0};
 }
+/* Kevin hand-edits config.json, so accept what a human types. A silent NaN here poisons
+   every calorie number downstream — he entered "5'7" and "05/21/2001" on 2026-08-04 and
+   the engine (correctly) refused to produce a target at all. Working beats failing safe. */
+function pkHeightIn(v){
+  if(typeof v==='number'&&isFinite(v))return v;
+  if(typeof v!=='string')return null;
+  const ft=v.trim().match(/^(\d+)\s*(?:'|ft|feet)\s*(\d+(?:\.\d+)?)?\s*(?:"|in|inches)?$/i);
+  if(ft)return +ft[1]*12+ +(ft[2]||0);
+  const n=parseFloat(v);return isFinite(n)?n:null;
+}
+function pkBirth(v){
+  if(typeof v!=='string')return null;
+  const s=v.trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  const us=s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  return us?`${us[3]}-${String(us[1]).padStart(2,'0')}-${String(us[2]).padStart(2,'0')}`:null;
+}
 function pkNutrition({date,cfg,weightLb,phase}){
   const pr=cfg.profile||{},t=cfg.targets||{},ph=phase||pkPhase(date,cfg);
-  const age=pr.birth_date?Math.floor(pkDiff(date,pr.birth_date)/365.25):null;
+  const height=pkHeightIn(pr.height_in),birth=pkBirth(pr.birth_date);
+  const age=birth?Math.floor(pkDiff(date,birth)/365.25):null;
   const ov=cfg.nutrition&&cfg.nutrition.maintenance_override;
   let maint=ov||null;
-  if(!maint&&weightLb&&pr.height_in&&age!=null){
-    const bmr=10*(weightLb*.4536)+6.25*(pr.height_in*2.54)-5*age+(pr.sex==='female'?-161:5);
+  if(!maint&&weightLb&&height&&age!=null){
+    const bmr=10*(weightLb*.4536)+6.25*(height*2.54)-5*age+(pr.sex==='female'?-161:5);
     const A={sedentary:1.35,light:1.45,moderate:1.55,high:1.7};
     maint=Math.round(bmr*((A[pr.activity_baseline]||1.55)+.05));
   }
@@ -2087,7 +2109,8 @@ async function renderPeak(){
 
   // config gaps are stated once, at the top — never silently guessed around
   const gaps=[];
-  if(!(cfg.profile||{}).birth_date||!(cfg.profile||{}).height_in)gaps.push('height + date of birth');
+  if(!pkBirth((cfg.profile||{}).birth_date))gaps.push('date of birth (use YYYY-MM-DD)');
+  if(!pkHeightIn((cfg.profile||{}).height_in))gaps.push('height in inches');
   if(!(cfg.postop||{}).entered_by_kevin)gaps.push("surgeon's post-op sheet (every hair date below is a [VERIFY] estimate)");
   if(gaps.length)body.insertAdjacentHTML('beforeend',
     `<div class="pk-warn"><b>Needs your input:</b> ${gaps.map(esc).join(' · ')}. Until then those numbers show as “—” rather than a guess.</div>`);
@@ -2133,7 +2156,13 @@ async function renderPeak(){
   const w=PK.workout&&PK.workout.date===t?PK.workout.session:null;
   const logged=day&&day.session;
   const sug=pkSuggest(t);
-  if(logged&&!/strength/.test(logged.raw||'')){
+  if(logged&&/^\s*rest\b/.test(logged.raw||'')){
+    tc.className='pk-card';
+    tc.innerHTML=`<div class="pk-eyebrow"><span>Today</span><span>Rest day</span></div>
+      <div class="pk-verdict" style="font-size:15px">Rest — logged.</div>
+      <div class="pk-detail">Neither a win nor a miss. The weekly score leaves it out rather than counting it either way.</div>
+      <div class="pk-why"><b>${esc(pkNextTemplate()||'')}</b> is still next when you're back — the split advances on completion, not on the calendar.</div>`;
+  }else if(logged&&!/strength/.test(logged.raw||'')){
     // a run or activity is already recorded — show it, don't ask him to generate anything
     const kind=/run/.test(logged.raw)?'Run':/activity/.test(logged.raw)?'Activity':'Session';
     const what=(logged.type||logged.raw||'').split('|')[1]||'';
@@ -2241,7 +2270,8 @@ async function renderPeak(){
   const mon=pkMonday(t);let strip='<div class="pk-week">';
   for(let i=0;i<7;i++){
     const d=pkAdd(mon,i),dd=PK.days[d];
-    const cls=d>t?'future':dd&&dd.session?'full':dd?'part':'';
+    const isRest=dd&&dd.session&&/^\s*rest\b/.test(dd.session.raw||'');
+    const cls=d>t?'future':isRest?'rest':dd&&dd.session?'full':dd?'part':'';
     strip+=`<div class="pk-day"><div class="d">${['M','T','W','T','F','S','S'][i]}</div><div class="m ${cls}"></div></div>`;
   }
   strip+='</div>';
@@ -2307,8 +2337,11 @@ function pkOpenCheckin(t,isOverride){
   const sug=pkSuggest(t);
   B.innerHTML=`
     ${sug?`<div class="pk-sugg">${sug}</div>`:''}
+    <div class="pk-q">Day <span id="pk-dnav" style="float:right;font-weight:400;text-transform:none;letter-spacing:0">
+      <button class="pk-dbtn" data-d="-1">‹ earlier</button><span id="pk-dlabel"></span><button class="pk-dbtn" data-d="1">later ›</button></span></div>
     <div class="pk-q">What are you doing</div>
-    ${opts('mode',['home','gym','run','other'],pkCI.mode,v=>({home:'Home',gym:'Gym',run:'Run',other:'Other'}[v]))}
+    ${opts('mode',['home','gym','run','other','rest'],pkCI.mode,v=>({home:'Home',gym:'Gym',run:'Run',other:'Other',rest:'Rest'}[v]))}
+    <div id="pk-restwrap" hidden><div class="pk-sugg">A rest day is <b>data, not a miss</b> — it's logged, and the weekly score leaves it out entirely rather than counting it either way. Skipping the check-in instead just leaves a hole.</div></div>
     <div id="pk-lift">
       <div class="pk-q">Time</div>${opts('min',[30,45,60,90],pkCI.min)}
       <div class="pk-q">Sore</div>${opts('sore',['none','chest','back','shoulders','arms','legs'],'none')}
@@ -2324,17 +2357,34 @@ function pkOpenCheckin(t,isOverride){
     <div id="pk-painwrap" hidden>${opts('painreg',['shoulder','elbow','back','knee','hip','ankle'],'')}
       <div class="pk-q">How bad</div>${opts('painsev',['niggle','real'],'niggle')}</div>`;
   const applyMode=()=>{
-    const m=pkCI.mode;
+    const m=pkCI.mode,d=pkCI.date;
     $('pk-lift').hidden=!(m==='home'||m==='gym');
     $('pk-act').hidden=m!=='other';
     $('pk-runnote').hidden=m!=='run';
+    $('pk-restwrap').hidden=m!=='rest';
     if(m==='run'){
-      const r=pkTodayRun(t);
-      $('pk-runplan').innerHTML=r?`Plan says <b>${esc(r.type)} ${r.miles} mi</b> today.`
-        :'No run prescribed today — log whatever you run and the weekly total picks it up.';
+      const r=pkTodayRun(d);
+      $('pk-runplan').innerHTML=r?`Plan says <b>${esc(r.type)} ${r.miles} mi</b>.`
+        :'No run prescribed — log whatever you run and the weekly total picks it up.';
     }
-    $('pk-primary').textContent=m==='other'?'Log activity':m==='run'?'Log run':'Generate workout';
+    $('pk-primary').textContent=m==='other'?'Log activity':m==='run'?'Log run':m==='rest'?'Log rest day':'Generate workout';
     if(m==='home'||m==='gym')pkCI.loc=m;
+    const back=pkDiff(todayStr(),d);
+    $('pk-dlabel').textContent=back===0?' today ':back===1?' yesterday ':` ${d} `;
+    $('pk-dnav').querySelector('[data-d="1"]').style.visibility=back===0?'hidden':'';
+    const ex=PK.days[d];
+    if(ex&&ex.session)$('pk-restwrap').hidden=false,$('pk-restwrap').innerHTML=
+      `<div class="pk-sugg" style="border-left-color:var(--amber)">A session is already logged for ${esc(d)}: <b>${esc((ex.session.raw||'').split('|').slice(0,2).join(' ·').trim())}</b>. Saving will replace it.</div>`;
+    else if(m!=='rest')$('pk-restwrap').hidden=true;
+  };
+  /* back-date the check-in: sessions get missed and remembered later (Kevin's Upper A on
+     2026-08-03 had to be written by hand), and a workout that happened should be loggable */
+  $('pk-dnav').onclick=e=>{
+    const b=e.target.closest('.pk-dbtn');if(!b)return;
+    const n=pkDiff(todayStr(),pkCI.date)-(+b.dataset.d);
+    if(n<0||n>13)return;
+    pkCI.date=pkAdd(todayStr(),-n);
+    applyMode();
   };
   B.querySelectorAll('.pk-opts').forEach(g=>{
     g.onclick=e=>{
@@ -2395,6 +2445,7 @@ async function pkSubmitCheckin(){
     /* run and activity are logged as they happen — there is nothing to generate, and a
        session Kevin actually did should never be sitting behind a "generate" button */
     if(m==='other')patch.session=`activity | ${pkCI.activity} | dur:${pkCI.actMin}m | src:manual`;
+    else if(m==='rest')patch.session='rest | src:manual';
     else if(m==='run'){
       const r=pkTodayRun(t);
       patch.session=`run | type:${r?r.type:'easy'} | dur:${pkCI.min}m | src:manual`;
