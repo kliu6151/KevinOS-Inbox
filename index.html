@@ -574,8 +574,9 @@ function openSheet(it,file,title){
   $('sheet-done').hidden=false;$('sheet-close').hidden=false;
   $('sheet-edit').hidden=file!=='data/calendar.md';
   $('sheet-cancel').hidden=file!=='data/calendar.md';
-  // "why isn't it done" applies to anything Kevin owns; money.md belongs to the pipeline
-  $('sheet-stuck').hidden=!/^data\/(tasks|loops|calendar)\.md$/.test(file);
+  // "why isn't it done" applies to anything Kevin owns — including daily-plan rows (Top 3 /
+  // due follow-ups), which are the items most likely to slip; money.md belongs to the pipeline
+  $('sheet-stuck').hidden=!/^(data\/(tasks|loops|calendar)\.md|daily\/)/.test(file);
   $('stuck-wrap').hidden=true;
   $('stuck-reason').value=meta(it.body,'stuck').replace(/^\d{4}-\d{2}-\d{2}\s*[—-]?\s*/,'');
   $('cancel-wrap').hidden=true;$('cancel-reason').value='';
@@ -589,6 +590,9 @@ $('sheet-done').onclick=async()=>{
   const file=sheetCtx.file;
   $('sheet-done').disabled=true;
   const ok=await toggleLine(file,sheetCtx.it.line,null);
+  // marking a plan row done from the sheet must cascade to its tasks.md/loops.md twin,
+  // exactly like tapping its checkbox does — otherwise the item resurfaces tomorrow
+  if(ok)for(const d of (dupCascade[norm(sheetCtx.it.line)]||[]))await toggleLine(d.file,d.line,null,true);
   $('sheet-done').disabled=false;
   if(ok){closeSheet();runRender(currentView);offerOutcome(file,ok);}
 };
@@ -728,18 +732,25 @@ let dupCascade={}; // plan line -> [{file,line}] of matching open tasks/loops, r
 function planItem(it,file){
   const di=it.body.indexOf(' — ');
   const title=di>0?it.body.slice(0,di):it.body;
-  const intent=di>0?it.body.slice(di+3).trim():'';
+  // trailing ' | k: v' meta (done:, stuck:, outcome:) is not part of the intention text
+  const intent=di>0?it.body.slice(di+3).split(' | ')[0].trim():'';
+  const st=meta(it.body,'stuck');
   const div=document.createElement('div');
   div.className='item'+(it.checked?' done':'');
-  div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${inline(title)}</div>${intent?`<div class="intent">${inline(intent)}</div>`:''}</div>`;
-  if(!it.checked)div.querySelector('.hit').onclick=async e=>{
-    e.stopPropagation();
-    const ok=await toggleLine(file,it.line,div);
-    if(!ok)return;
-    for(const d of (dupCascade[norm(it.line)]||[]))await toggleLine(d.file,d.line,null,true);
-    afterToggle(file);
-    offerOutcome(file,ok);
-  };
+  div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${inline(title)}</div>${intent?`<div class="intent">${inline(intent)}</div>`:''}${!it.checked&&st?`<div class="meta">⏸ ${esc(st)}</div>`:''}</div>`;
+  if(!it.checked){
+    div.querySelector('.hit').onclick=async e=>{
+      e.stopPropagation();
+      const ok=await toggleLine(file,it.line,div);
+      if(!ok)return;
+      for(const d of (dupCascade[norm(it.line)]||[]))await toggleLine(d.file,d.line,null,true);
+      afterToggle(file);
+      offerOutcome(file,ok);
+    };
+    // plan rows open the same detail sheet as every other item — without this, "Not done —
+    // say why" was unreachable on exactly the items Kevin most needs to explain (his Top 3)
+    div.onclick=()=>openSheet(it,file,stripMeta(title));
+  }
   return div;
 }
 /* after a successful check: Today updates in place (no layout jump, folds keep state);
@@ -815,7 +826,26 @@ function renderProgress(){
    tasks about the same subject can rarely over-match. Source data is never touched. */
 const STOPW=new Set(['the','a','an','to','for','of','in','on','re','and','or','with','at','from','by','it','is','are','was','be','before','after','via','per']);
 const simTokens=s=>{const set=new Set();for(const w of s.toLowerCase().split(/[^a-z0-9+#]+/)){if(w.length>1&&!STOPW.has(w))set.add(w);}return set;};
+/* Compare TITLES, not whole bodies. A Top 3 line carries a long implementation intention
+   ("— call her today; if no answer by noon, pick a verdict…") while its loop twin carries
+   nudge metadata — full-body comparison could never clear the 60% bar, so the same job
+   rendered three times (Top 3 + Due Follow-ups + Needs Attention). The title before the
+   em dash is the stable identity. */
+const sameThing=(a,b)=>similar(stripMeta(a),stripMeta(b));
 function similar(a,b){
+  const A=simTokens(a.split(' | ')[0]),B=simTokens(b.split(' | ')[0]);
+  if(A.size<2||B.size<2)return false;
+  /* CONTAINMENT, not ratio: the shorter title must be (almost) fully inside the longer.
+     A ratio rule matched "Con Ed submissions" to "Con Ed rebate auto-filler" on the two
+     low-information tokens they share — and a false positive here cascade-checks the
+     WRONG task, which is far worse than showing an item twice. One stray token is
+     tolerated only on titles long enough (4+) for it to be noise. */
+  const S=A.size<=B.size?A:B, Lg=A.size<=B.size?B:A;
+  let miss=0;S.forEach(x=>{if(!Lg.has(x))miss++;});
+  return (S.size-miss)>=2 && miss<=(S.size>=4?1:0);
+}
+/* kept for reference: the original ratio test, replaced above */
+function similarRatio(a,b){
   const A=simTokens(a.split(' | ')[0]),B=simTokens(b.split(' | ')[0]);
   if(A.size<2||B.size<2)return false;
   let n=0;A.forEach(x=>{if(B.has(x))n++;});
@@ -929,7 +959,7 @@ async function renderToday(){
   const top3=top3Sec?checkboxLines(top3Sec.lines):[];
   const fmSec=secByName(ns.secs,/^first move/i);
   const dfSec=secByName(ns.secs,/^due follow/i);
-  const noteFollowups=dfSec?checkboxLines(dfSec.lines):[];
+  const noteFollowupsAll=dfSec?checkboxLines(dfSec.lines):[];
   const rqSec=secByName(ns.secs,/^rebate submit/i);
 
   // dedup: anything the plan already covers (Top 3 / due follow-ups) appears ONLY there.
@@ -937,16 +967,25 @@ async function renderToday(){
   // cascades to them (dupCascade). Not shown twice, not checked twice.
   const loopsAll=loops?parseChecklist(loops.text).filter(it=>!it.checked):[];
   const tasksAll=tasks?parseChecklist(tasks.text).filter(it=>!it.checked):[];
+  // WITHIN the note: a follow-up the briefing also promoted into Top 3 is the SAME job
+  // (e.g. "Pelham permit drop-off" in both). Show it once, in Top 3 — the higher-commitment
+  // section — and cascade the check-off to its follow-up twin so the note stays consistent.
+  const noteFollowups=noteFollowupsAll.filter(f=>!top3.some(t=>sameThing(t.body,f.body)));
+  const echoedFollowups=noteFollowupsAll.filter(f=>top3.some(t=>sameThing(t.body,f.body)));
   const planItems=top3.concat(noteFollowups);
   dupCascade={};
   const hiddenDups=new Set();
   for(const p of planItems){
     const dups=[
-      ...tasksAll.filter(it=>similar(p.body,it.body)).map(it=>({file:'data/tasks.md',line:it.line})),
-      ...loopsAll.filter(it=>similar(p.body,it.body)).map(it=>({file:'data/loops.md',line:it.line}))
+      ...tasksAll.filter(it=>sameThing(p.body,it.body)).map(it=>({file:'data/tasks.md',line:it.line})),
+      ...loopsAll.filter(it=>sameThing(p.body,it.body)).map(it=>({file:'data/loops.md',line:it.line}))
     ];
     if(dups.length)dupCascade[norm(p.line)]=dups;
     dups.forEach(d=>hiddenDups.add(d.line));
+  }
+  for(const t of top3){
+    const echo=echoedFollowups.filter(f=>sameThing(t.body,f.body)&&!f.checked).map(f=>({file:dailyPath,line:f.line}));
+    if(echo.length)dupCascade[norm(t.line)]=(dupCascade[norm(t.line)]||[]).concat(echo);
   }
   const isDup=it=>hiddenDups.has(it.line);
 
@@ -982,6 +1021,7 @@ async function renderToday(){
     body.insertAdjacentHTML('beforeend','<div class="sec">Due Follow-ups</div>');
     const cf=card();body.appendChild(cf);
     noteFollowups.forEach(it=>cf.appendChild(planItem(it,dailyPath)));
+    if(echoedFollowups.length)cf.insertAdjacentHTML('beforeend',`<div class="subsec" style="border-bottom:none;border-top:1px solid var(--border)">${echoedFollowups.length} more already in Top 3</div>`);
   }
 
   // REBATE SUBMIT QUEUE (Sundays) — actionable money items stay visible
@@ -1005,7 +1045,7 @@ async function renderToday(){
     const d=(it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];
     if(it.checked||!d||d<t||d>horizon)return false;
     // untimed reminder lines already covered by the plan don't repeat here; timed appointments always show
-    if(!/\d{2}:\d{2}/.test(it.body)&&planItems.some(p=>similar(p.body,evTitle(it.body))))return false;
+    if(!/\d{2}:\d{2}/.test(it.body)&&planItems.some(p=>sameThing(p.body,evTitle(it.body))))return false;
     return true;
   }).sort((a,b)=>a.body.localeCompare(b.body)):[];
   if(!events.length)empty(c2,'Nothing scheduled through '+horizon+'. If that\'s wrong, dump it — dates are sacred here.');
@@ -1209,7 +1249,7 @@ async function renderCal(){
     [...(s3?checkboxLines(s3.lines):[]),...(df?checkboxLines(df.lines):[])]
       .filter(x=>!x.checked).forEach(x=>{plan.push(x);add(t,x,dailyPath,'<span class="today-badge">PLAN</span>');});
   }
-  const covered=b=>plan.some(p=>similar(p.body,b)); // plan-covered items show once, as PLAN
+  const covered=b=>plan.some(p=>sameThing(p.body,b)); // plan-covered items show once, as PLAN
   if(tk)parseChecklist(tk.text).filter(it=>!it.checked).forEach(it=>{
     const d=meta(it.body,'due');if(d&&d>=t&&!covered(it.body))add(d,it,'data/tasks.md',taskMeta(it));});
   if(lp)parseChecklist(lp.text).filter(it=>!it.checked).forEach(it=>{
