@@ -323,6 +323,10 @@
   .pk-step input{width:56px;height:36px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);text-align:center;font-family:var(--mono);font-size:15px;outline:none;color-scheme:dark}
   .pk-steplab{font-family:var(--mono);font-size:9.5px;color:var(--faint);text-align:center;letter-spacing:.08em;text-transform:uppercase}
   .pk-warn{margin-top:12px;padding:10px 13px;border-radius:10px;font-size:13px;line-height:1.5;color:var(--amber);background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.3)}
+  /* what the plan says + what tomorrow looks like — reads as advice, not an alarm */
+  .pk-sugg{margin:2px 0 4px;padding:10px 12px;border-radius:10px;font-size:13.5px;line-height:1.5;
+    color:var(--muted);background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--accent)}
+  .pk-sugg b{color:var(--text)}
   .pk-spark{display:block}
 
   /* bottom nav (mobile) */
@@ -1594,9 +1598,10 @@ $('dev-back').onclick=()=>{
    PRIVACY: this repo is PUBLIC. No dose, medication name, health default, or personal
    metric is hardcoded here — everything renders from the private repo's data files.
    Keep it that way. */
-const PK={cfg:null,proto:null,ex:null,tpl:null,run:null,days:{},metrics:[],hairLines:[],loaded:false};
+const PK={cfg:null,proto:null,ex:null,tpl:null,run:null,meals:{},days:{},metrics:[],hairLines:[],cal:[],loaded:false};
 const PKF={cfg:'data/peak/config.json',proto:'data/peak/hair/protocol.json',ex:'data/peak/library/exercises.json',
-  tpl:'data/peak/library/templates.json',run:'data/peak/library/running.json',metrics:'data/peak/progress/metrics.md',hair:'data/peak/hair/log.md'};
+  tpl:'data/peak/library/templates.json',run:'data/peak/library/running.json',meals:'data/peak/library/meals.json',
+  metrics:'data/peak/progress/metrics.md',hair:'data/peak/hair/log.md'};
 const pkMonth=d=>d.slice(0,7);
 const pkAdd=(s,n)=>{const[y,m,dd]=s.split('-').map(Number);const d=new Date(Date.UTC(y,m-1,dd,12));d.setUTCDate(d.getUTCDate()+n);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;};
@@ -1696,7 +1701,9 @@ function pkNutrition({date,cfg,weightLb,phase}){
     maint=Math.round(bmr*((A[pr.activity_baseline]||1.55)+.05));
   }
   const locked=(ph.locks||[]).includes('no_deficit');
-  let rate=ph.mode==='cut'?(ph.rate_lb_per_week||-.75):ph.mode==='lean-gain'?.35:0;
+  /* the phase's own rate wins; fallbacks apply only when config omits one, so changing
+     direction (cut ↔ build) is a config edit and never a code edit */
+  let rate=ph.mode==='cut'?(ph.rate_lb_per_week||-.75):ph.mode==='lean-gain'?(ph.rate_lb_per_week||.35):0;
   if(locked&&rate<0)rate=0;
   const kcal=maint?Math.round(maint+(rate*3500)/7):null;
   const perLb=ph.protein_g_per_lb||t.protein_g_per_lb||1;
@@ -1716,7 +1723,7 @@ function pkParseLog(text){
   for(const raw of String(text||'').split('\n')){
     const line=raw.replace(/\r$/,'');
     const h=line.match(/^##\s+(\d{4}-\d{2}-\d{2})/);
-    if(h){cur=days[h[1]]={date:h[1],checkin:null,metrics:{},session:null,sets:[],compliance:{},notes:[]};inSets=false;continue;}
+    if(h){cur=days[h[1]]={date:h[1],checkin:null,metrics:{},session:null,sets:[],compliance:{},notes:[],food:[]};inSets=false;continue;}
     if(!cur)continue;
     if(/^sets:\s*$/.test(line)){inSets=true;continue;}
     if(inSets){
@@ -1726,6 +1733,9 @@ function pkParseLog(text){
     }
     const cb=line.match(/^- \[( |x)\]\s+(\d{4}-\d{2}-\d{2})\s+(.*)$/);
     if(cb){cur.compliance[pkCKey(cb[3])]={done:cb[1]==='x',label:cb[3].trim(),line};continue;}
+    /* food ACCUMULATES — several meals a day, each its own line, template id or free text */
+    const fd=line.match(/^food:\s*(.*)$/);
+    if(fd){cur.food.push(fd[1].trim());continue;}
     const kv=line.match(/^(checkin|metrics|session|note):\s*(.*)$/);
     if(kv){
       if(kv[1]==='note'){cur.notes.push(kv[2].trim());continue;}
@@ -1780,6 +1790,46 @@ function pkAcwr(days,today){
   for(let i=0;i<28;i++)c+=pkLoad(days[pkAdd(today,-i)]);
   return c>0?a/(c/4):null;
 }
+/* ---- WHAT'S DUE, AND WHAT TOMORROW LOOKS LIKE ----
+   Kevin's actual decision isn't "home or gym" — it's "am I going out, and if so am I
+   lifting, running, or playing handball," and that partly depends on TOMORROW. So the
+   check-in leads with the answer instead of asking him to hold it in his head:
+   what the split says is next, whether it's a run day, and how loaded tomorrow is. */
+function pkNextTemplate(){
+  const rot=((PK.cfg||{}).schedule||{}).split||[];
+  if(!rot.length)return null;
+  const dates=Object.keys(PK.days).sort().reverse();
+  for(const d of dates){
+    const s=PK.days[d].session;
+    if(!s||!/strength/.test(s.raw||''))continue;
+    const tmpl=(s.raw||'').split('|').map(x=>x.trim()).find(x=>PK.tpl[x]);
+    if(tmpl){const i=rot.indexOf(tmpl);return i>=0?rot[(i+1)%rot.length]:rot[0];}
+  }
+  return rot[0];
+}
+/* open, uncancelled calendar items on a date — same line grammar the Cal tab parses */
+function pkDayLoad(date){
+  return PK.cal.filter(l=>/^- \[ \]/.test(l)&&l.includes(date)).length;
+}
+function pkDue(t){
+  const sch=(PK.cfg||{}).schedule||{};
+  const tom=pkAdd(t,1);
+  return {template:pkNextTemplate(),
+          isRunDay:(sch.run_days||[]).includes(pkDow(t)),
+          today:pkDayLoad(t),tomorrow:pkDayLoad(tom),tomDate:tom,
+          didToday:!!(PK.days[t]&&PK.days[t].session)};
+}
+function pkSuggest(t){
+  const d=pkDue(t),bits=[];
+  if(d.template)bits.push('<b>'+esc(d.template)+'</b> is next in the split');
+  if(d.isRunDay)bits.push('scheduled run day');
+  /* the real scheduling insight: a loaded tomorrow means today is the day */
+  if(d.tomorrow>=2)bits.push(`tomorrow has ${d.tomorrow} things on — if you're training hard this week, today is the day`);
+  else if(d.today>=2&&d.tomorrow<=1)bits.push(`today is busy (${d.today}), tomorrow is clearer — a short home session now beats skipping`);
+  else if(d.tomorrow===0&&d.today===0)bits.push('nothing on today or tomorrow — take the longer session');
+  return bits.length?bits.join(' · '):null;
+}
+
 /* ---- WORKOUT ENGINE (app-only; ENGINES.md §1) ----
    Deterministic: same inputs, same session, every time. That reproducibility is what
    makes the strength trend mean anything. */
@@ -1957,9 +2007,15 @@ async function pkWriteDay(date,patch,compliance,message){
   const seg=lines.slice(i+1,end);
   for(const [k,v] of Object.entries(patch||{})){
     if(v==null)continue;
+    // food and note accumulate (several meals a day); scalars are upserted in place
+    if(k==='food'||k==='note'){
+      const last=seg.map(l=>/^(checkin|metrics|session|food|note):/.test(l)).lastIndexOf(true);
+      seg.splice(last+1,0,`${k}: ${v}`);
+      continue;
+    }
     const idx=seg.findIndex(l=>l.startsWith(k+':'));
     if(idx>=0)seg[idx]=`${k}: ${v}`;
-    else{const last=seg.map(l=>/^(checkin|metrics|session):/.test(l)).lastIndexOf(true);seg.splice(last+1,0,`${k}: ${v}`);}
+    else{const last=seg.map(l=>/^(checkin|metrics|session|food):/.test(l)).lastIndexOf(true);seg.splice(last+1,0,`${k}: ${v}`);}
   }
   for(const label of (compliance||[])){
     if(seg.some(l=>l.includes(`] ${date} ${label}`)))continue;
@@ -1980,12 +2036,17 @@ async function pkWriteMetrics(date,recs){
 
 /* ---- PEAK: dashboard ---- */
 async function pkLoadAll(t){
-  const [cfg,proto,ex,tpl,run,mtx,hair,m0,m1]=await Promise.all([
+  const [cfg,proto,ex,tpl,run,mtx,hair,m0,m1,meals,cal]=await Promise.all([
     getFile(PKF.cfg),getFile(PKF.proto),getFile(PKF.ex),getFile(PKF.tpl),getFile(PKF.run),
     getFile(PKF.metrics),getFile(PKF.hair),
-    getFile(`data/peak/log/${pkMonth(t)}.md`),getFile(`data/peak/log/${pkMonth(pkAdd(t,-31))}.md`)]);
+    getFile(`data/peak/log/${pkMonth(t)}.md`),getFile(`data/peak/log/${pkMonth(pkAdd(t,-31))}.md`),
+    getFile(PKF.meals),
+    /* the calendar answers "am I out tomorrow?" — which is half of how Kevin actually
+       decides whether today is the lifting day */
+    getFile('data/calendar.md')]);
   const J=f=>{if(!f)return null;try{return JSON.parse(f.text);}catch(e){return null;}};
-  PK.cfg=J(cfg);PK.proto=J(proto);PK.ex=J(ex)||{};PK.tpl=J(tpl)||{};PK.run=J(run);
+  PK.cfg=J(cfg);PK.proto=J(proto);PK.ex=J(ex)||{};PK.tpl=J(tpl)||{};PK.run=J(run);PK.meals=J(meals)||{};
+  PK.cal=(cal?cal.text:'').replace(/\r/g,'').split('\n');
   /* Strip \r on load. JS's '.' does NOT match \r, so a trailing CR makes every
      `(.*)$` parser silently return zero matches on CRLF files — and this repo is
      edited on Windows, so files genuinely arrive with CRLF. */
@@ -2070,10 +2131,22 @@ async function renderPeak(){
   // ---- today ----
   const tc=document.createElement('div');
   const w=PK.workout&&PK.workout.date===t?PK.workout.session:null;
-  if(!ci&&!w){
+  const logged=day&&day.session;
+  const sug=pkSuggest(t);
+  if(logged&&!/strength/.test(logged.raw||'')){
+    // a run or activity is already recorded — show it, don't ask him to generate anything
+    const kind=/run/.test(logged.raw)?'Run':/activity/.test(logged.raw)?'Activity':'Session';
+    const what=(logged.type||logged.raw||'').split('|')[1]||'';
+    tc.className='pk-card green';
+    tc.innerHTML=`<div class="pk-eyebrow"><span>Today</span><span>${esc(kind)} logged</span></div>
+      <div class="pk-verdict" style="font-size:15px">${esc((logged.raw||'').split('|').slice(0,2).join(' ·').trim())}</div>
+      ${logged.dist?`<div class="pk-detail">${esc(logged.dist)} mi${logged.dur?' · '+esc(logged.dur):''}</div>`:logged.dur?`<div class="pk-detail">${esc(logged.dur)}</div>`:''}
+      <div class="pk-why">${esc(pkNextTemplate()||'')} is still next in the lifting split — the rotation advances on completion, not on the calendar.</div>`;
+  }else if(!ci&&!w){
     tc.className='pk-card amber';
     tc.innerHTML=`<div class="pk-eyebrow"><span>Today</span><span>~30 sec</span></div>
-      <div class="pk-detail">No check-in yet. Five taps and the workout writes itself.</div>`;
+      ${sug?`<div class="pk-sugg" style="margin-bottom:10px">${sug}</div>`:''}
+      <div class="pk-detail">No check-in yet. Home, gym, run, or something else — pick one and the rest follows.</div>`;
     const b=document.createElement('button');b.className='pk-btn';b.textContent='Check in →';
     b.onclick=()=>pkOpenCheckin(t);tc.appendChild(b);
   }else{
@@ -2153,7 +2226,14 @@ async function renderPeak(){
     ${bar('Water','water',nt.water?nt.water+' oz':null)}
     ${bar('Supps','supplements','')}
     ${nt.locked?`<div class="pk-why">🔒 ${esc(nt.why||'Deficit locked this phase.')}</div>`:''}
-    ${nt.source==='estimated'?'<div class="pk-why">Calorie target is still the seed estimate — it self-corrects once 14 days of weigh-ins exist.</div>':''}`;
+    ${nt.source==='estimated'?'<div class="pk-why">Calorie target is still the seed estimate — it self-corrects once 14 days of weigh-ins exist.</div>':''}
+    ${nt.source==='needs-profile'?'<div class="pk-why">Calorie target needs <b>height + date of birth</b> in config.json. Protein and water only need bodyweight, so those are real.</div>':''}`;
+  {
+    const ft=pkFoodTotals(day);
+    const fb=document.createElement('button');fb.className='pk-btn ghost';fb.style.marginTop='10px';
+    fb.textContent=ft.known+ft.free?`Food — ${ft.known+ft.free} logged${ft.known?` · ${ft.kcal} kcal · ${ft.protein}g protein`:''}`:'Log what you ate';
+    fb.onclick=()=>pkOpenFood(t);fc.appendChild(fb);
+  }
   body.appendChild(fc);
 
   // ---- week ----
@@ -2208,26 +2288,54 @@ async function renderPeak(){
 $('pk-close').onclick=()=>{$('pk-ov').hidden=true;};
 $('pk-ov').onclick=e=>{if(e.target.id==='pk-ov')$('pk-ov').hidden=true;};
 
-/* check-in: five answers, defaults carried from yesterday — the common case is one tap */
+/* check-in: pick the MODALITY first (home / gym / run / something else), then only the
+   questions that modality needs. Defaults carry from the last check-in, so the common
+   case is still a couple of taps. */
+const PK_ACTIVITIES=['handball','basketball','hiking','swimming','snowboarding','other'];
 let pkCI={};
 function pkOpenCheckin(t,isOverride){
   const prev=(()=>{for(let i=1;i<=7;i++){const d=PK.days[pkAdd(t,-i)];if(d&&d.checkin)return d.checkin;}return{};})();
-  pkCI={date:t,loc:prev.loc||PK.cfg.default_location||'home',min:+(prev.min||45),
-        energy:+(prev.energy||6),sore:[],pain:null,override:!!isOverride};
+  const due=pkDue(t);
+  pkCI={date:t,mode:prev.loc==='gym'?'gym':'home',loc:prev.loc||PK.cfg.default_location||'home',
+        min:+(prev.min||45),energy:+(prev.energy||6),sore:[],pain:null,
+        activity:'handball',actMin:60,override:!!isOverride};
   $('pk-title').textContent='Check in';
   $('pk-primary').textContent='Generate workout';
   const B=$('pk-sheet-body');
   const opts=(name,vals,cur,fmt)=>`<div class="pk-opts" data-g="${name}">`+vals.map(v=>
     `<button class="pk-opt${String(v)===String(cur)?' on':''}" data-v="${v}">${fmt?fmt(v):v}</button>`).join('')+'</div>';
+  const sug=pkSuggest(t);
   B.innerHTML=`
-    <div class="pk-q">Where</div>${opts('loc',Object.keys(PK.cfg.equipment_profiles||{home:1,gym:1}),pkCI.loc,v=>v[0].toUpperCase()+v.slice(1))}
-    <div class="pk-q">Time</div>${opts('min',[30,45,60,90],pkCI.min)}
+    ${sug?`<div class="pk-sugg">${sug}</div>`:''}
+    <div class="pk-q">What are you doing</div>
+    ${opts('mode',['home','gym','run','other'],pkCI.mode,v=>({home:'Home',gym:'Gym',run:'Run',other:'Other'}[v]))}
+    <div id="pk-lift">
+      <div class="pk-q">Time</div>${opts('min',[30,45,60,90],pkCI.min)}
+      <div class="pk-q">Sore</div>${opts('sore',['none','chest','back','shoulders','arms','legs'],'none')}
+    </div>
+    <div id="pk-act" hidden>
+      <div class="pk-q">What</div>${opts('act',PK_ACTIVITIES,pkCI.activity,v=>v[0].toUpperCase()+v.slice(1))}
+      <div class="pk-q">How long</div>${opts('actmin',[30,60,90,120],pkCI.actMin)}
+    </div>
+    <div id="pk-runnote" hidden><div class="pk-sugg" id="pk-runplan"></div></div>
     <div class="pk-q">Energy <span class="pk-sliderval" id="pk-ev">${pkCI.energy}</span></div>
     <input class="pk-slider" id="pk-energy" type="range" min="1" max="10" value="${pkCI.energy}">
-    <div class="pk-q">Sore</div>${opts('sore',['none','chest','back','shoulders','arms','legs'],'none')}
     <div class="pk-q">Pain or injury</div>${opts('pain',['no','yes'],'no')}
     <div id="pk-painwrap" hidden>${opts('painreg',['shoulder','elbow','back','knee','hip','ankle'],'')}
       <div class="pk-q">How bad</div>${opts('painsev',['niggle','real'],'niggle')}</div>`;
+  const applyMode=()=>{
+    const m=pkCI.mode;
+    $('pk-lift').hidden=!(m==='home'||m==='gym');
+    $('pk-act').hidden=m!=='other';
+    $('pk-runnote').hidden=m!=='run';
+    if(m==='run'){
+      const r=pkTodayRun(t);
+      $('pk-runplan').innerHTML=r?`Plan says <b>${esc(r.type)} ${r.miles} mi</b> today.`
+        :'No run prescribed today — log whatever you run and the weekly total picks it up.';
+    }
+    $('pk-primary').textContent=m==='other'?'Log activity':m==='run'?'Log run':'Generate workout';
+    if(m==='home'||m==='gym')pkCI.loc=m;
+  };
   B.querySelectorAll('.pk-opts').forEach(g=>{
     g.onclick=e=>{
       const b=e.target.closest('.pk-opt');if(!b)return;
@@ -2239,30 +2347,91 @@ function pkOpenCheckin(t,isOverride){
         return;
       }
       g.querySelectorAll('.pk-opt').forEach(x=>x.classList.toggle('on',x===b));
-      if(name==='loc')pkCI.loc=v;
+      if(name==='mode'){pkCI.mode=v;applyMode();}
       else if(name==='min')pkCI.min=+v;
+      else if(name==='act')pkCI.activity=v;
+      else if(name==='actmin')pkCI.actMin=+v;
       else if(name==='pain'){$('pk-painwrap').hidden=v!=='yes';if(v!=='yes')pkCI.pain=null;}
       else if(name==='painreg')pkCI.pain=Object.assign(pkCI.pain||{severity:'niggle'},{region:v});
       else if(name==='painsev')pkCI.pain=Object.assign(pkCI.pain||{},{severity:v});
     };
   });
   $('pk-energy').oninput=e=>{pkCI.energy=+e.target.value;$('pk-ev').textContent=e.target.value;};
+  applyMode();
   $('pk-primary').onclick=pkSubmitCheckin;
   $('pk-ov').hidden=false;
 }
+/* today's prescribed run, if the running plan has one for this weekday */
+function pkTodayRun(t){
+  if(!PK.run||!PK.cfg)return null;
+  const race=(PK.cfg.milestones||[]).find(m=>m.type==='race');
+  if(!race)return null;
+  const blk=(PK.run.blocks||{})[race.plan]||(PK.run.blocks||{})['half-16wk'];
+  if(!blk)return null;
+  const runDays=((PK.cfg.schedule||{}).run_days)||[];
+  const i=runDays.indexOf(pkDow(t));
+  if(i<0)return null;
+  const start=pkAdd(race.date,-(blk.weeks||16)*7);
+  // before the block opens we're building base, not executing a prescription
+  if(t<start){
+    const base=Math.max(2,Math.round((blk.entry_requirement_mi_per_week||12)/Math.max(1,runDays.length)));
+    return {type:i===runDays.length-1?'long':'easy',miles:i===runDays.length-1?base+1:base,base:true};
+  }
+  let mi=0;for(let k=0;k<7;k++){const d=PK.days[pkAdd(pkMonday(t),k)];if(d&&d.session&&d.session.dist)mi+=parseFloat(d.session.dist)||0;}
+  const target=Math.min(blk.peak_week_mi||28,Math.max(blk.entry_requirement_mi_per_week||12,mi*1.1));
+  const long=Math.min(Math.round(target*0.38),blk.peak_long_run_mi||11);
+  const others=runDays.slice(0,-1);
+  return i===runDays.length-1?{type:'long',miles:long}
+    :{type:(blk.structure||['easy'])[i]||'easy',miles:Math.round(((target-long)/Math.max(1,others.length))*10)/10};
+}
 async function pkSubmitCheckin(){
   const b=$('pk-primary');b.disabled=true;b.textContent='Saving…';
-  const t=pkCI.date;
+  const t=pkCI.date,m=pkCI.mode;
   const sore=pkCI.sore.length?pkCI.sore.join('+'):'none';
-  const line=`loc:${pkCI.loc} | min:${pkCI.min} | energy:${pkCI.energy} | sore:${sore} | pain:${pkCI.pain?pkCI.pain.region:'none'}`
+  const line=`loc:${m==='run'||m==='other'?m:pkCI.loc} | min:${m==='other'?pkCI.actMin:pkCI.min} | energy:${pkCI.energy} | sore:${sore} | pain:${pkCI.pain?pkCI.pain.region:'none'}`
     +(pkCI.pain?` | pain_sev:${pkCI.pain.severity}`:'')+(pkCI.override?' | override:yes':'');
   try{
-    await pkWriteDay(t,{checkin:line},pkComplianceLabels(t),'peak check-in '+t);
+    const patch={checkin:line};
+    /* run and activity are logged as they happen — there is nothing to generate, and a
+       session Kevin actually did should never be sitting behind a "generate" button */
+    if(m==='other')patch.session=`activity | ${pkCI.activity} | dur:${pkCI.actMin}m | src:manual`;
+    else if(m==='run'){
+      const r=pkTodayRun(t);
+      patch.session=`run | type:${r?r.type:'easy'} | dur:${pkCI.min}m | src:manual`;
+    }
+    await pkWriteDay(t,patch,pkComplianceLabels(t),'peak check-in '+t);
     $('pk-ov').hidden=true;
     PK.workout=null;
     await runRender('peak');
+    if(m==='run')pkOpenRunLog(t);
   }catch(e){alert('Check-in failed: '+e.message);}
   b.disabled=false;b.textContent='Generate workout';
+}
+/* distance is the number the running engine actually plans from, so ask for it once */
+function pkOpenRunLog(t){
+  $('pk-title').textContent='Log the run';
+  $('pk-primary').textContent='Save';
+  const r=pkTodayRun(t);
+  $('pk-sheet-body').innerHTML=`
+    ${r?`<div class="pk-sugg">Prescribed: <b>${esc(r.type)} ${r.miles} mi</b></div>`:''}
+    <div class="fld"><label>Distance (miles)</label><input id="pk-dist" type="number" step="0.1" inputmode="decimal" placeholder="${r?r.miles:'3'}"></div>
+    <div class="fld"><label>Duration (minutes) — optional</label><input id="pk-rdur" type="number" inputmode="numeric"></div>
+    <div class="pk-why" style="border:none">Weekly progression reads what you ACTUALLY ran, never what was planned — that's what stops a missed week compounding into an injury.</div>`;
+  $('pk-primary').onclick=async()=>{
+    const btn=$('pk-primary');btn.disabled=true;btn.textContent='Saving…';
+    const d=parseFloat($('pk-dist').value),dur=parseFloat($('pk-rdur').value);
+    try{
+      if(!isNaN(d)){
+        await pkWriteDay(t,{session:`run | type:${r?r.type:'easy'} | dist:${d}${isNaN(dur)?'':' | dur:'+dur+'m'} | src:manual`},null,'peak run '+t);
+        const recs=[{metric:'run_distance',value:d,unit:'mi'}];
+        if(!isNaN(dur))recs.push({metric:'run_duration',value:dur,unit:'min'});
+        await pkWriteMetrics(t,recs);
+      }
+      $('pk-ov').hidden=true;await runRender('peak');
+    }catch(e){alert('Save failed: '+e.message);}
+    btn.disabled=false;btn.textContent='Save';
+  };
+  $('pk-ov').hidden=false;
 }
 function pkComplianceLabels(t){
   const nt=pkNutrition({date:t,cfg:PK.cfg,weightLb:(pkLatest(PK.metrics,'weight')||{}).value,phase:null});
@@ -2306,6 +2475,62 @@ function pkOpenQuick(t){
   };
   $('pk-ov').hidden=false;
 }
+/* food log: tap a template meal (macros already known) or type anything.
+   Typed text is stored VERBATIM and left un-estimated here — the app must never invent
+   a calorie number. The Sunday review reads the text and estimates against targets. */
+function pkFoodTotals(day){
+  const t={kcal:0,protein:0,known:0,free:0};
+  for(const f of (day&&day.food)||[]){
+    const id=f.split('|')[0].trim();
+    const m=PK.meals[id];
+    if(m){t.kcal+=m.kcal||0;t.protein+=m.protein_g||0;t.known++;}
+    else t.free++;
+  }
+  return t;
+}
+function pkOpenFood(t){
+  $('pk-title').textContent='Log food';
+  $('pk-primary').textContent='Done';
+  const day=PK.days[t];
+  const rot=((PK.cfg.nutrition||{}).meal_rotation||Object.keys(PK.meals).filter(k=>!k.startsWith('_')));
+  const draw=()=>{
+    const eaten=(PK.days[t]&&PK.days[t].food)||[];
+    const tot=pkFoodTotals(PK.days[t]);
+    const nt=pkNutrition({date:t,cfg:PK.cfg,weightLb:(pkLatest(PK.metrics,'weight')||{}).value,phase:null});
+    $('pk-sheet-body').innerHTML=`
+      ${eaten.length?`<div class="pk-eyebrow" style="margin-bottom:6px"><span>Today</span><span>${tot.known?tot.kcal+' kcal · '+tot.protein+'g protein':''}${tot.free?(tot.known?' + ':'')+tot.free+' typed':''}</span></div>
+        ${eaten.map((f,i)=>{const id=f.split('|')[0].trim();const m=PK.meals[id];
+          return `<div class="pk-set"><span class="v">${esc(m?m.name:f)}</span><span class="k" style="width:auto">${m?m.kcal+' kcal':'—'}</span></div>`;}).join('')}
+        ${tot.free?'<div class="pk-why">Typed items have no macros here on purpose — the Sunday review estimates them rather than the app guessing.</div>':''}
+        ${nt.protein?`<div class="pk-why">Target: ${nt.protein}g protein${nt.kcal?' · '+nt.band[0]+'–'+nt.band[1]+' kcal':''}</div>`:''}`
+      :'<div class="pk-why" style="border:none">Nothing logged today.</div>'}
+      <div class="pk-q">Quick add</div>
+      <div class="pk-opts" id="pk-meals" style="flex-direction:column">
+        ${rot.filter(id=>PK.meals[id]).map(id=>`<button class="pk-opt" data-v="${id}" style="text-align:left">${esc(PK.meals[id].name)} <span style="color:var(--faint)">· ${PK.meals[id].kcal} kcal · ${PK.meals[id].protein_g}g</span></button>`).join('')}
+      </div>
+      <div class="pk-q">Or type it</div>
+      <div class="fld"><input id="pk-freefood" type="text" placeholder="chicken over rice, 2 eggs, protein shake" autocomplete="off"></div>
+      <button class="pk-btn ghost" id="pk-addfree" style="margin-top:8px">Add</button>`;
+    $('pk-meals').onclick=async e=>{
+      const b=e.target.closest('.pk-opt');if(!b)return;
+      b.disabled=true;
+      try{await pkWriteDay(t,{food:b.dataset.v},null,'peak food '+t);await pkLoadAll(t);draw();}
+      catch(err){alert('Save failed: '+err.message);b.disabled=false;}
+    };
+    $('pk-addfree').onclick=async()=>{
+      const v=$('pk-freefood').value.trim().replace(/\|/g,'/').replace(/\s*\n\s*/g,'; ');
+      if(!v)return;
+      $('pk-addfree').disabled=true;
+      try{await pkWriteDay(t,{food:v},null,'peak food '+t);await pkLoadAll(t);draw();}
+      catch(err){alert('Save failed: '+err.message);$('pk-addfree').disabled=false;}
+    };
+    $('pk-freefood').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('pk-addfree').click();}};
+  };
+  draw();
+  $('pk-primary').onclick=async()=>{$('pk-ov').hidden=true;await runRender('peak');};
+  $('pk-ov').hidden=false;
+}
+
 /* set logger: prefilled from the prescription, so the usual interaction is Log × 3 */
 function pkOpenLogger(t,s){
   $('pk-title').textContent=s.template;
