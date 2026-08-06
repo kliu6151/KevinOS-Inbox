@@ -1925,6 +1925,13 @@ function pkGenerate(ci,ctx){
     reasons.push(noLift.reason);
     return pkRecoverySession(ctx,ci,'Hair day '+hair.day+' — '+noLift.reason,false,false,true);
   }
+  /* manual swap: Kevin picked a different day. Honored after the safety gates above
+     (recovery/blackout still win), logged as an override so Sunday names the pattern. */
+  let forced=false;
+  if(ci.forceTpl&&tpl[ci.forceTpl]&&ci.forceTpl!==name){
+    reasons.push('your call — split said '+name);
+    name=ci.forceTpl;forced=true;
+  }
   const template=tpl[name];
 
   // ---- Step 2: volume budget ----
@@ -1983,7 +1990,7 @@ function pkGenerate(ci,ctx){
   if(verdict.band==='green')why.push('green light — PR attempts allowed');
   else if(verdict.band==='light')why.push('holding loads, no progression');
   return {kind:'strength',template:name,minutes:ci.min,exercises:out,verdict,
-          why:why.join(' · '),budget,spent};
+          why:why.join(' · '),budget,spent,override:forced};
 }
 function pkRecoverySession(ctx,ci,reason,blackout,overridable,light){
   const {ex,cfg}=ctx;
@@ -2179,10 +2186,12 @@ async function renderPeak(){
     const b=document.createElement('button');b.className='pk-btn';b.textContent='Check in →';
     b.onclick=()=>pkOpenCheckin(t);tc.appendChild(b);
   }else{
-    const s=w||pkGenerate(Object.assign({date:t,loc:ci.loc||'home',min:+(ci.min||45),
-      energy:+(ci.energy||6),sore:String(ci.sore||'none').split('+'),
-      pain:ci.pain&&ci.pain!=='none'?{region:ci.pain,severity:ci.pain_sev||'real'}:null}),
-      {days:PK.days,cfg,ex:PK.ex,tpl:PK.tpl,hair,rec});
+    const mkCi=f=>({date:t,loc:(ci&&ci.loc)||'home',min:+((ci&&ci.min)||45),
+      energy:+((ci&&ci.energy)||6),sore:String((ci&&ci.sore)||'none').split('+'),
+      pain:ci&&ci.pain&&ci.pain!=='none'?{region:ci.pain,severity:ci.pain_sev||'real'}:null,
+      forceTpl:f||null});
+    const gctx={days:PK.days,cfg,ex:PK.ex,tpl:PK.tpl,hair,rec};
+    const s=w||pkGenerate(mkCi(null),gctx);
     PK.workout={date:t,session:s};
     tc.className='pk-card '+(s.blackout?'red':s.kind==='recovery'?'red':'amber');
     tc.innerHTML=`<div class="pk-eyebrow"><span>Today</span><span>${esc(s.template)} · ${s.minutes} min</span></div>
@@ -2197,6 +2206,16 @@ async function renderPeak(){
     if(s.kind==='strength'){
       const b=document.createElement('button');b.className='pk-btn';b.textContent='Log this session';
       b.onclick=()=>pkOpenLogger(t,s);tc.appendChild(b);
+      /* not feeling this day? cycle to the next template in the rotation — an honest
+         override, not a hidden one: the generator tags it and the session line logs it */
+      const rotAll=(cfg.schedule||{}).split||[];
+      const rotAvail=rotAll.filter(n=>PK.tpl[n]);
+      const alt=rotAvail.length>1?rotAvail[(rotAvail.indexOf(s.template)+1)%rotAvail.length]:null;
+      if(ci&&alt&&alt!==s.template){
+        const o=document.createElement('button');o.className='pk-btn ghost';o.textContent='⇄ Swap day — do '+alt;
+        o.onclick=()=>{PK.workout={date:t,session:pkGenerate(mkCi(alt),gctx)};runRender('peak');};
+        tc.appendChild(o);
+      }
     }else{
       const b=document.createElement('button');b.className='pk-btn ghost';b.textContent='Mark done ✓';
       b.onclick=async()=>{b.disabled=true;
@@ -2617,7 +2636,7 @@ function pkOpenLogger(t,s){
     const btn=$('pk-primary');btn.disabled=true;btn.textContent='Saving…';
     const done=logged.filter(L=>L.sets.length);
     const patch={session:`strength | ${s.template} | ${s.minutes}m | src:engine`
-      +(pkCI.override?' | override:yes':'')+(done.length?'':' | prescribed, unlogged')};
+      +(pkCI.override?' | override:yes':s.override?' | override:swap':'')+(done.length?'':' | prescribed, unlogged')};
     try{
       await pkWriteDay(t,patch,null,'peak session '+t);
       if(done.length){
