@@ -1513,7 +1513,23 @@ async function renderMoney(){
   // remember which folds the user opened/closed so a check-off re-render doesn't collapse them
   const prevFolds=new Map([...body.querySelectorAll('.fold')].map(h=>[h.querySelector('.ft').textContent,h.classList.contains('open')]));
   if(!keepView)body.innerHTML=skel();
-  const f=await getFile('data/money.md');body.innerHTML='';
+  const [f,ops]=await Promise.all([getFile('data/money.md'),getFile('data/ops-status.md')]);body.innerHTML='';
+  // ⚙ Ops status — script-written watch feed for the local money routines
+  // (ops/ops-status.js, refreshed by the daily 8:30 ACH check). Read-only;
+  // buttons stay on the desktop console.
+  if(ops){
+    const lines=ops.text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.startsWith('- ')||l.startsWith('## '));
+    const warn=lines.filter(l=>/⚠|🔴/.test(l)).length;
+    const upd=((lines.find(l=>l.startsWith('- updated:'))||'').split('updated:')[1]||'').trim();
+    const open=prevFolds.has('⚙ Ops status')?prevFolds.get('⚙ Ops status'):warn>0;
+    const of=fold('⚙ Ops status',upd,open,warn);
+    for(const l of lines){
+      if(l.startsWith('- updated:'))continue;
+      if(l.startsWith('## ')){const h=document.createElement('div');h.className='note';h.style.padding='6px 14px 2px';h.innerHTML='<b>'+esc(l.slice(3))+'</b>';of.card.appendChild(h);continue;}
+      of.card.appendChild(moneyLineEl(l));
+    }
+    body.appendChild(of.head);body.appendChild(of.card);
+  }
   if(!f){const c=card();body.appendChild(c);empty(c,'No money.md yet — the weekend pipeline builds it.');return;}
   // split into preamble + ## sections
   const secs=[];let pre=[],cur=null;
