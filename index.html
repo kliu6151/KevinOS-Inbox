@@ -454,7 +454,7 @@
     <button class="btn" id="save">Save to Inbox</button>
     <div id="status"></div>
     <button class="btn2" id="dev-link">🛠 Developer roadmap — what's shipped &amp; what's next</button>
-    <div class="tiny"><a href="#" id="reset">change token</a></div>
+    <div class="tiny"><a href="#" id="reset">change token</a> &nbsp;·&nbsp; <a href="#" id="ai-reset">reset AI</a></div>
   </div>
 
   <!-- DEV / ROADMAP -->
@@ -2856,10 +2856,18 @@ async function renderEdu(){
    Plan + rulings: docs/plans/KEVINOS-AI-ASSISTANT.md in the data repo. */
 const AI_PROXY_URL_DEFAULT='https://kevinos-ai-proxy.kevinos-ops.workers.dev'; // deployed 2026-09-03
 function aiProxyUrl(){
-  let u=localStorage.getItem('ai_proxy_url')||AI_PROXY_URL_DEFAULT;
+  let u=(localStorage.getItem('ai_proxy_url')||'').trim();
+  // self-heal a bad paste: scheme-less workers.dev → add https://; anything that
+  // isn't an https URL (e.g. the token pasted into the URL prompt) → drop it and
+  // fall back to the baked-in default
+  if(u&&!/^https:\/\//.test(u)){
+    if(/^[a-z0-9-]+(\.[a-z0-9-]+)*\.workers\.dev$/i.test(u)){u='https://'+u;localStorage.setItem('ai_proxy_url',u);}
+    else{localStorage.removeItem('ai_proxy_url');u='';}
+  }
+  u=u||AI_PROXY_URL_DEFAULT;
   if(!u){u=(prompt('AI proxy URL (printed by wrangler deploy — see ops/ai-proxy/DEPLOY.md):')||'').trim();
     if(u)localStorage.setItem('ai_proxy_url',u.replace(/\/+$/,''));}
-  return localStorage.getItem('ai_proxy_url')||AI_PROXY_URL_DEFAULT;
+  return (localStorage.getItem('ai_proxy_url')||AI_PROXY_URL_DEFAULT||'').replace(/\/+$/,'');
 }
 function aiToken(){
   let t=localStorage.getItem('ai_proxy_token');
@@ -3499,7 +3507,13 @@ async function askKevinOS(text){ /* voice later feeds this same entry point */
   $('ai-send').disabled=true;$('ai-in').disabled=true;
   const busy=aiMsg('ai-busy','thinking…');
   try{await aiTurn(text,busy);}
-  catch(e){aiChip('err','ERROR',String((e&&e.message)||e));}
+  catch(e){
+    const m=String((e&&e.message)||e);
+    // Safari says "Load failed" for any network/CORS-level fetch failure
+    aiChip('err','ERROR',/load failed|failed to fetch|networkerror|aborted/i.test(m)
+      ?`Couldn't reach the AI proxy (${m}). Check signal; test ${aiProxyUrl()||'the proxy URL'}/ping in the browser — it should say "unauthorized". If your setup got mangled, tap "reset AI" on the Dump tab and ask again.`
+      :m);
+  }
   busy.remove();
   $('ai-send').disabled=false;$('ai-in').disabled=false;$('ai-in').focus();
 }
@@ -3514,6 +3528,12 @@ $('ai-ov').onclick=e=>{if(e.target.id==='ai-ov')$('ai-ov').hidden=true;};
 $('ai-new').onclick=()=>{try{sessionStorage.removeItem('ai_prev');}catch(e){}$('ai-log').innerHTML='';aiWarned=false;aiHello();};
 $('ai-send').onclick=()=>{const v=$('ai-in').value;$('ai-in').value='';askKevinOS(v);};
 $('ai-in').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('ai-send').click();}};
+$('ai-reset').onclick=e=>{
+  e.preventDefault();
+  localStorage.removeItem('ai_proxy_url');localStorage.removeItem('ai_proxy_token');
+  try{sessionStorage.removeItem('ai_prev');}catch(_){}
+  alert('AI setup cleared. Next "Ask KevinOS" will use the built-in proxy URL and ask for the token again.');
+};
 /* ==================== end Assistant ==================== */
 
 /* ---- nav + render orchestration ---- */
