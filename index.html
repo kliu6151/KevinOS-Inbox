@@ -2854,7 +2854,7 @@ async function renderEdu(){
    KevinOS ONLY through the AI_TOOLS registry below: never raw GitHub, never the
    PAT, single-line guarded writes, git commits (`ai:` prefix) as the audit trail.
    Plan + rulings: docs/plans/KEVINOS-AI-ASSISTANT.md in the data repo. */
-const AI_PROXY_URL_DEFAULT=''; // set after first deploy (https://kevinos-ai-proxy.<acct>.workers.dev)
+const AI_PROXY_URL_DEFAULT='https://kevinos-ai-proxy.kevinos-ops.workers.dev'; // deployed 2026-09-03
 function aiProxyUrl(){
   let u=localStorage.getItem('ai_proxy_url')||AI_PROXY_URL_DEFAULT;
   if(!u){u=(prompt('AI proxy URL (printed by wrangler deploy — see ops/ai-proxy/DEPLOY.md):')||'').trim();
