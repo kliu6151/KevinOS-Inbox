@@ -3391,6 +3391,23 @@ async function oai(body){
     return j;
   }finally{clearTimeout(to);}
 }
+/* conversation continuity: iOS kills backgrounded pages, so the chain pointer and
+   the rendered transcript live in localStorage with an idle TTL — a conversation
+   survives app switching, expires after an hour of silence, and "New" clears it.
+   (OpenAI holds the actual chained context server-side via store:true; this keeps
+   only the response-id pointer plus what was on screen.) */
+const AI_CONV_TTL=60*60*1000;
+let aiLog=[];
+function aiConvLoad(){
+  try{const c=JSON.parse(localStorage.getItem('ai_conv')||'null');
+    if(c&&Date.now()-(c.ts||0)<AI_CONV_TTL)return c;}catch(e){}
+  return null;
+}
+function aiConvSave(prev){
+  const cur=aiConvLoad()||{};
+  try{localStorage.setItem('ai_conv',JSON.stringify({prev:prev===undefined?(cur.prev||''):prev,ts:Date.now(),log:aiLog.slice(-60)}));}catch(e){}
+}
+function aiConvClear(){aiLog=[];try{localStorage.removeItem('ai_conv');sessionStorage.removeItem('ai_prev');}catch(e){}}
 const aiOutputText=resp=>(resp.output||[]).filter(o=>o.type==='message')
   .flatMap(m=>m.content||[]).filter(c=>c.type==='output_text').map(c=>c.text).join('\n').trim();
 const AI_BUSY={get_today:'reading today',get_tasks:'reading tasks',get_loops:'reading loops',get_calendar:'reading calendar',
@@ -3417,7 +3434,7 @@ async function aiRunTool(name,argstr,budget){
 }
 async function aiTurn(text,busyEl){
   const t0=Date.now();
-  let prev=sessionStorage.getItem('ai_prev')||'';
+  let prev=(aiConvLoad()||{}).prev||'';
   let input=[{role:'user',content:`[now: ${aiNow()}]\n${text}`}];
   const use={model:'',resp:'',in:0,cached:0,out:0,reason:0,total:0,cost:0,calls:0};
   const budget={writes:0};
@@ -3444,7 +3461,7 @@ async function aiTurn(text,busyEl){
     }
     if(iter===7)final='Stopped — tool-call limit for one turn reached. Ask again to continue.';
   }
-  try{sessionStorage.setItem('ai_prev',prev);}catch(e){}
+  aiConvSave(prev);
   if(final)aiText(final);
   else if(budget.writes)aiText('Done.');
   else aiText("(no answer came back — try rephrasing)");
@@ -3468,7 +3485,13 @@ async function aiTurn(text,busyEl){
 
 /* ---- assistant UI ---- */
 let aiWarned=false;
-function aiMsg(cls,html){const d=document.createElement('div');d.className=cls;d.innerHTML=html;const log=$('ai-log');log.appendChild(d);log.scrollTop=1e9;return d;}
+function aiMsg(cls,html){
+  const d=document.createElement('div');d.className=cls;d.innerHTML=html;
+  const log=$('ai-log');log.appendChild(d);log.scrollTop=1e9;
+  // transient rows (spinner) and interactive ones (confirm card buttons) don't persist
+  if(cls!=='ai-busy'&&cls!=='ai-confirm'){aiLog.push({c:cls,h:html});aiConvSave(undefined);}
+  return d;
+}
 function aiChip(kind,label,text){aiMsg('ai-chip'+(kind?' '+kind:''),`<span class="k">${esc(label)}</span>${esc(text)}`);}
 function aiText(t){aiMsg('ai-a',String(t).split(/\n{2,}/).map(p=>`<div>${inline(p).replace(/\n/g,'<br>')}</div>`).join('<div style="height:8px"></div>'));}
 function aiHello(){aiMsg('ai-a','<div>Ask about today, the week, or any thread — or tell me what happened and I\'ll update KevinOS. Writes show up as green chips.</div>');}
@@ -3519,19 +3542,26 @@ async function askKevinOS(text){ /* voice later feeds this same entry point */
 }
 $('ai-open').onclick=()=>{
   $('ai-ov').hidden=false;
-  if(!$('ai-log').childElementCount)aiHello();
+  if(!$('ai-log').childElementCount){
+    const c=aiConvLoad(); // restore a live conversation after iOS killed the page
+    if(c&&c.log&&c.log.length){
+      aiLog=c.log.slice();
+      for(const r of c.log){const d=document.createElement('div');d.className=r.c;d.innerHTML=r.h;$('ai-log').appendChild(d);}
+      $('ai-log').scrollTop=1e9;
+    }else aiHello();
+  }
   aiShowAgg();
   setTimeout(()=>$('ai-in').focus(),100);
 };
 $('ai-x').onclick=()=>{$('ai-ov').hidden=true;};
 $('ai-ov').onclick=e=>{if(e.target.id==='ai-ov')$('ai-ov').hidden=true;};
-$('ai-new').onclick=()=>{try{sessionStorage.removeItem('ai_prev');}catch(e){}$('ai-log').innerHTML='';aiWarned=false;aiHello();};
+$('ai-new').onclick=()=>{aiConvClear();$('ai-log').innerHTML='';aiWarned=false;aiHello();};
 $('ai-send').onclick=()=>{const v=$('ai-in').value;$('ai-in').value='';askKevinOS(v);};
 $('ai-in').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('ai-send').click();}};
 $('ai-reset').onclick=e=>{
   e.preventDefault();
   localStorage.removeItem('ai_proxy_url');localStorage.removeItem('ai_proxy_token');
-  try{sessionStorage.removeItem('ai_prev');}catch(_){}
+  aiConvClear();
   alert('AI setup cleared. Next "Ask KevinOS" will use the built-in proxy URL and ask for the token again.');
 };
 /* ==================== end Assistant ==================== */
