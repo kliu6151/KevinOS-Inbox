@@ -1927,7 +1927,8 @@ function pkMapExercise(name,ex){
 function pkFormatSets(exercises,ex){
   const lines=[],unmapped=[];
   for(const e of exercises||[]){
-    const sets=(e.sets||[]).map(s=>({w:s.w==null||s.w===''?null:+s.w,reps:parseInt(s.reps,10),rpe:s.rpe==null||s.rpe===''?null:+s.rpe}))
+    /* rpe is 1–10; a volunteered 0 or anything out of range is "not stated", never written */
+    const sets=(e.sets||[]).map(s=>{const r=s.rpe==null||s.rpe===''?NaN:+s.rpe;return{w:s.w==null||s.w===''?null:+s.w,reps:parseInt(s.reps,10),rpe:r>=1&&r<=10?r:null};})
       .filter(s=>!isNaN(s.reps)&&s.reps>0&&s.reps<=100&&(s.w==null||(isFinite(s.w)&&s.w>=0&&s.w<=1500)));
     if(!sets.length)continue;
     let id=pkMapExercise(e.name,ex);
@@ -3600,9 +3601,12 @@ async function aiLogWorkout(a={}){
     setSession(`activity | ${name}${mins?` | dur:${mins}m`:''} | ${src} | status:completed`);summary=name+(mins?' '+mins+'m':'');
   }else{
     const f=pkFormatSets(a.exercises||[],PK.ex||{});
-    const label=aiClean(a.label)||'free';
-    if(!f.lines.length&&!a.label)return{error:'nothing to log — pass exercises [{name, sets:[{w, reps, rpe?}]}] or at least a label'};
     const plannedRaw=day&&day.planned?day.planned.raw:(day&&day.session&&pkStatus(day.session)==='planned'?day.session.raw:null);
+    /* no label given but the day had a planned template → the session IS that template
+       (live finding 2026-09-04: "Bench 135 8/8/6" on a planned Upper A day was logged as "free") */
+    const plannedLabel=plannedRaw?(plannedRaw.split('|')[1]||'').trim():'';
+    const label=aiClean(a.label)||(plannedLabel&&PK.tpl[plannedLabel]?plannedLabel:'free');
+    if(!f.lines.length&&!a.label)return{error:'nothing to log — pass exercises [{name, sets:[{w, reps, rpe?}]}] or at least a label'};
     let status=/^(completed|modified)$/.test(String(a.status||''))?a.status:'completed';
     if(status==='completed'&&plannedRaw&&label!=='free'&&!plannedRaw.toLowerCase().includes(label.toLowerCase()))status='modified';
     setSession(`strength | ${label}${mins?` | ${mins}m`:''} | ${src} | status:${status}`);
