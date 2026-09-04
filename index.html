@@ -3487,12 +3487,14 @@ async function aiLogPeak(a={}){
     else patch.session=`activity | ${name}${min?` | dur:${min}m`:''} | src:assistant`;
     bits.push('activity');
   }
-  if(a.sleep_h!=null||a.sleep_q!=null){ // metrics is a scalar line — merge, don't clobber
+  const sh=(+a.sleep_h>0&&+a.sleep_h<=24)?String(+a.sleep_h):null,
+        sq=(+a.sleep_q>=1&&+a.sleep_q<=5)?String(+a.sleep_q):null;
+  if(sh||sq){ // metrics is a scalar line — merge, don't clobber (and only real values count)
     const cur={};
     const em=day.match(/^metrics:\s*(.*)$/m);
     if(em)for(const seg of em[1].split('|')){const kv=seg.trim().match(/^([\w]+):\s*(.+)$/);if(kv)cur[kv[1]]=kv[2].trim();}
-    if(a.sleep_h!=null&&+a.sleep_h>=0&&+a.sleep_h<=24)cur.sleep_h=String(+a.sleep_h);
-    if(a.sleep_q!=null&&+a.sleep_q>=1&&+a.sleep_q<=5)cur.sleep_q=String(+a.sleep_q);
+    if(sh)cur.sleep_h=sh;
+    if(sq)cur.sleep_q=sq;
     patch.metrics=Object.entries(cur).map(([k,v])=>`${k}:${v}`).join(' | ');
     bits.push('sleep');
   }
