@@ -84,8 +84,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <h2>1 · Photo</h2>
       <div class="step">
         <label class="drop" id="drop" for="file">
-          <strong>Tap to choose a photo</strong><br>or drop one here · JPG, PNG, HEIC (Safari)
-          <input type="file" id="file" accept="image/*">
+          <strong>Tap to choose a photo</strong><br>or drop one here · JPG, PNG, HEIC (iPhone photos convert automatically)
+          <input type="file" id="file" accept="image/*,.heic,.heif">
         </label>
         <p class="hint" id="photoInfo">No photo yet. The preview shows the stamp style on a placeholder.</p>
         <div class="pick" id="exifGpsRow" hidden>
@@ -349,19 +349,77 @@ function readExif(o){
   } catch(e){}
   return r;
 }
+// ---------- HEIC support: iPhone photos decode natively in Safari; everywhere else we convert in the browser ----------
+var HEIC2ANY_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js';
+var EXIFR_SRC = 'https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js';
+function loadScript(src){
+  return new Promise(function(res, rej){
+    if(document.querySelector('script[src="' + src + '"]')) return res();
+    var s = document.createElement('script'); s.src = src; s.async = true;
+    s.onload = function(){ res(); }; s.onerror = function(){ rej(new Error('Could not download ' + src)); };
+    document.head.appendChild(s);
+  });
+}
+function readHead(file){
+  return new Promise(function(res){
+    var fr = new FileReader();
+    fr.onload = function(){ res(new Uint8Array(fr.result)); }; fr.onerror = function(){ res(new Uint8Array(0)); };
+    fr.readAsArrayBuffer(file.slice(0, 16));
+  });
+}
+function isHeic(file, head){
+  if(/\.hei[cf]$/i.test(file.name || '') || /image\/hei[cf]/i.test(file.type || '')) return true;
+  if(head && head.length >= 12){
+    var s = ''; for(var i = 4; i < 12; i++) s += String.fromCharCode(head[i]);
+    if(s.slice(0, 4) === 'ftyp' && /^(heic|heix|hevc|hevx|mif1|msf1|heif)/.test(s.slice(4))) return true;
+  }
+  return false;
+}
+// Read capture date + GPS from JPEG or HEIC (exifr), falling back to piexif for JPEG if exifr can't load.
+function readPhotoTags(file, heic){
+  return loadScript(EXIFR_SRC).then(function(){
+    return exifr.parse(file, { ifd0:true, exif:true, gps:true, interop:false, ifd1:false, xmp:false, icc:false, iptc:false });
+  }).then(function(t){
+    var r = { date:null, lat:null, lng:null };
+    if(t){
+      var d = t.DateTimeOriginal || t.CreateDate || t.ModifyDate;
+      if(d instanceof Date && !isNaN(d)) r.date = d;
+      if(isFinite(t.latitude) && isFinite(t.longitude) && (t.latitude || t.longitude)){ r.lat = t.latitude; r.lng = t.longitude; }
+    }
+    return r;
+  }).catch(function(){
+    if(heic) return { date:null, lat:null, lng:null };
+    return readAsDataURL(file).then(function(u){ return /^data:image\/jpe?g/i.test(u) ? readExif(piexif.load(u)) : { date:null, lat:null, lng:null }; })
+      .catch(function(){ return { date:null, lat:null, lng:null }; });
+  });
+}
+function decodeFile(file, heic){
+  var url = URL.createObjectURL(file);
+  var native = loadImage(url).then(function(img){ return img; }, function(){ URL.revokeObjectURL(url); throw new Error('native'); });
+  if(!heic) return native;
+  return native.catch(function(){
+    setHint(els.status, 'Converting HEIC to JPEG in the browser… (first time downloads a 1.3 MB decoder)');
+    return loadScript(HEIC2ANY_SRC).then(function(){
+      return heic2any({ blob:file, toType:'image/jpeg', quality:0.92 });
+    }).then(function(out){
+      var blob = Array.isArray(out) ? out[0] : out;
+      return loadImage(URL.createObjectURL(blob));
+    });
+  });
+}
 function loadFile(file){
   if(!file) return;
   setHint(els.status, 'Loading photo…');
   els.result.hidden = true;
-  readAsDataURL(file).then(function(dataURL){
-    var exif = { date:null, lat:null, lng:null };
-    if(/^data:image\/jpe?g/i.test(dataURL)){ try { exif = readExif(piexif.load(dataURL)); } catch(e){} }
-    return loadImage(dataURL).then(function(img){
-      state.img = img; state.name = file.name || 'photo'; state.exif = exif;
+  readHead(file).then(function(head){
+    var heic = isHeic(file, head);
+    return Promise.all([ decodeFile(file, heic), readPhotoTags(file, heic) ]).then(function(res){
+      var img = res[0], exif = res[1];
+      state.img = img; state.name = file.name || 'photo'; state.exif = exif; state.heic = heic;
       var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
       var scale = Math.min(1, Math.sqrt(MAX_PIXELS / (w*h)));
       state.outW = Math.round(w*scale); state.outH = Math.round(h*scale);
-      els.photoInfo.textContent = state.name + ' · ' + w + ' × ' + h + (scale < 1 ? ' (exported at ' + state.outW + ' × ' + state.outH + ')' : '');
+      els.photoInfo.textContent = state.name + ' · ' + w + ' × ' + h + (heic ? ' · HEIC → JPEG' : '') + (scale < 1 ? ' (exported at ' + state.outW + ' × ' + state.outH + ')' : '');
       els.photoInfo.className = 'hint ok';
       if(exif.date){
         els.fromPhoto.disabled = false;
@@ -381,8 +439,8 @@ function loadFile(file){
       setHint(els.status, '');
       render();
     });
-  }).catch(function(){
-    setHint(els.status, 'Could not open that file. HEIC only decodes in Safari — export it as JPEG first, or pick a JPG/PNG.', 'bad');
+  }).catch(function(e){
+    setHint(els.status, 'Could not open that file (' + (e && e.message || e) + '). If it is a HEIC, check you are online so the converter can download; otherwise pick a JPG/PNG.', 'bad');
   });
 }
 
