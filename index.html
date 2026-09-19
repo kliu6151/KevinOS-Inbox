@@ -466,7 +466,12 @@
     <button class="btn" id="save">Save to Inbox</button>
     <div id="status"></div>
     <button class="btn2" id="dev-link">🛠 Developer roadmap — what's shipped &amp; what's next</button>
-    <div class="tiny"><a href="#" id="reset">change token</a> &nbsp;·&nbsp; <a href="#" id="ai-reset">reset AI</a></div>
+    <div class="tiny"><a href="#" id="reset">change token</a> &nbsp;·&nbsp; <a href="#" id="show-tok">show token</a> &nbsp;·&nbsp; <a href="#" id="ai-reset">reset AI</a></div>
+    <div id="tok-box" hidden style="gap:6px;align-items:center;padding:0 0 10px">
+      <input id="tok-val" readonly type="password" style="flex:1;min-width:0;font-family:ui-monospace,monospace;font-size:12px;padding:8px;border:1px solid #444;border-radius:8px;background:transparent;color:inherit">
+      <button type="button" class="btn2" id="tok-eye" style="margin:0;padding:8px 10px">👁</button>
+      <button type="button" class="btn2" id="tok-copy" style="margin:0;padding:8px 10px">Copy</button>
+    </div>
   </div>
 
   <!-- DEV / ROADMAP -->
@@ -636,6 +641,11 @@ function token(){
   return localStorage.getItem('gh_token');
 }
 $('reset').onclick=e=>{e.preventDefault();localStorage.removeItem('gh_token');token();};
+/* Show/copy the stored PAT — for pasting into the phone's Shortcuts (ops/specs/brief-sms.md).
+   Masked by default; never logged, never sent anywhere but the clipboard the user asked for. */
+$('show-tok').onclick=e=>{e.preventDefault();const b=$('tok-box');b.hidden=!b.hidden;b.style.display=b.hidden?'':'flex';if(!b.hidden){$('tok-val').value=localStorage.getItem('gh_token')||'(no token stored)';$('tok-val').type='password';}};
+$('tok-eye').onclick=()=>{const i=$('tok-val');i.type=i.type==='password'?'text':'password';};
+$('tok-copy').onclick=async()=>{const v=localStorage.getItem('gh_token')||'';const btn=$('tok-copy');try{await navigator.clipboard.writeText(v);btn.textContent='Copied';}catch(_){const i=$('tok-val');i.type='text';i.select();i.setSelectionRange(0,99999);try{document.execCommand('copy');btn.textContent='Copied';}catch(__){btn.textContent='Select & copy';}}setTimeout(()=>btn.textContent='Copy',1500);};
 
 async function api(path,opts={}){
   const r=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/${path}`,{...opts,headers:{
