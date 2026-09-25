@@ -351,12 +351,12 @@
     background:var(--panel);border:1px solid var(--border);border-radius:12px;color:var(--faint);
     font-size:15px;text-align:left;transition:border-color .15s}
   #ai-open .spark{color:var(--amber)}
-  #ai-ov{position:fixed;inset:0;background:rgba(4,6,10,.68);z-index:52;display:flex;align-items:flex-end;backdrop-filter:blur(4px)}
+  #ai-ov{position:fixed;inset:0 0 var(--navh,0px) 0;background:rgba(4,6,10,.68);z-index:52;display:flex;align-items:flex-end;backdrop-filter:blur(4px)}
   #ai-ov[hidden]{display:none}
   /* full-height on phones: the assistant is a place you sit in, not a peek (Kevin 2026-09-24: "everything feels too cramped") */
-  #ai-sheet{width:100%;height:100vh;height:100dvh;display:flex;flex-direction:column;background:var(--bg);
+  #ai-sheet{width:100%;height:100%;display:flex;flex-direction:column;background:var(--bg);
     border-radius:0;border-top:none;
-    padding:calc(10px + env(safe-area-inset-top)) 0 calc(8px + env(safe-area-inset-bottom))}
+    padding:calc(10px + env(safe-area-inset-top)) 0 8px}
   #ai-head{display:flex;align-items:center;gap:10px;padding:0 16px 10px;border-bottom:1px solid var(--border)}
   #ai-head .t{font-size:17px;font-weight:700;flex:1}
   #ai-agg{font-family:var(--mono);font-size:10px;color:var(--faint);text-align:right;line-height:1.5;letter-spacing:.03em}
@@ -379,6 +379,19 @@
     border-radius:999px;padding:9px 13px;font-size:13.5px;font-weight:500;line-height:1.2;text-align:left}
   .ai-starts button:active{border-color:var(--accent)}
   .ai-scope{align-self:flex-start;font-size:11.5px;line-height:1.5;color:var(--faint);max-width:100%}
+  /* More sheet: the four secondary tabs as real targets, not a cramped bar */
+  #more-ov{position:fixed;inset:0;background:rgba(4,6,10,.68);z-index:58;display:flex;align-items:flex-end;backdrop-filter:blur(4px)}
+  #more-ov[hidden]{display:none}
+  #more-sheet{width:100%;background:var(--bg);border-radius:22px 22px 0 0;border-top:1px solid var(--border2);
+    padding:14px 16px calc(22px + max(env(safe-area-inset-bottom),12px) + 62px)}
+  #more-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+  #more-grid button{display:flex;flex-direction:column;align-items:flex-start;gap:9px;
+    background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px 15px;
+    color:var(--text);font-size:15px;font-weight:600;text-align:left}
+  #more-grid button svg{width:24px;height:24px;fill:none;stroke:var(--amber);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  #more-grid button .sub{font-size:12px;font-weight:400;color:var(--muted);line-height:1.35}
+  #more-grid button:active{border-color:var(--amber)}
+  #more-title{font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 2px}
   .ai-busy{align-self:flex-start;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
   .ai-confirm{align-self:flex-start;max-width:94%;background:var(--panel);border:1px solid var(--border2);
     border-left:3px solid var(--amber);border-radius:0 12px 12px 0;padding:12px 14px;font-size:13.5px}
@@ -392,16 +405,23 @@
   #ai-send{flex:none;width:46px;height:46px;border-radius:12px;background:var(--amber);color:var(--amber-ink);border:none;font-size:17px;font-weight:700}
   #ai-send:disabled{background:var(--panel);color:var(--muted)}
   @media (min-width:880px){
-    #ai-ov{align-items:center;justify-content:center;padding:24px}
+    #ai-ov{inset:0 0 0 232px;align-items:center;justify-content:center;padding:24px}
+    #more-ov{display:none!important}
     #ai-sheet{max-width:720px;height:88vh;border-radius:22px;border:1px solid var(--border2);padding-top:14px}
   }
 
   /* bottom nav (mobile) */
+  /* Eight buttons across a phone gave each one ~45px and read as clutter
+     (Kevin 2026-09-25: "it's all clustered"). Five stay on the bar; Dump, Peak,
+     Brief and Learn move behind More. The desktop rail has room and keeps all
+     of them. z-index sits ABOVE the assistant overlay so the tabs stay reachable
+     while the conversation is open. */
   nav{
-    position:fixed;bottom:0;left:0;right:0;display:flex;z-index:40;
-    background:rgba(11,14,20,.92);border-top:1px solid var(--border);
-    padding-bottom:max(env(safe-area-inset-bottom),12px);backdrop-filter:blur(14px);
+    position:fixed;bottom:0;left:0;right:0;display:flex;z-index:60;
+    background:rgba(11,14,20,.94);border-top:1px solid var(--border);
+    padding-bottom:max(env(safe-area-inset-bottom),12px);backdrop-filter:blur(16px);
   }
+  nav button.secondary{display:none}
   nav .brand{display:none}
   nav button{
     flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -411,6 +431,9 @@
   }
   nav button svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   nav button.on{color:var(--amber)}
+  /* a short bar above the active tab — colour alone is a weak signal at 12px */
+  nav button.on::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
+    width:26px;height:2.5px;border-radius:0 0 3px 3px;background:var(--amber)}
   /* 7 tabs on a 390px phone = ~56px each; shrink the chrome rather than clipping labels */
   @media (max-width:430px){
     nav button{font-size:10.5px;padding:10px 0 6px;gap:2px}
@@ -445,6 +468,9 @@
       font-size:15px;justify-content:flex-start;
     }
     nav button.on{background:rgba(255,176,32,.08)}
+    nav button.on::before{display:none}
+    nav button.secondary{display:flex}
+    nav button[data-v="more"]{display:none}
     .nbadge{position:static;margin-left:auto}
     #sheet-ov,#ev-ov,#pk-ov{align-items:center;justify-content:center;padding:24px}
     #sheet,#ev-sheet,#pk-sheet{max-width:480px;border-radius:22px;border:1px solid var(--border2)}
@@ -469,7 +495,7 @@
 <body>
 <main>
   <!-- DUMP -->
-  <div class="view active" id="v-dump">
+  <div class="view" id="v-dump">
     <div class="top"><h1>Kevin<span>OS</span></h1><div class="sub" id="pending"></div></div>
     <textarea id="dump" placeholder="Dump it. Messy is fine — the system holds it so your head doesn't have to."></textarea>
     <button class="btn" id="save">Save to Inbox</button>
@@ -491,7 +517,7 @@
   </div>
 
   <!-- TODAY -->
-  <div class="view" id="v-today">
+  <div class="view active" id="v-today">
     <div class="top"><h1>Today</h1><div class="sub" id="today-date"></div></div>
     <button id="ai-open"><span class="spark">✦</span><span>Ask KevinOS…</span></button>
     <div id="today-body" class="loading">Loading…</div>
@@ -593,6 +619,31 @@
   </div>
 </div>
 
+<div id="more-ov" hidden>
+  <div id="more-sheet">
+    <div class="grab"></div>
+    <div id="more-title">Everything else</div>
+    <div id="more-grid">
+      <button data-go="dump">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Dump<span class="sub">Capture a thought</span></span>
+      </button>
+      <button data-go="brief">
+        <svg viewBox="0 0 24 24"><path d="M4 5h13a2 2 0 0 1 2 2v11a2 2 0 0 0 2-2V8M4 5v13a2 2 0 0 0 2 2h13M7 9h7M7 12.5h7M7 16h4"/></svg>
+        <span>Brief<span class="sub">Intel &amp; markets</span></span>
+      </button>
+      <button data-go="peak">
+        <svg viewBox="0 0 24 24"><path d="M3 17l5-7 4 5 3-4 6 6M3 17h18"/><circle cx="17" cy="5" r="2"/></svg>
+        <span>Peak<span class="sub">Health &amp; training</span></span>
+      </button>
+      <button data-go="edu">
+        <svg viewBox="0 0 24 24"><path d="M12 4L2 9l10 5 10-5-10-5zM5 11.5V16c0 1.4 3.1 3 7 3s7-1.6 7-3v-4.5"/></svg>
+        <span>Learn<span class="sub">Insulation curriculum</span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ASSISTANT: conversation sheet -->
 <div id="ai-ov" hidden>
   <div id="ai-sheet">
@@ -615,10 +666,10 @@
   <button data-v="ask">
     <svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-6.5A8 8 0 0 1 11 4h2a8 8 0 0 1 8 8z"/><path d="M9 11h6M9 14.5h4"/></svg><span>Ask</span>
   </button>
-  <button data-v="dump" class="on">
+  <button data-v="dump" class="secondary">
     <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>Dump</span>
   </button>
-  <button data-v="today">
+  <button data-v="today" class="on">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M19.4 4.6l-1.8 1.8M6.4 17.6l-1.8 1.8"/></svg><span>Today</span>
   </button>
   <button data-v="cal">
@@ -627,13 +678,16 @@
   <button data-v="money">
     <svg viewBox="0 0 24 24"><path d="M12 2.5v19M16.8 7.2c-.6-1.4-2.4-2.2-4.8-2.2-2.7 0-4.8 1.2-4.8 3.2s2.1 2.7 4.8 3.1c2.7.4 4.8 1.1 4.8 3.1s-2.1 3.2-4.8 3.2c-2.4 0-4.2-.8-4.8-2.2"/></svg><span>Money</span>
   </button>
-  <button data-v="peak">
+  <button data-v="peak" class="secondary">
     <svg viewBox="0 0 24 24"><path d="M3 17l5-7 4 5 3-4 6 6M3 17h18"/><circle cx="17" cy="5" r="2"/></svg><span>Peak</span>
   </button>
-  <button data-v="brief">
+  <button data-v="brief" class="secondary">
     <svg viewBox="0 0 24 24"><path d="M4 5h13a2 2 0 0 1 2 2v11a2 2 0 0 0 2-2V8M4 5v13a2 2 0 0 0 2 2h13M7 9h7M7 12.5h7M7 16h4"/></svg><span>Brief</span>
   </button>
-  <button data-v="edu">
+  <button data-v="more">
+    <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>More</span>
+  </button>
+  <button data-v="edu" class="secondary">
     <svg viewBox="0 0 24 24"><path d="M12 4L2 9l10 5 10-5-10-5zM5 11.5V16c0 1.4 3.1 3 7 3s7-1.6 7-3v-4.5"/></svg><span>Learn</span>
   </button>
 </nav>
@@ -1290,7 +1344,7 @@ async function renderToday(){
       const b=document.createElement('button');b.className='more';b.style.marginTop='14px';
       b.style.border='1px solid var(--border)';b.style.borderRadius='10px';b.style.background='var(--panel)';
       b.innerHTML=`📰 Today's brief — <b>${nI}</b> industry · <b>${nM}</b> markets <span style="color:var(--faint)">›</span>`;
-      b.onclick=()=>document.querySelector('nav button[data-v="brief"]').click();
+      b.onclick=()=>goView('brief');
       body.appendChild(b);
     }
   }
@@ -4119,7 +4173,7 @@ $('ai-reset').onclick=e=>{
 /* ==================== end Assistant ==================== */
 
 /* ---- nav + render orchestration ---- */
-let currentView='dump',lastRender=0;
+let currentView='today',lastRender=0;
 const renderers={today:renderToday,cal:renderCal,money:renderMoney,peak:renderPeak,brief:renderBrief,edu:renderEdu};
 const viewBody={today:'today-body',cal:'cal-body',money:'money-body',peak:'peak-body',brief:'brief-body',edu:'edu-body'};
 
@@ -4176,23 +4230,63 @@ function updateBadge(){
   b.textContent=n>9?'9+':n;
 }
 
+/* One entry point for "show me this tab" — the nav, the More sheet and the
+   Today-to-Brief link all go through it, so there is a single definition of
+   what switching a tab means. */
+function goView(v){
+  currentView=v;
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  const el=$('v-'+v); if(el)el.classList.add('active');
+  runRender(v);
+  window.scrollTo(0,0);
+}
+function moreOpen(){$('more-ov').hidden=false;}
+function moreClose(){$('more-ov').hidden=true;}
+$('more-ov').onclick=e=>{
+  if(e.target.id==='more-ov'){moreClose();return;}
+  const b=e.target.closest('button[data-go]'); if(!b) return;
+  moreClose(); goView(b.dataset.go);
+};
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   /* Ask is a surface, not a view: it opens the conversation and leaves the
      underlying tab where it was, so closing returns you to what you were doing. */
   if(b.dataset.v==='ask'){$('ai-open').click();return;}
-  currentView=b.dataset.v;
-  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  $('v-'+b.dataset.v).classList.add('active');
-  runRender(b.dataset.v);
+  if(b.dataset.v==='more'){moreOpen();return;}
+  goView(b.dataset.v);
 });
+
+/* The nav is a fixed bar the assistant must not cover — measure it once and
+   let CSS inset the overlay by exactly that much. */
+function navH(){
+  const n=document.querySelector('nav');
+  const h=(window.innerWidth>=880||!n)?0:n.offsetHeight;
+  document.documentElement.style.setProperty('--navh',h+'px');
+}
+navH();
+window.addEventListener('resize',navH);
+window.addEventListener('orientationchange',()=>setTimeout(navH,250));
 
 /* coming back to the app after 60s+ silently refreshes the current tab */
 document.addEventListener('visibilitychange',()=>{
   if(!document.hidden&&Date.now()-lastRender>60000&&renderers[currentView])runRender(currentView);
 });
 
-if(localStorage.getItem('gh_token')){refreshPending();updateBadge();}
+if(localStorage.getItem('gh_token')){refreshPending();updateBadge();runRender('today');}
+
+/* Kevin, 2026-09-25: "make it open up on the chat app first". The app lands on
+   the conversation with Today underneath, so closing it reveals the plan rather
+   than an empty capture box. No autofocus — a keyboard that opens itself on
+   launch is what makes people close an app. */
+setTimeout(()=>{
+  try{
+    if(!localStorage.getItem('gh_token'))return;
+    if(sessionStorage.getItem('ai_launched'))return;
+    sessionStorage.setItem('ai_launched','1');
+    $('ai-open').click();
+    $('ai-in').blur();
+  }catch(e){}
+},120);
 </script>
 </body>
 </html>
