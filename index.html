@@ -353,17 +353,18 @@
   #ai-open .spark{color:var(--amber)}
   #ai-ov{position:fixed;inset:0;background:rgba(4,6,10,.68);z-index:52;display:flex;align-items:flex-end;backdrop-filter:blur(4px)}
   #ai-ov[hidden]{display:none}
-  #ai-sheet{width:100%;height:92vh;height:92dvh;display:flex;flex-direction:column;background:var(--bg);
-    border-radius:22px 22px 0 0;border-top:1px solid var(--border2);
-    padding:14px 0 calc(8px + env(safe-area-inset-bottom))}
+  /* full-height on phones: the assistant is a place you sit in, not a peek (Kevin 2026-09-24: "everything feels too cramped") */
+  #ai-sheet{width:100%;height:100vh;height:100dvh;display:flex;flex-direction:column;background:var(--bg);
+    border-radius:0;border-top:none;
+    padding:calc(10px + env(safe-area-inset-top)) 0 calc(8px + env(safe-area-inset-bottom))}
   #ai-head{display:flex;align-items:center;gap:10px;padding:0 16px 10px;border-bottom:1px solid var(--border)}
   #ai-head .t{font-size:17px;font-weight:700;flex:1}
   #ai-agg{font-family:var(--mono);font-size:10px;color:var(--faint);text-align:right;line-height:1.5;letter-spacing:.03em}
   #ai-new,#ai-x{background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;padding:7px 11px;font-weight:600}
-  #ai-log{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
-  .ai-u{align-self:flex-end;max-width:86%;background:var(--accent-soft);border:1px solid rgba(106,169,255,.25);
-    border-radius:14px 14px 4px 14px;padding:10px 13px;font-size:15px;line-height:1.5;white-space:pre-wrap}
-  .ai-a{align-self:flex-start;max-width:94%;font-size:15px;line-height:1.6}
+  #ai-log{flex:1;overflow-y:auto;padding:16px 16px 22px;display:flex;flex-direction:column;gap:14px}
+  .ai-u{align-self:flex-end;max-width:88%;background:var(--accent-soft);border:1px solid rgba(106,169,255,.25);
+    border-radius:16px 16px 5px 16px;padding:11px 14px;font-size:15.5px;line-height:1.55;white-space:pre-wrap}
+  .ai-a{align-self:flex-start;max-width:100%;font-size:15.5px;line-height:1.68}
   .ai-chip{align-self:flex-start;max-width:94%;background:var(--panel);border:1px solid var(--border);
     border-left:3px solid var(--green);border-radius:0 10px 10px 0;padding:8px 12px;font-size:13.5px;line-height:1.45}
   .ai-chip .k{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--green);display:block;margin-bottom:2px}
@@ -376,7 +377,7 @@
   .ai-confirm .ck{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--amber)}
   .ai-confirm .row{padding:7px 0;border-bottom:1px solid var(--border);line-height:1.45}
   .ai-confirm .row:last-of-type{border-bottom:none}
-  #ai-inrow{display:flex;gap:8px;padding:10px 16px 0}
+  #ai-inrow{display:flex;gap:9px;padding:11px 16px 0;border-top:1px solid var(--border)}
   #ai-in{flex:1;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:12px;
     padding:12px 14px;font-size:16px;line-height:1.4;outline:none;color-scheme:dark;min-height:46px;max-height:120px;resize:none;box-shadow:none}
   #ai-in:focus{border-color:var(--accent)}
@@ -384,7 +385,7 @@
   #ai-send:disabled{background:var(--panel);color:var(--muted)}
   @media (min-width:880px){
     #ai-ov{align-items:center;justify-content:center;padding:24px}
-    #ai-sheet{max-width:560px;height:86vh;border-radius:22px;border:1px solid var(--border2)}
+    #ai-sheet{max-width:720px;height:88vh;border-radius:22px;border:1px solid var(--border2);padding-top:14px}
   }
 
   /* bottom nav (mobile) */
@@ -603,6 +604,9 @@
 
 <nav>
   <div class="brand">Kevin<span>OS</span></div>
+  <button data-v="ask">
+    <svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-6.5A8 8 0 0 1 11 4h2a8 8 0 0 1 8 8z"/><path d="M9 11h6M9 14.5h4"/></svg><span>Ask</span>
+  </button>
   <button data-v="dump" class="on">
     <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>Dump</span>
   </button>
@@ -3877,10 +3881,15 @@ async function oai(body){
 }
 /* conversation continuity: iOS kills backgrounded pages, so the chain pointer and
    the rendered transcript live in localStorage with an idle TTL — a conversation
-   survives app switching, expires after an hour of silence, and "New" clears it.
+   survives app switching, expires after THREE DAYS of silence, and "New" clears it.
    (OpenAI holds the actual chained context server-side via store:true; this keeps
-   only the response-id pointer plus what was on screen.) */
-const AI_CONV_TTL=60*60*1000;
+   only the response-id pointer plus what was on screen.)
+   Was 1 hour until 2026-09-24 — Kevin: "our chatbot doesn't have much memory".
+   An hour meant every session started cold, which reads as amnesia rather than
+   as a privacy choice. Stored responses live ~30 days server-side, so 72h is
+   safely inside that; the cost is a longer chained context per turn (turns have
+   averaged $0.0076), and "New" is still one tap when a thread should end. */
+const AI_CONV_TTL=72*60*60*1000;
 let aiLog=[];
 function aiConvLoad(){
   try{const c=JSON.parse(localStorage.getItem('ai_conv')||'null');
@@ -3889,7 +3898,7 @@ function aiConvLoad(){
 }
 function aiConvSave(prev){
   const cur=aiConvLoad()||{};
-  try{localStorage.setItem('ai_conv',JSON.stringify({prev:prev===undefined?(cur.prev||''):prev,ts:Date.now(),log:aiLog.slice(-60)}));}catch(e){}
+  try{localStorage.setItem('ai_conv',JSON.stringify({prev:prev===undefined?(cur.prev||''):prev,ts:Date.now(),log:aiLog.slice(-120)}));}catch(e){}
 }
 function aiConvClear(){aiLog=[];try{localStorage.removeItem('ai_conv');sessionStorage.removeItem('ai_prev');}catch(e){}}
 const aiOutputText=resp=>(resp.output||[]).filter(o=>o.type==='message')
@@ -4038,6 +4047,7 @@ async function askKevinOS(text){ /* voice later feeds this same entry point */
 }
 $('ai-open').onclick=()=>{
   $('ai-ov').hidden=false;
+  aiNavOn(true);
   if(!$('ai-log').childElementCount){
     const c=aiConvLoad(); // restore a live conversation after iOS killed the page
     if(c&&c.log&&c.log.length){
@@ -4049,8 +4059,15 @@ $('ai-open').onclick=()=>{
   aiShowAgg();
   setTimeout(()=>$('ai-in').focus(),100);
 };
-$('ai-x').onclick=()=>{$('ai-ov').hidden=true;};
-$('ai-ov').onclick=e=>{if(e.target.id==='ai-ov')$('ai-ov').hidden=true;};
+function aiNavOn(on){
+  const ask=document.querySelector('nav button[data-v="ask"]');
+  if(!ask)return;
+  if(on){document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===ask));}
+  else{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===currentView));}
+}
+function aiClose(){$('ai-ov').hidden=true;aiNavOn(false);}
+$('ai-x').onclick=aiClose;
+$('ai-ov').onclick=e=>{if(e.target.id==='ai-ov')aiClose();};
 $('ai-new').onclick=()=>{aiConvClear();$('ai-log').innerHTML='';aiWarned=false;aiHello();};
 $('ai-send').onclick=()=>{const v=$('ai-in').value;$('ai-in').value='';askKevinOS(v);};
 $('ai-in').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('ai-send').click();}};
@@ -4121,6 +4138,9 @@ function updateBadge(){
 }
 
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  /* Ask is a surface, not a view: it opens the conversation and leaves the
+     underlying tab where it was, so closing returns you to what you were doing. */
+  if(b.dataset.v==='ask'){$('ai-open').click();return;}
   currentView=b.dataset.v;
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
