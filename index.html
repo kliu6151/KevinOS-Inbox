@@ -4234,6 +4234,11 @@ function updateBadge(){
    Today-to-Brief link all go through it, so there is a single definition of
    what switching a tab means. */
 function goView(v){
+  /* Switching tabs leaves the assistant: #ai-ov is a full-height overlay, so
+     without this the new tab renders invisibly underneath it (Kevin 2026-09-25:
+     "the chat bot is stickied even when i try to switch tabs"). The log is only
+     hidden, never cleared — tapping Ask returns to the same conversation. */
+  if(!$('ai-ov').hidden)aiClose();
   currentView=v;
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
