@@ -371,6 +371,14 @@
   .ai-chip.err{border-left-color:var(--red)} .ai-chip.err .k{color:var(--red)}
   .ai-chip.warn{border-left-color:var(--amber)} .ai-chip.warn .k{color:var(--amber)}
   .ai-cost{align-self:flex-start;font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+  /* Starter chips: a blank chat with a blinking cursor is why people don't use
+     chatbots — they can't see the surface. These are the real questions it can
+     already answer from the files it reads. Tapping one sends it. */
+  .ai-starts{align-self:stretch;display:flex;flex-wrap:wrap;gap:7px;margin-top:2px}
+  .ai-starts button{background:var(--panel);border:1px solid var(--border);color:var(--text);
+    border-radius:999px;padding:9px 13px;font-size:13.5px;font-weight:500;line-height:1.2;text-align:left}
+  .ai-starts button:active{border-color:var(--accent)}
+  .ai-scope{align-self:flex-start;font-size:11.5px;line-height:1.5;color:var(--faint);max-width:100%}
   .ai-busy{align-self:flex-start;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
   .ai-confirm{align-self:flex-start;max-width:94%;background:var(--panel);border:1px solid var(--border2);
     border-left:3px solid var(--amber);border-radius:0 12px 12px 0;padding:12px 14px;font-size:13.5px}
@@ -379,7 +387,7 @@
   .ai-confirm .row:last-of-type{border-bottom:none}
   #ai-inrow{display:flex;gap:9px;padding:11px 16px 0;border-top:1px solid var(--border)}
   #ai-in{flex:1;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:12px;
-    padding:12px 14px;font-size:16px;line-height:1.4;outline:none;color-scheme:dark;min-height:46px;max-height:120px;resize:none;box-shadow:none}
+    padding:12px 14px;font-size:16px;line-height:1.4;outline:none;color-scheme:dark;min-height:46px;max-height:160px;resize:none;box-shadow:none;overflow-y:auto}
   #ai-in:focus{border-color:var(--accent)}
   #ai-send{flex:none;width:46px;height:46px;border-radius:12px;background:var(--amber);color:var(--amber-ink);border:none;font-size:17px;font-weight:700}
   #ai-send:disabled{background:var(--panel);color:var(--muted)}
@@ -3997,9 +4005,34 @@ function aiMsg(cls,html){
   if(cls!=='ai-busy'&&cls!=='ai-confirm'){aiLog.push({c:cls,h:html});aiConvSave(undefined);}
   return d;
 }
+/* shown, never recorded: greeting affordances must not replay when a
+   conversation is restored from localStorage (aiMsg would log them). */
+function aiEphemeral(cls,html){
+  const d=document.createElement('div');d.className=cls;d.innerHTML=html;
+  const log=$('ai-log');log.appendChild(d);log.scrollTop=1e9;return d;
+}
 function aiChip(kind,label,text){aiMsg('ai-chip'+(kind?' '+kind:''),`<span class="k">${esc(label)}</span>${esc(text)}`);}
 function aiText(t){aiMsg('ai-a',String(t).split(/\n{2,}/).map(p=>`<div>${inline(p).replace(/\n/g,'<br>')}</div>`).join('<div style="height:8px"></div>'));}
-function aiHello(){aiMsg('ai-a','<div>Ask about today, the week, or any thread — or tell me what happened and I\'ll update KevinOS. Writes show up as green chips.</div>');}
+const AI_STARTERS=[
+  "What's due today?",
+  "What am I waiting on?",
+  "What's slipping?",
+  "What do I owe right now?",
+  "What did we decide about the auditor pay?",
+  "Remember: ",
+];
+function aiHello(){
+  aiMsg('ai-a','<div>Ask about today, the week, or any thread \u2014 or just tell me what happened and I\'ll update KevinOS. Writes show up as green chips.</div>');
+  const d=aiEphemeral('ai-starts',AI_STARTERS.map((t,i)=>`<button type="button" data-i="${i}">${esc(t)}</button>`).join(''));
+  d.onclick=e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    const t=AI_STARTERS[+b.dataset.i]||'';
+    if(/\s$/.test(t)){ const inp=$('ai-in'); inp.value=t; inp.focus(); aiGrow(); return; } // "Remember: " waits for the rest
+    d.remove();
+    askKevinOS(t);
+  };
+  aiEphemeral('ai-scope','I can read your tasks, loops, calendar, money ledger, ops status, durable memory and Peak. I cannot see Housecall Pro or GoHighLevel from here yet.');
+}
 function aiRenderConfirm(ch){
   const d=aiMsg('ai-confirm','');
   d.innerHTML=`<span class="ck">CONFIRM ${ch.length} CHANGE${ch.length===1?'':'S'}</span>`
@@ -4069,7 +4102,13 @@ function aiClose(){$('ai-ov').hidden=true;aiNavOn(false);}
 $('ai-x').onclick=aiClose;
 $('ai-ov').onclick=e=>{if(e.target.id==='ai-ov')aiClose();};
 $('ai-new').onclick=()=>{aiConvClear();$('ai-log').innerHTML='';aiWarned=false;aiHello();};
-$('ai-send').onclick=()=>{const v=$('ai-in').value;$('ai-in').value='';askKevinOS(v);};
+function aiGrow(){
+  const t=$('ai-in'); if(!t) return;
+  t.style.height='auto';
+  t.style.height=Math.min(t.scrollHeight,160)+'px';
+}
+$('ai-in').addEventListener('input',aiGrow);
+$('ai-send').onclick=()=>{const v=$('ai-in').value;$('ai-in').value='';aiGrow();askKevinOS(v);};
 $('ai-in').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('ai-send').click();}};
 $('ai-reset').onclick=e=>{
   e.preventDefault();
