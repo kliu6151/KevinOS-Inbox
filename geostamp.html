@@ -147,9 +147,20 @@ button:disabled{opacity:.45;cursor:not-allowed}
           <div><label for="lng">Longitude</label><input type="number" id="lng" step="0.000001" inputmode="decimal" placeholder="-73.985659"></div>
           <button type="button" id="locate" class="tight" title="Use the phone's GPS">📍 Here</button>
         </div>
+        <div class="row">
+          <div><label for="acc">Accuracy ± metres (blank = no ± on the stamp)</label><input type="number" id="acc" step="1" min="0" inputmode="numeric" placeholder="12"></div>
+        </div>
         <div>
           <label for="label">Address line on the stamp</label>
           <input type="text" id="label" placeholder="Filled from the address you pick — edit freely">
+        </div>
+        <div>
+          <label for="weather">Weather on the stamp</label>
+          <div class="row">
+            <input type="text" id="weather" placeholder="52°F, Clear — looked up for the photo's date">
+            <button type="button" id="getWeather" class="tight">Look up</button>
+          </div>
+          <p class="hint" id="weatherHint"></p>
         </div>
       </div>
     </section>
@@ -198,7 +209,8 @@ var $ = function(id){ return document.getElementById(id); };
 var els = {
   file:$('file'), drop:$('drop'), photoInfo:$('photoInfo'), exifGpsRow:$('exifGpsRow'), exifGpsText:$('exifGpsText'), useExifGps:$('useExifGps'),
   addr:$('addr'), find:$('find'), results:$('results'), geoHint:$('geoHint'), locate:$('locate'),
-  lat:$('lat'), lng:$('lng'), label:$('label'),
+  lat:$('lat'), lng:$('lng'), acc:$('acc'), label:$('label'),
+  weather:$('weather'), getWeather:$('getWeather'), weatherHint:$('weatherHint'),
   when:$('when'), now:$('now'), fromPhoto:$('fromPhoto'), whenHint:$('whenHint'),
   note:$('note'), noteCount:$('noteCount'),
   canvas:$('canvas'), dims:$('dims'), download:$('download'), status:$('status'),
@@ -213,9 +225,7 @@ var SANS = '"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-
 var STAMP_FONT = '-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 var MAX_PIXELS = 16000000; // Safari canvas ceiling; also keeps exports sane
 
-// src/acc mirror FieldPacket's geotag `source` + `accuracy_m`: only a fix the phone
-// measured itself gets a ± on the stamp.
-var state = { img:null, name:'', exif:null, lastUrl:null, trayId:null, src:'manual', acc:null };
+var state = { img:null, name:'', exif:null, lastUrl:null, trayId:null };
 
 // ---------- small helpers ----------
 function p2(n){ return String(n).padStart(2,'0'); }
@@ -285,6 +295,77 @@ function geocodePhoton(q){
     });
   });
 }
+// ---------- weather ----------
+// FieldPacket's WMO table and "52°F, Clear" string, verbatim (src/lib/geotag/resolve.ts).
+// The lookup differs by necessity: FieldPacket stamps at the shutter and asks Open-Meteo
+// for CURRENT weather, while these photos are stamped days later, so this asks for the
+// weather at the photo's own date and hour. Same free key-less service, same output.
+var WMO = {
+  0:'Clear', 1:'Mainly clear', 2:'Partly cloudy', 3:'Overcast',
+  45:'Fog', 48:'Rime fog', 51:'Light drizzle', 53:'Drizzle', 55:'Heavy drizzle',
+  61:'Light rain', 63:'Rain', 65:'Heavy rain', 66:'Freezing rain', 67:'Freezing rain',
+  71:'Light snow', 73:'Snow', 75:'Heavy snow', 77:'Snow grains',
+  80:'Rain showers', 81:'Rain showers', 82:'Heavy rain showers',
+  85:'Snow showers', 86:'Snow showers', 95:'Thunderstorm', 96:'Thunderstorm', 99:'Thunderstorm'
+};
+function ymd(d){ return d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()); }
+function wxUrl(kind, lat, lng, day){
+  var base = kind === 'forecast'
+    ? 'https://api.open-meteo.com/v1/forecast?past_days=92&forecast_days=1'
+    : 'https://archive-api.open-meteo.com/v1/archive?start_date=' + day + '&end_date=' + day;
+  return base + '&latitude=' + encodeURIComponent(lat) + '&longitude=' + encodeURIComponent(lng) +
+         '&hourly=temperature_2m,weathercode&temperature_unit=fahrenheit&timezone=auto';
+}
+function wxTry(kind, lat, lng, when){
+  var day = ymd(when);
+  return fetch(wxUrl(kind, lat, lng, day)).then(function(r){
+    if(!r.ok) throw new Error(kind + ' HTTP ' + r.status);
+    return r.json();
+  }).then(function(j){
+    var h = j && j.hourly;
+    if(!h || !h.time || !h.time.length) throw new Error(kind + ': no hourly data');
+    // Open-Meteo returns local ISO strings like "2026-09-27T13:00" — pick the photo's hour.
+    var target = day + 'T' + p2(when.getHours()) + ':00';
+    var i = h.time.indexOf(target);
+    if(i < 0){
+      // Nearest hour on the SAME day, never another day's sky.
+      var best = -1, bestGap = Infinity;
+      for(var k = 0; k < h.time.length; k++){
+        if(h.time[k].slice(0, 10) !== day) continue;
+        var gap = Math.abs(parseInt(h.time[k].slice(11, 13), 10) - when.getHours());
+        if(gap < bestGap){ bestGap = gap; best = k; }
+      }
+      i = best;
+    }
+    if(i < 0) throw new Error(kind + ': that date is not in the response');
+    var t = h.temperature_2m && h.temperature_2m[i];
+    if(typeof t !== 'number') throw new Error(kind + ': no reading for that hour');
+    var desc = h.weathercode ? WMO[h.weathercode[i]] : null;
+    return Math.round(t) + '°F' + (desc ? ', ' + desc : '');
+  });
+}
+// Neither endpoint covers the whole range on its own: the archive lags a few days, and
+// the forecast endpoint returns time slots but NULL readings beyond roughly a fortnight
+// (measured 2026-09-27 — 80 days back came back empty). Try the likelier one for the
+// date and fall back to the other, which covers today through years ago.
+function fetchWeather(lat, lng, when){
+  var daysAgo = Math.floor((Date.now() - when.getTime()) / 86400000);
+  var order = daysAgo <= 10 ? ['forecast', 'archive'] : ['archive', 'forecast'];
+  return wxTry(order[0], lat, lng, when).catch(function(){ return wxTry(order[1], lat, lng, when); });
+}
+function lookupWeather(auto){
+  var c = getCoords(), d = getWhen();
+  if(!c){ if(!auto) setHint(els.weatherHint, 'Set the location first — weather is looked up for those coordinates.', 'bad'); return; }
+  setHint(els.weatherHint, 'Looking up the weather for ' + fmtHumanDate(d) + '…');
+  fetchWeather(c.lat, c.lng, d).then(function(s){
+    els.weather.value = s; store('weather', s);
+    setHint(els.weatherHint, 'Weather on ' + ymd(d) + ' at that location: ' + s, 'ok');
+    render();
+  }).catch(function(e){
+    setHint(els.weatherHint, 'Could not get the weather (' + (e && e.message || e) + ') — type it yourself, or leave it blank to keep it off the stamp.', 'bad');
+  });
+}
+
 function reverseGeocode(lat, lng){
   var url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=' + lat + '&lon=' + lng;
   return fetch(url, { headers:{ 'Accept':'application/json' } }).then(function(r){ return r.ok ? r.json() : null; })
@@ -304,7 +385,6 @@ function showResults(list){
   });
 }
 function pickResult(r){
-  state.src = 'address'; state.acc = null;   // geocoded, not measured — no ±
   setCoords(r.lat, r.lng);
   els.label.value = r.short || r.full; store('label', els.label.value);
   els.results.innerHTML = '';
@@ -332,9 +412,9 @@ function useHere(){
   setHint(els.geoHint, 'Getting your position…');
   navigator.geolocation.getCurrentPosition(function(pos){
     var lat = pos.coords.latitude, lng = pos.coords.longitude;
-    // The one case that earns a ± on the stamp: the phone measured this itself.
-    state.src = 'device_gps';
-    state.acc = isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null;
+    // A real measurement — put the actual figure in the Accuracy box, replacing
+    // whatever was assumed there.
+    if(isFinite(pos.coords.accuracy)){ els.acc.value = Math.round(pos.coords.accuracy); store('acc', els.acc.value); }
     setCoords(lat, lng); render();
     setHint(els.geoHint, 'Using this device: ±' + Math.round(pos.coords.accuracy) + ' m. Looking up the address…');
     reverseGeocode(lat, lng).then(function(a){
@@ -490,14 +570,17 @@ function stampLines(){
   var label = els.label.value.trim(), note = els.note.value.trim();
   if(label) lines.push(label);
   if(c){
-    // Only a MEASURED fix carries its accuracy. A coordinate geocoded from the
-    // address has none to carry, because nothing was measured — FieldPacket's rule
-    // (Kevin 2026-08-13: no "(from address)" caveat, but the ± still distinguishes
-    // the two, so nothing on the photo claims a fix that never happened).
-    var prov = (state.src !== 'address' && state.acc != null) ? ' (±' + Math.round(state.acc) + 'm)' : '';
+    // DIVERGENCE FROM FIELDPACKET (Kevin, 2026-09-27: "add the +- thing too of 12").
+    // FieldPacket shows the ± only for a fix the phone measured itself, so a geocoded
+    // coordinate reads differently from a measured one. Here the ± is whatever is in
+    // the Accuracy box — "📍 Here" fills it with the real measured figure, otherwise
+    // it is Kevin's own assertion. Clear the box and no ± is printed.
+    var a = parseFloat(els.acc.value);
+    var prov = (isFinite(a) && a >= 0) ? ' (±' + Math.round(a) + 'm)' : '';
     lines.push(c.lat.toFixed(6) + ', ' + c.lng.toFixed(6) + prov);
   }
-  lines.push(d.toLocaleString());
+  // FieldPacket joins date and weather into one line with a middle dot.
+  lines.push([d.toLocaleString(), els.weather.value.trim()].filter(Boolean).join(' · '));
   if(note) lines.push('Note: ' + note);
   return lines;
 }
@@ -786,6 +869,9 @@ function trayOpen(id){
   els.trayUndoRow.hidden = true;
   setHint(els.trayInfo, 'Stamping ' + rec.name + ' — it leaves the tray once you save the stamped copy.');
   loadFile(f);
+  // Each photo in a batch can be from a different day, so refresh the weather for THIS
+  // one's date once its capture date has been read out of the file.
+  setTimeout(function(){ lookupWeather(true); }, 1400);
 }
 function trayRemove(id, why){
   var rec = trayCache.filter(function(r){ return r.id === id; })[0];
@@ -834,8 +920,6 @@ document.addEventListener('paste', function(e){
 });
 els.useExifGps.addEventListener('click', function(){
   if(!state.exif || state.exif.lat === null) return;
-  // The camera measured it, but EXIF carries no accuracy figure, so there is no ± to show.
-  state.src = 'manual'; state.acc = null;
   setCoords(state.exif.lat, state.exif.lng); render();
   setHint(els.geoHint, 'Using the photo’s own GPS. Looking up the address…');
   reverseGeocode(state.exif.lat, state.exif.lng).then(function(a){
@@ -846,9 +930,11 @@ els.useExifGps.addEventListener('click', function(){
 els.find.addEventListener('click', findAddress);
 els.addr.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); findAddress(); } });
 els.locate.addEventListener('click', useHere);
-// Typing a coordinate by hand is not a measurement — drop any ± that was carried in.
-els.lat.addEventListener('input', function(){ state.src = 'manual'; state.acc = null; store('lat', els.lat.value); renderSoon(); });
-els.lng.addEventListener('input', function(){ state.src = 'manual'; state.acc = null; store('lng', els.lng.value); renderSoon(); });
+els.lat.addEventListener('input', function(){ store('lat', els.lat.value); renderSoon(); });
+els.lng.addEventListener('input', function(){ store('lng', els.lng.value); renderSoon(); });
+els.acc.addEventListener('input', function(){ store('acc', els.acc.value); renderSoon(); });
+els.weather.addEventListener('input', function(){ store('weather', els.weather.value); renderSoon(); });
+els.getWeather.addEventListener('click', function(){ lookupWeather(false); });
 els.label.addEventListener('input', function(){ store('label', els.label.value); renderSoon(); });
 els.when.addEventListener('input', function(){ setHint(els.whenHint, ''); renderSoon(); });
 els.now.addEventListener('click', function(){ els.when.value = toLocalInput(new Date()); setHint(els.whenHint, ''); render(); });
@@ -865,6 +951,11 @@ els.download.addEventListener('click', exportJpeg);
   if(lat && lng){ els.lat.value = lat; els.lng.value = lng; }
   if(label) els.label.value = label;
   if(addr) els.addr.value = addr;
+  // Kevin's default ± (2026-09-27). "📍 Here" overwrites it with a real measurement;
+  // clearing the box takes the ± off the stamp entirely.
+  var acc = recall('acc');
+  els.acc.value = (acc === null || acc === '') ? '12' : acc;
+  var wx = recall('weather'); if(wx) els.weather.value = wx;
   if(lat && lng && label) setHint(els.geoHint, 'Restored your last location. Change it if this is a different site.');
   render();
   if(document.fonts && document.fonts.ready) document.fonts.ready.then(render);
