@@ -48,6 +48,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .drop.over{border-color:var(--accent);color:var(--text)}
 .drop strong{color:var(--text)}
 .drop input{display:none}
+/* A class rule like .pick{display:flex} outranks the browser's [hidden] default, so
+   `el.hidden = true` silently did nothing on .pick/.result — the "use the photo's GPS"
+   row showed on photos that had none. Found 2026-09-27 while testing the tray. */
+[hidden]{display:none!important}
 .results{display:grid;gap:6px;margin:0;padding:0;list-style:none}
 .results button{text-align:left;width:100%;padding:8px 10px;min-height:0;font-size:13px;line-height:1.35}
 .results button small{display:block;color:var(--muted);font-family:var(--mono);font-size:11px;margin-top:2px}
@@ -68,6 +72,20 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .pick{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--panel-2);border-radius:8px;padding:8px 10px;font-size:13px}
 .pick button{min-height:32px;padding:4px 10px;font-size:13px}
 .count{font-size:11px;color:var(--muted);text-align:right;font-family:var(--mono)}
+/* ---- photo tray: a holding folder that lives in the browser, on this device only ---- */
+#trayGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-top:4px}
+.tile{position:relative;aspect-ratio:1}
+.tile .open{position:absolute;inset:0;width:100%;height:100%;padding:0;min-height:0;overflow:hidden;
+  border:1px solid var(--line);border-radius:8px;background:var(--panel-2)}
+.tile .open img{width:100%;height:100%;object-fit:cover;display:block}
+.tile .ph{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:10px;line-height:1.25;
+  color:var(--muted);font-family:var(--mono);padding:6px;text-align:center;word-break:break-all}
+.tile .open[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.tile .n{position:absolute;left:1px;right:1px;bottom:1px;background:rgba(4,6,10,.74);color:#e8eaee;border-radius:0 0 7px 7px;
+  font-size:9.5px;font-family:var(--mono);padding:2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.tile .x{position:absolute;top:3px;right:3px;width:24px;height:24px;min-height:0;padding:0;border-radius:6px;z-index:2;
+  background:rgba(4,6,10,.78);border:1px solid var(--line);color:#fff;font-size:14px;line-height:1}
+#trayEmpty{font-size:13px;color:var(--muted);line-height:1.5}
 @media(prefers-reduced-motion:no-preference){button,.drop{transition:border-color .15s,background .15s}}
 </style>
 </head>
@@ -79,6 +97,27 @@ button:disabled{opacity:.45;cursor:not-allowed}
 
 <div class="wrap">
   <div class="col">
+
+    <section class="card">
+      <h2>Photo tray</h2>
+      <div class="step">
+        <label class="drop" id="trayDrop" for="trayFile">
+          <strong>Add photos to the tray</strong><br>pick as many as you like · they stay here until you stamp them
+          <input type="file" id="trayFile" accept="image/*,.heic,.heif" multiple>
+        </label>
+        <p class="hint" id="trayInfo"></p>
+        <div id="trayGrid"></div>
+        <p id="trayEmpty">Tray is empty. Add a batch from one job, then work through them — each photo leaves the tray once you save its stamped copy.</p>
+        <div class="pick" id="trayUndoRow" hidden>
+          <span id="trayUndoText"></span>
+          <button type="button" id="trayUndo">Undo</button>
+        </div>
+        <div class="bar">
+          <span class="pill grow" id="trayCount"></span>
+          <button type="button" id="trayClear" class="tight">Clear tray</button>
+        </div>
+      </div>
+    </section>
 
     <section class="card">
       <h2>1 · Photo</h2>
@@ -191,13 +230,16 @@ var els = {
   note:$('note'), noteCount:$('noteCount'),
   posSeg:$('posSeg'), sizeSeg:$('sizeSeg'),
   canvas:$('canvas'), dims:$('dims'), download:$('download'), status:$('status'),
-  result:$('result'), resultImg:$('resultImg'), resultLink:$('resultLink')
+  result:$('result'), resultImg:$('resultImg'), resultLink:$('resultLink'),
+  trayFile:$('trayFile'), trayDrop:$('trayDrop'), trayInfo:$('trayInfo'), trayGrid:$('trayGrid'),
+  trayEmpty:$('trayEmpty'), trayCount:$('trayCount'), trayClear:$('trayClear'),
+  trayUndoRow:$('trayUndoRow'), trayUndoText:$('trayUndoText'), trayUndo:$('trayUndo')
 };
 var SANS = '"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 var MONO = '"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
 var MAX_PIXELS = 16000000; // Safari canvas ceiling; also keeps exports sane
 
-var state = { img:null, name:'', exif:null, pos:'bl', size:'m', lastUrl:null };
+var state = { img:null, name:'', exif:null, pos:'bl', size:'m', lastUrl:null, trayId:null };
 
 // ---------- small helpers ----------
 function p2(n){ return String(n).padStart(2,'0'); }
@@ -586,6 +628,11 @@ function exportJpeg(){
       var a = document.createElement('a'); a.href = url; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
       els.resultImg.src = url; els.resultLink.href = url; els.result.hidden = false;
       setHint(els.status, 'Saved ' + fname + ' (' + (blob.size/1048576).toFixed(1) + ' MB)' + (c ? ', GPS + date written to EXIF.' : '.') + warn, warn ? 'bad' : 'ok');
+      // The stamped copy exists, so this photo's turn in the tray is over. Removal
+      // happens here rather than when it was picked, so backing out never loses it —
+      // and on iPhone, where the download may need the long-press fallback below,
+      // generating the stamp is the only reliable signal that the work got done.
+      if(state.trayId) trayRemove(state.trayId, 'Stamped — removed from the tray:');
     } catch(e){
       setHint(els.status, 'Export failed: ' + (e && e.message || e), 'bad');
     }
@@ -593,8 +640,152 @@ function exportJpeg(){
   }, 30);
 }
 
+// ---------- photo tray ----------
+// A holding folder that lives in THIS BROWSER on THIS DEVICE. Photos are never
+// uploaded and never touch the repo — this page is served from a public one.
+// Clearing site data, or the browser evicting storage, deletes them; the tray is
+// a staging area, not a backup.
+var DB_NAME = 'geostamp', DB_STORE = 'photos', dbp = null;
+var trayUrls = [], trayCache = [], trayLastRemoved = null;
+function idb(){
+  if(dbp) return dbp;
+  dbp = new Promise(function(res, rej){
+    if(!window.indexedDB) return rej(new Error('this browser has no IndexedDB'));
+    var r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = function(){
+      var db = r.result;
+      if(!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE, { keyPath:'id' });
+    };
+    r.onsuccess = function(){ res(r.result); };
+    r.onerror = function(){ rej(r.error || new Error('could not open the tray database')); };
+  });
+  return dbp;
+}
+function trayTx(mode, fn){
+  return idb().then(function(db){
+    return new Promise(function(res, rej){
+      var t = db.transaction(DB_STORE, mode), req = fn(t.objectStore(DB_STORE));
+      t.oncomplete = function(){ res(req ? req.result : undefined); };
+      t.onerror = function(){ rej(t.error); };
+      t.onabort = function(){ rej(t.error || new Error('storage full or blocked')); };
+    });
+  });
+}
+function fmtBytes(n){ return n >= 1048576 ? (n/1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n/1024)) + ' KB'; }
+function trayRender(){
+  return trayTx('readonly', function(s){ return s.getAll(); }).then(function(list){
+    trayUrls.forEach(function(u){ URL.revokeObjectURL(u); }); trayUrls = [];
+    list = (list || []).sort(function(a, b){ return a.added - b.added; });
+    trayCache = list;
+    els.trayGrid.innerHTML = '';
+    var bytes = 0;
+    list.forEach(function(rec){
+      bytes += (rec.blob && rec.blob.size) || 0;
+      var tile = document.createElement('div'); tile.className = 'tile';
+      var open = document.createElement('button');
+      open.type = 'button'; open.className = 'open'; open.title = rec.name;
+      open.setAttribute('data-id', rec.id);
+      open.setAttribute('aria-pressed', state.trayId === rec.id ? 'true' : 'false');
+      open.setAttribute('aria-label', 'Stamp ' + rec.name);
+      var url = URL.createObjectURL(rec.blob); trayUrls.push(url);
+      var im = document.createElement('img');
+      im.alt = ''; im.src = url; im.loading = 'lazy';
+      // HEIC does not decode outside Safari — show the filename instead of a broken tile
+      im.addEventListener('error', function(){
+        var ph = document.createElement('span'); ph.className = 'ph'; ph.textContent = rec.name;
+        if(im.parentNode) im.parentNode.replaceChild(ph, im);
+      });
+      open.appendChild(im);
+      open.addEventListener('click', function(){ trayOpen(rec.id); });
+      var nm = document.createElement('span'); nm.className = 'n'; nm.textContent = rec.name;
+      var x = document.createElement('button');
+      x.type = 'button'; x.className = 'x'; x.textContent = '×';
+      x.setAttribute('aria-label', 'Remove ' + rec.name + ' from the tray');
+      x.addEventListener('click', function(){ trayRemove(rec.id, 'Removed'); });
+      tile.appendChild(open); tile.appendChild(nm); tile.appendChild(x);
+      els.trayGrid.appendChild(tile);
+    });
+    els.trayEmpty.hidden = list.length > 0;
+    els.trayGrid.hidden = list.length === 0;
+    els.trayClear.disabled = list.length === 0;
+    els.trayCount.textContent = list.length
+      ? list.length + ' photo' + (list.length === 1 ? '' : 's') + ' · ' + fmtBytes(bytes) + ' held on this device'
+      : '';
+  }).catch(function(e){
+    setHint(els.trayInfo, 'The tray is unavailable (' + (e && e.message || e) + '). You can still stamp photos one at a time in step 1.', 'bad');
+  });
+}
+function trayAdd(files){
+  var arr = Array.prototype.slice.call(files || []).filter(function(f){ return f && f.size; });
+  if(!arr.length) return Promise.resolve();
+  setHint(els.trayInfo, 'Adding ' + arr.length + ' photo' + (arr.length === 1 ? '' : 's') + '…');
+  var added = 0, failed = 0, firstErr = '';
+  return arr.reduce(function(p, f){
+    return p.then(function(){
+      return trayTx('readwrite', function(s){
+        return s.put({ id:'t_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+          name:f.name || 'photo', type:f.type || '', blob:f, added:Date.now() });
+      }).then(function(){ added++; }, function(e){ failed++; if(!firstErr) firstErr = (e && e.message) || String(e); });
+    });
+  }, Promise.resolve()).then(trayRender).then(function(){
+    els.trayFile.value = '';
+    setHint(els.trayInfo,
+      added + ' added to the tray' + (failed ? ' · ' + failed + ' failed: ' + firstErr + ' (device storage may be full)' : '') + '.',
+      failed ? 'bad' : 'ok');
+  });
+}
+function trayOpen(id){
+  var rec = trayCache.filter(function(r){ return r.id === id; })[0];
+  if(!rec) return;
+  state.trayId = id;
+  Array.prototype.forEach.call(els.trayGrid.querySelectorAll('.open'), function(b){
+    b.setAttribute('aria-pressed', b.getAttribute('data-id') === id ? 'true' : 'false');
+  });
+  var f;
+  try { f = new File([rec.blob], rec.name, { type:rec.type || rec.blob.type || 'image/jpeg' }); }
+  catch(e){ f = rec.blob; try { f.name = rec.name; } catch(e2){} }
+  els.trayUndoRow.hidden = true;
+  setHint(els.trayInfo, 'Stamping ' + rec.name + ' — it leaves the tray once you save the stamped copy.');
+  loadFile(f);
+}
+function trayRemove(id, why){
+  var rec = trayCache.filter(function(r){ return r.id === id; })[0];
+  return trayTx('readwrite', function(s){ return s.delete(id); }).then(function(){
+    if(state.trayId === id) state.trayId = null;
+    if(rec){
+      trayLastRemoved = rec;
+      els.trayUndoText.textContent = (why || 'Removed') + ' ' + rec.name;
+      els.trayUndoRow.hidden = false;
+    }
+    return trayRender();
+  }).catch(function(e){
+    setHint(els.trayInfo, 'Could not remove that photo: ' + (e && e.message || e), 'bad');
+  });
+}
+
 // ---------- wiring ----------
-els.file.addEventListener('change', function(){ loadFile(els.file.files[0]); });
+els.trayFile.addEventListener('change', function(){ trayAdd(els.trayFile.files); });
+['dragenter','dragover'].forEach(function(ev){ els.trayDrop.addEventListener(ev, function(e){ e.preventDefault(); els.trayDrop.classList.add('over'); }); });
+['dragleave','drop'].forEach(function(ev){ els.trayDrop.addEventListener(ev, function(e){ e.preventDefault(); els.trayDrop.classList.remove('over'); }); });
+els.trayDrop.addEventListener('drop', function(e){
+  var fs = e.dataTransfer && e.dataTransfer.files; if(fs && fs.length) trayAdd(fs);
+});
+els.trayUndo.addEventListener('click', function(){
+  if(!trayLastRemoved) return;
+  var rec = trayLastRemoved; trayLastRemoved = null; els.trayUndoRow.hidden = true;
+  trayTx('readwrite', function(s){ return s.put(rec); }).then(trayRender).then(function(){
+    setHint(els.trayInfo, rec.name + ' put back in the tray.', 'ok');
+  });
+});
+els.trayClear.addEventListener('click', function(){
+  if(!trayCache.length) return;
+  if(!confirm('Delete all ' + trayCache.length + ' photos from the tray? They only exist in this browser, so this cannot be undone.')) return;
+  trayTx('readwrite', function(s){ return s.clear(); }).then(function(){
+    state.trayId = null; trayLastRemoved = null; els.trayUndoRow.hidden = true;
+    return trayRender();
+  }).then(function(){ setHint(els.trayInfo, 'Tray cleared.'); });
+});
+els.file.addEventListener('change', function(){ state.trayId = null; loadFile(els.file.files[0]); });
 ['dragenter','dragover'].forEach(function(ev){ els.drop.addEventListener(ev, function(e){ e.preventDefault(); els.drop.classList.add('over'); }); });
 ['dragleave','drop'].forEach(function(ev){ els.drop.addEventListener(ev, function(e){ e.preventDefault(); els.drop.classList.remove('over'); }); });
 els.drop.addEventListener('drop', function(e){ var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(f) loadFile(f); });
@@ -646,6 +837,10 @@ els.download.addEventListener('click', exportJpeg);
   if(size && els.sizeSeg.querySelector('[data-size="' + size + '"]')){ state.size = size; Array.prototype.forEach.call(els.sizeSeg.querySelectorAll('button'), function(x){ x.setAttribute('aria-pressed', x.getAttribute('data-size') === size ? 'true' : 'false'); }); }
   render();
   if(document.fonts && document.fonts.ready) document.fonts.ready.then(render);
+  // Ask the browser not to evict the tray when storage gets tight (Chrome/Firefox honour
+  // this; Safari ignores it, which is why the tray is described as staging, not backup).
+  try { if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
+  trayRender();
 })();
 })();
 </script>
