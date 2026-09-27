@@ -58,10 +58,6 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .hint{font-size:12px;color:var(--muted);margin:0;min-height:1em}
 .hint.ok{color:var(--ok)} .hint.bad{color:var(--bad)}
 .mono{font-family:var(--mono)}
-.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.seg button{flex:1;border:0;border-radius:0;background:transparent;padding:8px 6px;font-size:13px;min-height:38px}
-.seg button+button{border-left:1px solid var(--line)}
-.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);font-weight:600}
 .preview canvas{display:block;width:100%;height:auto;max-height:78vh;object-fit:contain;background:#0d0e11;border-radius:10px}
 .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .bar .grow{flex:1 1 auto}
@@ -178,29 +174,6 @@ button:disabled{opacity:.45;cursor:not-allowed}
       </div>
     </section>
 
-    <section class="card">
-      <h2>Stamp style</h2>
-      <div class="row">
-        <div>
-          <label>Corner</label>
-          <div class="seg" id="posSeg">
-            <button type="button" data-pos="tl">Top L</button>
-            <button type="button" data-pos="tr">Top R</button>
-            <button type="button" data-pos="bl" aria-pressed="true">Bottom L</button>
-            <button type="button" data-pos="br">Bottom R</button>
-          </div>
-        </div>
-        <div>
-          <label>Size</label>
-          <div class="seg" id="sizeSeg">
-            <button type="button" data-size="s">S</button>
-            <button type="button" data-size="m" aria-pressed="true">M</button>
-            <button type="button" data-size="l">L</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
   </div>
 
   <div class="preview">
@@ -228,7 +201,6 @@ var els = {
   lat:$('lat'), lng:$('lng'), label:$('label'),
   when:$('when'), now:$('now'), fromPhoto:$('fromPhoto'), whenHint:$('whenHint'),
   note:$('note'), noteCount:$('noteCount'),
-  posSeg:$('posSeg'), sizeSeg:$('sizeSeg'),
   canvas:$('canvas'), dims:$('dims'), download:$('download'), status:$('status'),
   result:$('result'), resultImg:$('resultImg'), resultLink:$('resultLink'),
   trayFile:$('trayFile'), trayDrop:$('trayDrop'), trayInfo:$('trayInfo'), trayGrid:$('trayGrid'),
@@ -236,10 +208,14 @@ var els = {
   trayUndoRow:$('trayUndoRow'), trayUndoText:$('trayUndoText'), trayUndo:$('trayUndo')
 };
 var SANS = '"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-var MONO = '"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
+// The burned stamp uses FieldPacket's stack verbatim, not this app's UI font, so the
+// two produce the same glyphs on the same phone.
+var STAMP_FONT = '-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 var MAX_PIXELS = 16000000; // Safari canvas ceiling; also keeps exports sane
 
-var state = { img:null, name:'', exif:null, pos:'bl', size:'m', lastUrl:null, trayId:null };
+// src/acc mirror FieldPacket's geotag `source` + `accuracy_m`: only a fix the phone
+// measured itself gets a ± on the stamp.
+var state = { img:null, name:'', exif:null, lastUrl:null, trayId:null, src:'manual', acc:null };
 
 // ---------- small helpers ----------
 function p2(n){ return String(n).padStart(2,'0'); }
@@ -252,14 +228,6 @@ function parseLocalInput(v){
   if(!m) return null;
   return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
 }
-function tzString(d){
-  var o = -d.getTimezoneOffset(), s = o >= 0 ? '+' : '-', a = Math.abs(o);
-  return 'GMT' + s + p2(Math.floor(a/60)) + ':' + p2(a%60);
-}
-function fmtStampDate(d){
-  var h = d.getHours(), ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
-  return p2(d.getMonth()+1) + '/' + p2(d.getDate()) + '/' + d.getFullYear() + '  ' + p2(h) + ':' + p2(d.getMinutes()) + ' ' + ap + '  ' + tzString(d);
-}
 function fmtHumanDate(d){
   var h = d.getHours(), ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
   return (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear() + ' ' + h + ':' + p2(d.getMinutes()) + ' ' + ap;
@@ -268,6 +236,11 @@ function exifDate(d){ return d.getFullYear() + ':' + p2(d.getMonth()+1) + ':' + 
 function getCoords(){
   var lat = parseFloat(els.lat.value), lng = parseFloat(els.lng.value);
   if(!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  // Null Island. A zeroed EXIF GPS block — common in gallery and web-captured photos
+  // with no real location — decodes to exactly 0,0, and stamping that as a coordinate
+  // would be a false claim. No Airsync job is within 1e-4 deg of it. (FieldPacket's
+  // isRealCoord, same rule.)
+  if(Math.abs(lat) < 1e-4 && Math.abs(lng) < 1e-4) return null;
   return { lat:lat, lng:lng };
 }
 function getWhen(){ return parseLocalInput(els.when.value) || new Date(); }
@@ -331,6 +304,7 @@ function showResults(list){
   });
 }
 function pickResult(r){
+  state.src = 'address'; state.acc = null;   // geocoded, not measured — no ±
   setCoords(r.lat, r.lng);
   els.label.value = r.short || r.full; store('label', els.label.value);
   els.results.innerHTML = '';
@@ -358,6 +332,9 @@ function useHere(){
   setHint(els.geoHint, 'Getting your position…');
   navigator.geolocation.getCurrentPosition(function(pos){
     var lat = pos.coords.latitude, lng = pos.coords.longitude;
+    // The one case that earns a ± on the stamp: the phone measured this itself.
+    state.src = 'device_gps';
+    state.acc = isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null;
     setCoords(lat, lng); render();
     setHint(els.geoHint, 'Using this device: ±' + Math.round(pos.coords.accuracy) + ' m. Looking up the address…');
     reverseGeocode(lat, lng).then(function(a){
@@ -487,35 +464,6 @@ function loadFile(file){
 }
 
 // ---------- drawing ----------
-function roundRect(ctx, x, y, w, h, r){
-  r = Math.min(r, w/2, h/2);
-  ctx.beginPath();
-  ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r);
-  ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath();
-}
-function wrapText(ctx, text, font, maxW){
-  ctx.font = font;
-  var out = [];
-  function push(line){
-    while(line.length > 1 && ctx.measureText(line).width > maxW){
-      var cut = line.length;
-      while(cut > 1 && ctx.measureText(line.slice(0, cut)).width > maxW) cut--;
-      out.push(line.slice(0, cut)); line = line.slice(cut);
-    }
-    out.push(line);
-  }
-  String(text).split(/\n/).forEach(function(par){
-    var words = par.split(/\s+/).filter(Boolean), line = '';
-    if(!words.length) return;
-    words.forEach(function(w){
-      var test = line ? line + ' ' + w : w;
-      if(!line || ctx.measureText(test).width <= maxW) line = test;
-      else { push(line); line = w; }
-    });
-    push(line);
-  });
-  return out;
-}
 function drawPlaceholder(ctx, W, H){
   var g = ctx.createLinearGradient(0, 0, W, H);
   g.addColorStop(0, '#2b3038'); g.addColorStop(1, '#171a1f');
@@ -529,43 +477,55 @@ function drawPlaceholder(ctx, W, H){
   ctx.fillText('the stamp below updates live as you fill in the form', W/2, H/2 + 24);
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
+// ---------- stamp format: matched to FieldPacket ----------
+// Ported from SaaSFieldToPortal/src/lib/geotag — `geotagLines()` for the text and
+// `stampImage()` for the band — so a photo stamped here is indistinguishable from
+// one stamped in FieldPacket when both land in the same rebate packet. Keep the two
+// in step: if FieldPacket's format changes, this changes with it.
+//
+// Lines, top to bottom: address · "lat, lng" (+accuracy) · date · "Note: …".
+// A line is omitted entirely when its field is empty — no "Lat —" placeholders.
 function stampLines(){
-  var c = getCoords(), d = getWhen();
-  return {
-    label: els.label.value.trim(),
-    coords: c ? ('Lat ' + c.lat.toFixed(6) + '°   Long ' + c.lng.toFixed(6) + '°') : 'Lat —   Long —',
-    date: fmtStampDate(d),
-    note: els.note.value.trim()
-  };
+  var lines = [], c = getCoords(), d = getWhen();
+  var label = els.label.value.trim(), note = els.note.value.trim();
+  if(label) lines.push(label);
+  if(c){
+    // Only a MEASURED fix carries its accuracy. A coordinate geocoded from the
+    // address has none to carry, because nothing was measured — FieldPacket's rule
+    // (Kevin 2026-08-13: no "(from address)" caveat, but the ± still distinguishes
+    // the two, so nothing on the photo claims a fix that never happened).
+    var prov = (state.src !== 'address' && state.acc != null) ? ' (±' + Math.round(state.acc) + 'm)' : '';
+    lines.push(c.lat.toFixed(6) + ', ' + c.lng.toFixed(6) + prov);
+  }
+  lines.push(d.toLocaleString());
+  if(note) lines.push('Note: ' + note);
+  return lines;
 }
+// A full-width band across the bottom, sized off the image width. Every number here
+// is FieldPacket's: 0.55 black, w/52 font floor 13, pad 0.6em, line 1.35em. Long text
+// is squeezed by fillText's maxWidth rather than wrapped, same as FieldPacket.
 function drawStamp(ctx, W, H){
-  var s = stampLines();
-  var mul = { s:0.78, m:1, l:1.3 }[state.size] || 1;
-  var fs = Math.max(13, Math.round(Math.min(W, H*1.35) * 0.024 * mul));
-  var pad = Math.round(fs*0.85), lh = Math.round(fs*1.38), rule = Math.round(fs*0.3);
-  var maxW = Math.round(W*0.7) - pad*2 - rule;
-  var lines = [];
-  if(s.label) wrapText(ctx, s.label, '600 ' + Math.round(fs*1.1) + 'px ' + SANS, maxW).forEach(function(t){ lines.push({ t:t, font:'600 ' + Math.round(fs*1.1) + 'px ' + SANS, color:'#ffffff', lh:Math.round(fs*1.5) }); });
-  lines.push({ t:s.coords, font:'500 ' + fs + 'px ' + MONO, color:'#ffffff', lh:lh });
-  lines.push({ t:s.date, font:'400 ' + fs + 'px ' + MONO, color:'#ffffff', lh:lh });
-  if(s.note) wrapText(ctx, s.note, '400 ' + fs + 'px ' + SANS, maxW).forEach(function(t){ lines.push({ t:t, font:'400 ' + fs + 'px ' + SANS, color:'rgba(255,255,255,0.9)', lh:lh }); });
-
-  var textW = 0;
-  lines.forEach(function(l){ ctx.font = l.font; textW = Math.max(textW, ctx.measureText(l.t).width); });
-  var boxW = Math.ceil(textW + pad*2 + rule);
-  var boxH = Math.ceil(lines.reduce(function(a, l){ return a + l.lh; }, 0) + pad*2 - fs*0.3);
-  var m = Math.round(fs*0.9);
-  var x = state.pos.charAt(1) === 'l' ? m : W - m - boxW;
-  var y = state.pos.charAt(0) === 't' ? m : H - m - boxH;
+  var lines = stampLines();
+  if(!lines.length) return;
+  var fontSize = Math.max(13, Math.round(W / 52));
+  var pad = Math.round(fontSize * 0.6);
+  var lineH = Math.round(fontSize * 1.35);
+  var bandH = pad * 2 + lineH * lines.length;
 
   ctx.save();
-  roundRect(ctx, x, y, boxW, boxH, Math.round(fs*0.45));
-  ctx.fillStyle = 'rgba(10,11,14,0.68)'; ctx.fill();
-  ctx.clip();
-  ctx.fillStyle = '#F2A93B'; ctx.fillRect(x, y, rule, boxH);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.fillRect(0, H - bandH, W, bandH);
+
+  ctx.font = fontSize + 'px ' + STAMP_FONT;
   ctx.textBaseline = 'top';
-  var ty = y + pad;
-  lines.forEach(function(l){ ctx.font = l.font; ctx.fillStyle = l.color; ctx.fillText(l.t, x + rule + pad, ty); ty += l.lh; });
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 2;
+  var y = H - bandH + pad;
+  for(var i = 0; i < lines.length; i++){
+    ctx.fillText(lines[i], pad, y, W - pad * 2);
+    y += lineH;
+  }
   ctx.restore();
 }
 function render(){
@@ -611,7 +571,7 @@ function dataURLToBlob(u){
 function exportJpeg(){
   if(!state.img) return;
   var c = getCoords();
-  if(!c && !confirm('No coordinates set — the stamp will show "Lat — Long —" and no GPS tag will be written. Continue anyway?')) return;
+  if(!c && !confirm('No coordinates set — the stamp will carry the address, date and note but no coordinate line, and no GPS tag will be written. Continue anyway?')) return;
   els.download.disabled = true; setHint(els.status, 'Building JPEG…');
   setTimeout(function(){
     try {
@@ -874,6 +834,8 @@ document.addEventListener('paste', function(e){
 });
 els.useExifGps.addEventListener('click', function(){
   if(!state.exif || state.exif.lat === null) return;
+  // The camera measured it, but EXIF carries no accuracy figure, so there is no ± to show.
+  state.src = 'manual'; state.acc = null;
   setCoords(state.exif.lat, state.exif.lng); render();
   setHint(els.geoHint, 'Using the photo’s own GPS. Looking up the address…');
   reverseGeocode(state.exif.lat, state.exif.lng).then(function(a){
@@ -884,8 +846,9 @@ els.useExifGps.addEventListener('click', function(){
 els.find.addEventListener('click', findAddress);
 els.addr.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); findAddress(); } });
 els.locate.addEventListener('click', useHere);
-els.lat.addEventListener('input', function(){ store('lat', els.lat.value); renderSoon(); });
-els.lng.addEventListener('input', function(){ store('lng', els.lng.value); renderSoon(); });
+// Typing a coordinate by hand is not a measurement — drop any ± that was carried in.
+els.lat.addEventListener('input', function(){ state.src = 'manual'; state.acc = null; store('lat', els.lat.value); renderSoon(); });
+els.lng.addEventListener('input', function(){ state.src = 'manual'; state.acc = null; store('lng', els.lng.value); renderSoon(); });
 els.label.addEventListener('input', function(){ store('label', els.label.value); renderSoon(); });
 els.when.addEventListener('input', function(){ setHint(els.whenHint, ''); renderSoon(); });
 els.now.addEventListener('click', function(){ els.when.value = toLocalInput(new Date()); setHint(els.whenHint, ''); render(); });
@@ -893,27 +856,16 @@ els.fromPhoto.addEventListener('click', function(){
   if(state.exif && state.exif.date){ els.when.value = toLocalInput(state.exif.date); setHint(els.whenHint, 'Set to when the photo was taken: ' + fmtHumanDate(state.exif.date), 'ok'); render(); }
 });
 els.note.addEventListener('input', function(){ els.noteCount.textContent = els.note.value.length + ' / 160'; renderSoon(); });
-function segWire(seg, attr, key){
-  seg.addEventListener('click', function(e){
-    var b = e.target.closest('button'); if(!b) return;
-    Array.prototype.forEach.call(seg.querySelectorAll('button'), function(x){ x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
-    state[key] = b.getAttribute(attr); store(key, state[key]); render();
-  });
-}
-segWire(els.posSeg, 'data-pos', 'pos');
-segWire(els.sizeSeg, 'data-size', 'size');
 els.download.addEventListener('click', exportJpeg);
 
 // ---------- boot: restore the last job site so repeat photos are two taps ----------
 (function boot(){
   els.when.value = toLocalInput(new Date());
-  var lat = recall('lat'), lng = recall('lng'), label = recall('label'), addr = recall('addr'), pos = recall('pos'), size = recall('size');
+  var lat = recall('lat'), lng = recall('lng'), label = recall('label'), addr = recall('addr');
   if(lat && lng){ els.lat.value = lat; els.lng.value = lng; }
   if(label) els.label.value = label;
   if(addr) els.addr.value = addr;
   if(lat && lng && label) setHint(els.geoHint, 'Restored your last location. Change it if this is a different site.');
-  if(pos && els.posSeg.querySelector('[data-pos="' + pos + '"]')){ state.pos = pos; Array.prototype.forEach.call(els.posSeg.querySelectorAll('button'), function(x){ x.setAttribute('aria-pressed', x.getAttribute('data-pos') === pos ? 'true' : 'false'); }); }
-  if(size && els.sizeSeg.querySelector('[data-size="' + size + '"]')){ state.size = size; Array.prototype.forEach.call(els.sizeSeg.querySelectorAll('button'), function(x){ x.setAttribute('aria-pressed', x.getAttribute('data-size') === size ? 'true' : 'false'); }); }
   render();
   if(document.fonts && document.fonts.ready) document.fonts.ready.then(render);
   // Ask the browser not to evict the tray when storage gets tight (Chrome/Firefox honour
