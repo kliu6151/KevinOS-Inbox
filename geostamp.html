@@ -672,6 +672,92 @@ function trayTx(mode, fn){
   });
 }
 function fmtBytes(n){ return n >= 1048576 ? (n/1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n/1024)) + ' KB'; }
+function phSpan(text){ var s = document.createElement('span'); s.className = 'ph'; s.textContent = text; return s; }
+function thumbImg(rec){
+  var url = URL.createObjectURL(rec.thumb); trayUrls.push(url);
+  var im = document.createElement('img'); im.alt = ''; im.src = url; im.loading = 'lazy';
+  return im;
+}
+function isHeicRec(rec){ return /\.hei[cf]$/i.test(rec.name || '') || /image\/hei[cf]/i.test(rec.type || ''); }
+// Build a ~256px JPEG preview once, then keep it. Every photo Kevin shoots is HEIC, so
+// the order matters: the embedded preview inside the HEIC is by far the cheapest way to
+// a thumbnail, and it is the ONLY cheap way outside Safari, which cannot decode HEIC at
+// all. Full conversion is the last resort — correct everywhere, just slow, and it only
+// ever runs once per photo because the result is stored.
+function makeThumb(rec){
+  var TH = 256, urls = [];
+  function objUrl(b){ var u = URL.createObjectURL(b); urls.push(u); return u; }
+  function shrink(img){
+    var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    if(!w || !h) throw new Error('empty decode');
+    var s = Math.min(1, TH / Math.max(w, h));
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * s)); c.height = Math.max(1, Math.round(h * s));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return new Promise(function(res, rej){
+      c.toBlob(function(b){ b ? res(b) : rej(new Error('encode')); }, 'image/jpeg', 0.78);
+    });
+  }
+  var heic = isHeicRec(rec);
+  var first = heic
+    ? loadScript(EXIFR_SRC)
+        .then(function(){ return exifr.thumbnail(rec.blob); })
+        .then(function(buf){
+          if(!buf || !buf.byteLength) throw new Error('no embedded preview');
+          return loadImage(objUrl(new Blob([buf], { type:'image/jpeg' }))).then(shrink);
+        })
+    : Promise.reject(new Error('not heic'));
+  return first
+    .catch(function(){ return loadImage(objUrl(rec.blob)).then(shrink); })   // native decode
+    .catch(function(){
+      if(!heic) throw new Error('no preview');
+      return loadScript(HEIC2ANY_SRC)
+        .then(function(){ return heic2any({ blob:rec.blob, toType:'image/jpeg', quality:0.6 }); })
+        .then(function(out){ return loadImage(objUrl(Array.isArray(out) ? out[0] : out)).then(shrink); });
+    })
+    .then(function(b){ urls.forEach(function(u){ URL.revokeObjectURL(u); }); return b; },
+          function(e){ urls.forEach(function(u){ URL.revokeObjectURL(u); }); throw e; });
+}
+// Previews are generated one at a time in the background so a 30-photo HEIC batch does
+// not lock the phone up, and each tile fills in as its preview lands.
+var thumbRunning = false;
+function trayThumbs(){
+  if(thumbRunning) return Promise.resolve();
+  var pending = trayCache.filter(function(r){ return !r.thumb && !r.thumbFailed; });
+  if(!pending.length) return Promise.resolve();
+  thumbRunning = true;
+  var done = 0;
+  function progress(){ setHint(els.trayInfo, 'Making previews… ' + done + ' of ' + pending.length); }
+  progress();
+  return pending.reduce(function(p, rec){
+    return p.then(function(){
+      return makeThumb(rec).then(function(tb){ rec.thumb = tb; }, function(){ rec.thumbFailed = true; })
+        .then(function(){
+          // Re-read inside the write transaction: if Kevin removed or stamped this photo
+          // while its preview was still being built, a blind put() would resurrect it.
+          return trayTx('readwrite', function(s){
+            var g = s.get(rec.id);
+            g.onsuccess = function(){
+              if(!g.result) return;
+              g.result.thumb = rec.thumb; g.result.thumbFailed = rec.thumbFailed;
+              s.put(g.result);
+            };
+            return null;
+          });
+        })
+        .catch(function(){})
+        .then(function(){
+          var btn = els.trayGrid.querySelector('.open[data-id="' + rec.id + '"]');
+          if(btn){ btn.innerHTML = ''; btn.appendChild(rec.thumb ? thumbImg(rec) : phSpan(rec.name)); }
+          done++; progress();
+        });
+    });
+  }, Promise.resolve()).then(function(){
+    thumbRunning = false;
+    var failed = trayCache.filter(function(r){ return r.thumbFailed; }).length;
+    setHint(els.trayInfo, failed ? failed + ' photo' + (failed === 1 ? '' : 's') + ' could not be previewed — they still stamp fine.' : '');
+  }, function(){ thumbRunning = false; });
+}
 function trayRender(){
   return trayTx('readonly', function(s){ return s.getAll(); }).then(function(list){
     trayUrls.forEach(function(u){ URL.revokeObjectURL(u); }); trayUrls = [];
@@ -687,15 +773,9 @@ function trayRender(){
       open.setAttribute('data-id', rec.id);
       open.setAttribute('aria-pressed', state.trayId === rec.id ? 'true' : 'false');
       open.setAttribute('aria-label', 'Stamp ' + rec.name);
-      var url = URL.createObjectURL(rec.blob); trayUrls.push(url);
-      var im = document.createElement('img');
-      im.alt = ''; im.src = url; im.loading = 'lazy';
-      // HEIC does not decode outside Safari — show the filename instead of a broken tile
-      im.addEventListener('error', function(){
-        var ph = document.createElement('span'); ph.className = 'ph'; ph.textContent = rec.name;
-        if(im.parentNode) im.parentNode.replaceChild(ph, im);
-      });
-      open.appendChild(im);
+      // Tiles paint from the small stored thumbnail, never the full photo — a batch of
+      // 12MP HEICs would otherwise hold hundreds of MB of object URLs open at once.
+      open.appendChild(rec.thumb ? thumbImg(rec) : phSpan(rec.thumbFailed ? rec.name : 'preview…'));
       open.addEventListener('click', function(){ trayOpen(rec.id); });
       var nm = document.createElement('span'); nm.className = 'n'; nm.textContent = rec.name;
       var x = document.createElement('button');
@@ -729,9 +809,8 @@ function trayAdd(files){
     });
   }, Promise.resolve()).then(trayRender).then(function(){
     els.trayFile.value = '';
-    setHint(els.trayInfo,
-      added + ' added to the tray' + (failed ? ' · ' + failed + ' failed: ' + firstErr + ' (device storage may be full)' : '') + '.',
-      failed ? 'bad' : 'ok');
+    if(failed) setHint(els.trayInfo, added + ' added · ' + failed + ' failed: ' + firstErr + ' (device storage may be full)', 'bad');
+    return trayThumbs();
   });
 }
 function trayOpen(id){
@@ -840,7 +919,7 @@ els.download.addEventListener('click', exportJpeg);
   // Ask the browser not to evict the tray when storage gets tight (Chrome/Firefox honour
   // this; Safari ignores it, which is why the tray is described as staging, not backup).
   try { if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
-  trayRender();
+  trayRender().then(trayThumbs);
 })();
 })();
 </script>
