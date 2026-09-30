@@ -14,9 +14,11 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>KevinOS</title>
 <style>
-  /* Dispatch Board: flat asphalt ground, one safety-amber "now" signal,
-     ui-monospace as the machine voice for dates/counts/amounts. No gradients,
-     no glow, no decorative shadows — sunlight legibility over atmosphere. */
+  /* Dispatch Board: dark asphalt ground, safety-amber "now" signal,
+     ui-monospace as the machine voice for dates/counts/amounts. Since 2026-09-30
+     each tab also carries its own accent color and the app celebrates progress
+     (Kevin: "too monotone", "make it more satisfying") — see COLOR + FEEL below.
+     Text contrast stays sunlight-legible; color is added around it, never under it. */
   :root{
     --bg:#0b0c0e; --panel:#141619; --panel2:#141619;
     --border:#24272d; --border2:#343941;
@@ -490,6 +492,119 @@
     .more:hover{text-decoration:underline}
     .hit:hover .box{border-color:var(--green)}
   }
+  /* ---- COLOR + FEEL (2026-09-30) ----
+     Kevin: "the color of the app may be an issue, too monotone" + "make it more satisfying".
+     Each tab owns an accent (--tab); it tints the page glow, section labels, the active nav
+     item and that tab's hero numbers. Status colors (amber now / green done / red late)
+     keep their meaning everywhere — the tab color is identity, never status. */
+  body{--tab:var(--amber)}
+  body[data-tab="today"]{--tab:#ffb020}
+  body[data-tab="cal"]{--tab:#6aa9ff}
+  body[data-tab="money"]{--tab:#3ecf8e}
+  body[data-tab="peak"]{--tab:#ff7a45}
+  body[data-tab="brief"]{--tab:#a78bfa}
+  body[data-tab="edu"]{--tab:#2dd4bf}
+  body[data-tab="dump"]{--tab:#ff5d8f}
+  body[data-tab="dev"]{--tab:#9aa5b5}
+  body{background:radial-gradient(760px 300px at 50% -120px,color-mix(in srgb,var(--tab) 20%,transparent),transparent 72%) no-repeat,var(--bg);transition:background .4s}
+  .top h1{background:linear-gradient(90deg,var(--text),color-mix(in srgb,var(--tab) 70%,var(--text)));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .top h1 span{-webkit-text-fill-color:var(--tab)}
+  .sec{color:color-mix(in srgb,var(--tab) 75%,var(--muted));display:flex;align-items:center;gap:7px}
+  .sec::before{content:"";width:6px;height:6px;border-radius:2px;background:var(--tab);box-shadow:0 0 10px var(--tab)}
+  .card{box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+  nav button.on{color:var(--tab)}
+  nav button.on::before{background:var(--tab);box-shadow:0 0 12px var(--tab)}
+  @media (min-width:880px){nav button.on{background:color-mix(in srgb,var(--tab) 10%,transparent)}}
+  .fold.open{border-color:color-mix(in srgb,var(--tab) 35%,var(--border))}
+  .fold.open .chev{stroke:var(--tab)}
+  .btn{background:linear-gradient(135deg,#3ecf8e,#2bb3a0)}
+
+  /* press feedback: everything tappable gives under the thumb */
+  button,.item,.tile,.fold,.chip{transition:transform .16s cubic-bezier(.3,1.6,.5,1),background .15s,border-color .15s,filter .15s}
+  button:active,.fold:active,.tile:active,.chip:active{transform:scale(.965)}
+  .item:active{background:rgba(255,255,255,.035)}
+  nav button:active{transform:scale(.9)}
+  /* check-off: box pops, strike draws across, row settles */
+  @keyframes pop{0%{transform:scale(.6)}55%{transform:scale(1.3)}100%{transform:scale(1.05)}}
+  .item.done .box{animation:pop .38s cubic-bezier(.3,1.6,.5,1)}
+  .txt{text-decoration:line-through;text-decoration-color:transparent;text-decoration-thickness:2px;transition:text-decoration-color .35s,opacity .3s}
+  .item.done .txt{text-decoration-color:var(--muted)}
+  .item.gone{animation:gone .5s cubic-bezier(.5,0,.3,1) forwards}
+  @keyframes gone{0%{opacity:.6;transform:none;max-height:140px}40%{opacity:0;transform:translateX(40px);max-height:140px;padding-top:14px;padding-bottom:14px}100%{opacity:0;transform:translateX(40px);max-height:0;padding-top:0;padding-bottom:0;border-width:0}}
+  .item.swiping{transition:none}
+  .item .why{display:none;font-size:13.5px;line-height:1.5;color:var(--amber);margin-top:6px}
+  .item.showwhy .why{display:block}
+  /* tab slide: direction follows the nav order */
+  .view.active.from-r{animation:fromR .28s cubic-bezier(.2,.8,.25,1)}
+  .view.active.from-l{animation:fromL .28s cubic-bezier(.2,.8,.25,1)}
+  @keyframes fromR{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+  @keyframes fromL{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:none}}
+
+  /* TODAY hero: Top 3 ring + next appointment + streak + level */
+  .hero{display:flex;gap:16px;align-items:center;padding:14px 16px;margin-top:2px;border-radius:16px;
+    background:linear-gradient(135deg,color-mix(in srgb,var(--tab) 13%,var(--panel)),var(--panel) 60%);border:1px solid color-mix(in srgb,var(--tab) 28%,var(--border))}
+  .ring{position:relative;width:84px;height:84px;flex:none}
+  .ring svg{width:84px;height:84px;transform:rotate(-90deg)}
+  .ring .seg{fill:none;stroke-width:9;stroke-linecap:round;transition:stroke .4s,stroke-dashoffset .6s cubic-bezier(.3,1.4,.5,1)}
+  .ring .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .n{font-family:var(--mono);font-size:22px;font-weight:800;line-height:1}
+  .ring .l{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--muted);margin-top:3px}
+  .ring.all .n{color:var(--green)}
+  .hero-r{flex:1;min-width:0}
+  .next-k{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--tab)}
+  .next-t{font-size:16px;font-weight:700;line-height:1.3;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .next-w{font-size:12.5px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hero-chips{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .hchip{font-family:var(--mono);font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:999px;background:var(--bg);border:1px solid var(--border2)}
+  .hchip.fire{color:#ff9a3c;border-color:rgba(255,154,60,.4)}
+  .hchip.fire.dim{color:var(--faint);border-color:var(--border2);filter:grayscale(1)}
+  .hchip.lv{color:#3ecf8e;border-color:rgba(62,207,142,.4)}
+
+  /* LEVEL: monthly money climb (numbers from data/scoreboard.json — the app never computes them) */
+  .lvl{margin-top:4px;padding:16px;border-radius:16px;border:1px solid rgba(62,207,142,.35);
+    background:linear-gradient(135deg,rgba(62,207,142,.16),rgba(45,212,191,.06) 55%,var(--panel))}
+  .lvl-top{display:flex;justify-content:space-between;align-items:baseline}
+  .lvl-k{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.14em;color:#3ecf8e}
+  .lvl-badge{font-family:var(--mono);font-size:13px;font-weight:800;color:#0b1a12;background:linear-gradient(135deg,#3ecf8e,#2dd4bf);border-radius:8px;padding:3px 9px}
+  .lvl-num{font-family:var(--mono);font-size:36px;font-weight:800;letter-spacing:-.02em;margin-top:6px;font-variant-numeric:tabular-nums}
+  .lvl-bar{position:relative;height:12px;border-radius:7px;background:var(--bg);border:1px solid var(--border);overflow:hidden;margin-top:10px}
+  .lvl-fill{position:absolute;inset:0 auto 0 0;border-radius:7px;background:linear-gradient(90deg,#2dd4bf,#3ecf8e,#b6f36b);box-shadow:0 0 14px rgba(62,207,142,.55);transition:width 1.1s cubic-bezier(.2,.8,.25,1)}
+  .lvl-sub{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:7px}
+  .lvl-sub b{color:var(--text)}
+  .mbar{position:relative;height:8px;border-radius:5px;background:var(--bg);border:1px solid var(--border);margin-top:14px}
+  .mbar .f{position:absolute;inset:0 auto 0 0;border-radius:5px;background:#3ecf8e;transition:width 1.1s cubic-bezier(.2,.8,.25,1)}
+  .mbar .g{position:absolute;top:0;bottom:0;border-radius:5px;background:repeating-linear-gradient(45deg,rgba(62,207,142,.35) 0 4px,transparent 4px 8px)}
+  .mbar .tick{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--amber);border-radius:1px}
+  .mbar-l{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:6px}
+  .mbar-l .t{color:var(--amber)}
+  .lvl.record{border-color:rgba(255,176,32,.6);background:linear-gradient(135deg,rgba(255,176,32,.2),rgba(62,207,142,.1) 60%,var(--panel))}
+  /* money tiles */
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .tile{padding:13px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--border);border-top:3px solid var(--tc,var(--border2));text-align:left;color:var(--text)}
+  .tile .k{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .tile .v{font-family:var(--mono);font-size:22px;font-weight:800;margin-top:5px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:var(--tc,var(--text))}
+  .tile .s{font-size:12px;color:var(--muted);margin-top:2px}
+  .tile .up{color:var(--green)} .tile .dn{color:var(--red)}
+  .asof{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin:8px 2px 0}
+  /* banner (level up / record / fresh start) + particles */
+  #fx-cv{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:90}
+  .fx-banner{position:fixed;left:50%;top:calc(18px + env(safe-area-inset-top));z-index:91;transform:translate(-50%,-30px) scale(.9);opacity:0;
+    padding:13px 20px;border-radius:16px;font-weight:800;font-size:16px;letter-spacing:.01em;text-align:center;white-space:nowrap;
+    background:linear-gradient(135deg,#ffb020,#ff7a45);color:#1a0d02;box-shadow:0 12px 40px rgba(255,140,40,.45);transition:transform .45s cubic-bezier(.3,1.6,.5,1),opacity .3s}
+  .fx-banner.money{background:linear-gradient(135deg,#3ecf8e,#2dd4bf);color:#04140c;box-shadow:0 12px 40px rgba(62,207,142,.45)}
+  .fx-banner.calm{background:var(--panel);color:var(--text);border:1px solid var(--border2);box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  .fx-banner small{display:block;font-size:12px;font-weight:600;opacity:.8;margin-top:2px}
+  .fx-banner.show{transform:translate(-50%,0) scale(1);opacity:1}
+  .fx-float{position:fixed;z-index:91;pointer-events:none;font-family:var(--mono);font-weight:800;font-size:18px;color:#3ecf8e;text-shadow:0 0 12px rgba(62,207,142,.6);animation:floatUp 1.4s ease-out forwards}
+  @keyframes floatUp{from{opacity:0;transform:translateY(8px)}15%{opacity:1}to{opacity:0;transform:translateY(-46px)}}
+  /* Brief: headlines only; tap opens the story */
+  .intel{cursor:pointer}
+  .intel .ih{display:flex;gap:10px;align-items:flex-start}
+  .intel .ih::after{content:"›";margin-left:auto;color:var(--tab);font-size:20px;line-height:1;transition:transform .2s}
+  .intel.open .ih::after{transform:rotate(90deg)}
+  .intel .more-body{display:none}
+  .intel.open .more-body{display:block;animation:rise .2s}
+
   /* motion is a courtesy, never a delay */
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{animation:none!important;transition:none!important}
@@ -507,6 +622,7 @@
     <div id="status"></div>
     <button class="btn2" id="dev-link">🛠 Developer roadmap — what's shipped &amp; what's next</button>
     <div class="tiny"><a href="#" id="reset">change token</a> &nbsp;·&nbsp; <a href="#" id="show-tok">show token</a> &nbsp;·&nbsp; <a href="#" id="ai-reset">reset AI</a></div>
+    <div class="tiny"><a href="#" id="fx-sound">🔊 sounds on</a></div>
     <div class="tiny" id="push-row"><a href="#" id="push-toggle">🔔 turn on reminders</a> <span id="push-test-wrap" hidden>&nbsp;·&nbsp; <a href="#" id="push-test">send a test</a></span> <span id="push-status"></span></div>
     <div id="tok-box" hidden style="gap:6px;align-items:center;padding:0 0 10px">
       <input id="tok-val" readonly type="password" style="flex:1;min-width:0;font-family:ui-monospace,monospace;font-size:12px;padding:8px;border:1px solid #444;border-radius:8px;background:transparent;color:inherit">
@@ -537,7 +653,7 @@
 
   <!-- MONEY -->
   <div class="view" id="v-money">
-    <div class="top"><h1>Money</h1><div class="sub">from HCP, Saturdays 5am</div></div>
+    <div class="top"><h1>Money</h1><div class="sub">tiles daily · ledger Sundays</div></div>
     <div id="money-body" class="loading">Loading…</div>
   </div>
 
@@ -699,7 +815,128 @@
 </nav>
 
 <script>
+/* ==================== FX: the feel layer (2026-09-30) ====================
+   Kevin: "give the app more frontend like button effects … make it more
+   satisfying" and "something that feels more like leveling up". Pure
+   presentation — sound, haptics, particles, count-ups, banners, swipe. It never
+   reads or writes repo data, and every entry point swallows its own errors: a
+   broken effect must never block a check-off. Lives in its own <script> so the
+   assistant test harness (which slices the main script) never loads it; the
+   main script reaches it only through fx() — a no-op when FX is absent. */
+(function(){
+  const reduce=(()=>{try{return matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){return false;}})();
+  const soundOn=()=>{try{return localStorage.getItem('fx_sound')!=='off';}catch(e){return true;}};
+  let ac=null;
+  function actx(){
+    if(!ac){const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;ac=new C();}
+    if(ac.state==='suspended')ac.resume();
+    return ac;
+  }
+  function tone(freq,t0,dur,type,gain){
+    const a=actx();if(!a)return;
+    const o=a.createOscillator(),g=a.createGain(),t=a.currentTime+t0;
+    o.type=type||'sine';o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain||.1,t+.012);
+    g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    o.connect(g).connect(a.destination);o.start(t);o.stop(t+dur+.03);
+  }
+  // short, quiet, synthesized — no audio files to fetch on job-site LTE
+  const SOUNDS={
+    tap:()=>tone(620,0,.05,'sine',.04),
+    check:()=>{tone(880,0,.09,'triangle',.09);tone(1320,.055,.13,'sine',.06);},
+    snooze:()=>{tone(520,0,.08,'sine',.06);tone(390,.06,.12,'sine',.05);},
+    big:()=>[523,659,784,1047].forEach((f,i)=>tone(f,i*.07,.24,'triangle',.08)),
+    cash:()=>{tone(1568,0,.07,'square',.03);tone(2093,.06,.16,'triangle',.07);tone(2637,.13,.24,'sine',.05);},
+    level:()=>[392,523,659,784,1047,1319].forEach((f,i)=>tone(f,i*.085,.32,'triangle',.07))
+  };
+  function play(k){if(!soundOn())return;try{SOUNDS[k]&&SOUNDS[k]();}catch(e){}}
+  /* haptics: Android has vibrate(); iOS 18+ Safari ticks the Taptic Engine when a
+     switch-style checkbox toggles from a user gesture — the only web haptic on iPhone */
+  let hap=null;
+  function haptic(ms){
+    try{
+      if(navigator.vibrate){navigator.vibrate(ms||12);return;}
+      if(!hap){hap=document.createElement('label');hap.style.cssText='position:fixed;left:-200px;top:0;opacity:0;pointer-events:none';
+        const i=document.createElement('input');i.type='checkbox';i.setAttribute('switch','');hap.appendChild(i);document.body.appendChild(hap);}
+      hap.click();
+    }catch(e){}
+  }
+  /* particles on one full-screen canvas; nothing runs when nothing is flying */
+  let cv=null,cx=null,parts=[],raf=0;
+  function size(){if(!cv)return;const d=window.devicePixelRatio||1;cv.width=innerWidth*d;cv.height=innerHeight*d;cx.setTransform(d,0,0,d,0,0);}
+  function ensure(){if(cv)return;cv=document.createElement('canvas');cv.id='fx-cv';document.body.appendChild(cv);cx=cv.getContext('2d');size();addEventListener('resize',size);}
+  function loop(){
+    cx.clearRect(0,0,innerWidth,innerHeight);
+    parts=parts.filter(p=>p.life>0);
+    for(const p of parts){
+      p.vy+=p.g;p.x+=p.vx;p.y+=p.vy;p.vx*=.985;p.rot+=p.vr;p.life--;
+      cx.save();cx.globalAlpha=Math.min(1,p.life/25);cx.translate(p.x,p.y);cx.rotate(p.rot);cx.fillStyle=p.c;
+      if(p.sq)cx.fillRect(-p.s/2,-p.s/4,p.s,p.s/2);else{cx.beginPath();cx.arc(0,0,p.s/2,0,6.3);cx.fill();}
+      cx.restore();
+    }
+    raf=parts.length?requestAnimationFrame(loop):0;
+  }
+  function emit(arr){if(reduce)return;ensure();parts.push(...arr);if(!raf)raf=requestAnimationFrame(loop);}
+  const PAL=['#ffb020','#3ecf8e','#6aa9ff','#ff5d8f','#a78bfa','#2dd4bf'];
+  function burst(x,y,o){
+    o=o||{};const cols=o.colors||PAL;
+    emit(Array.from({length:o.n||14},()=>{const a=Math.random()*6.283,s=2+Math.random()*4;
+      return{x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.6,g:.19,s:4+Math.random()*4,c:cols[Math.random()*cols.length|0],life:36+Math.random()*18,rot:0,vr:0,sq:false};}));
+  }
+  function burstAt(el,o){try{const r=el.getBoundingClientRect();burst(r.left+r.width/2,r.top+r.height/2,o);}catch(e){}}
+  function confetti(o){
+    o=o||{};const cols=o.colors||PAL;
+    emit(Array.from({length:o.n||150},()=>({x:Math.random()*innerWidth,y:-20-Math.random()*innerHeight*.35,vx:(Math.random()-.5)*3,vy:2+Math.random()*3,g:.055,
+      s:7+Math.random()*6,c:cols[Math.random()*cols.length|0],life:160+Math.random()*80,rot:Math.random()*6,vr:(Math.random()-.5)*.3,sq:true})));
+  }
+  function countUp(el,from,to,fmt,ms){
+    if(!el)return;
+    if(reduce||from===to){el.textContent=fmt(to);return;}
+    const t0=performance.now(),dur=ms||1000;
+    const step=t=>{const k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3);el.textContent=fmt(from+(to-from)*e);if(k<1)requestAnimationFrame(step);};
+    requestAnimationFrame(step);
+  }
+  function banner(html,kind,ms){
+    const b=document.createElement('div');b.className='fx-banner '+(kind||'');b.innerHTML=html;document.body.appendChild(b);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>b.classList.add('show')));
+    setTimeout(()=>{b.classList.remove('show');setTimeout(()=>b.remove(),450);},ms||3400);
+  }
+  function floatText(el,text){
+    try{const r=el.getBoundingClientRect(),f=document.createElement('div');f.className='fx-float';f.textContent=text;
+      f.style.left=(r.left+r.width/2-40)+'px';f.style.top=(r.top-6)+'px';document.body.appendChild(f);setTimeout(()=>f.remove(),1500);}catch(e){}
+  }
+  /* swipe a row: right = done (green), left = the row's secondary action (amber).
+     Engages only on a clearly horizontal drag, so vertical scrolling is untouched. */
+  function swipe(el,o){
+    if(!el||!('ontouchstart' in window))return;
+    let x0=0,y0=0,dx=0,on=false,dead=false;
+    el.addEventListener('touchstart',e=>{const t=e.touches[0];x0=t.clientX;y0=t.clientY;dx=0;on=false;dead=false;},{passive:true});
+    el.addEventListener('touchmove',e=>{
+      if(dead)return;const t=e.touches[0],mx=t.clientX-x0,my=t.clientY-y0;
+      if(!on){if(Math.abs(my)>10&&Math.abs(my)>Math.abs(mx)){dead=true;return;}if(Math.abs(mx)<12)return;
+        if((mx>0&&!o.right)||(mx<0&&!o.left)){dead=true;return;}on=true;el.classList.add('swiping');}
+      dx=mx;const k=Math.min(1,Math.abs(dx)/110);
+      el.style.transform=`translateX(${dx*.85}px)`;
+      el.style.background=dx>0?`rgba(62,207,142,${.08+k*.22})`:`rgba(255,176,32,${.08+k*.22})`;
+      if(Math.abs(dx)>110&&!el._armed){el._armed=true;haptic(8);}else if(Math.abs(dx)<=110)el._armed=false;
+    },{passive:true});
+    el.addEventListener('touchend',()=>{
+      if(!on)return;el.classList.remove('swiping');
+      el.style.transition='transform .25s cubic-bezier(.3,1.4,.5,1),background .25s';
+      el.style.transform='';el.style.background='';
+      setTimeout(()=>{el.style.transition='';},300);
+      if(dx>110&&o.right)o.right();else if(dx<-110&&o.left)o.left();
+      on=false;el._armed=false;
+    });
+  }
+  window.FX={play,haptic,burst,burstAt,confetti,countUp,banner,floatText,swipe,soundOn,
+    setSound:v=>{try{localStorage.setItem('fx_sound',v?'on':'off');}catch(e){}}};
+})();
+</script>
+<script>
 const OWNER='kliu6151', REPO='KevinOS';
+/* the only door from app code into the FX layer — absent FX (tests, old browsers) = no-op */
+const fx=(k,...a)=>{try{const F=globalThis.FX;return F&&F[k]?F[k](...a):undefined;}catch(e){}};
 const $=id=>document.getElementById(id);
 const enc=s=>btoa(unescape(encodeURIComponent(s)));
 const dec=s=>decodeURIComponent(escape(atob(s)));
@@ -829,6 +1066,9 @@ function openSheet(it,file,title){
   it.body.split('|').map(s=>s.trim()).forEach((seg,i)=>{
     if(i===0)return; // first segment holds date+title, already shown
     const kv=seg.match(/^([\w-]+):\s*(.*)$/);
+    if(kv&&kv[1]==='ref')return; // plumbing (links a plan line to its source), not for reading
+    if(kv&&kv[1]==='hcp')return;
+    if(kv&&kv[1]==='why'&&kv[2]){rows.unshift(['Why',kv[2]]);return;}
     if(kv&&kv[2])rows.push([kv[1].replace(/-/g,' '),kv[2]]);
     else if(seg)rows.push(['Note',seg]);
   });
@@ -859,7 +1099,11 @@ $('sheet-done').onclick=async()=>{
   const ok=await toggleLine(file,sheetCtx.it.line,null);
   // marking a plan row done from the sheet must cascade to its tasks.md/loops.md twin,
   // exactly like tapping its checkbox does — otherwise the item resurfaces tomorrow
-  if(ok)for(const d of (dupCascade[norm(sheetCtx.it.line)]||[]))await toggleLine(d.file,d.line,null,true);
+  if(ok){
+    fx('play','check');fx('haptic');
+    await refCascade(sheetCtx.it.line);
+    for(const d of (dupCascade[norm(sheetCtx.it.line)]||[]))await toggleLine(d.file,d.line,null,true);
+  }
   $('sheet-done').disabled=false;
   if(ok){closeSheet();runRender(currentView);offerOutcome(file,ok);}
 };
@@ -962,6 +1206,64 @@ async function stuckNote(path,it,reason,title,msg,quiet){
   return true;
 }
 
+/* ---- ref: the exact link from a plan line to its source record (2026-09-30) ----
+   Kevin ticked the Diana Pilgrim follow-up in the daily note for weeks; only the
+   note's copy flipped, data/loops.md never did, and every briefing regenerated it.
+   The briefing now writes plan lines as
+     '- [ ] **title** — action | why: … | ref: data/loops.md :: <exact source title>'
+   and a check-off on the plan line closes THAT source line. Exact title only, and
+   only when exactly one open line matches — a wrong cascade closes the wrong record,
+   which is worse than closing none. Lines without ref: keep the older fuzzy
+   sameThing() cascade. The morning briefing re-applies the same rule (step 3.1)
+   for check-offs made offline. */
+const REF_FILES=['data/tasks.md','data/loops.md','data/calendar.md'];
+const refNorm=s=>String(s||'').replace(/\*\*/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+function refOf(body){
+  const m=String(body||'').match(/\|\s*ref:\s*([^|]+?)\s*::\s*([^|]+?)\s*(?:\||$)/);
+  if(!m)return null;
+  const file=m[1].trim();
+  return REF_FILES.includes(file)?{file,title:m[2].trim()}:null;
+}
+const srcTitle=(file,body)=>file==='data/calendar.md'?evTitle(body):stripMeta(body);
+function refFind(ref,text){
+  if(!ref||!text)return null;
+  const want=refNorm(ref.title);
+  const hits=parseChecklist(text).filter(it=>!it.checked&&refNorm(srcTitle(ref.file,it.body))===want);
+  return hits.length===1?hits[0]:null;
+}
+/* after a plan line is checked: close its source. Returns the source file, or null. */
+async function refCascade(planLine){
+  const ref=refOf(String(planLine||'').replace(/^- \[[ x]\] /,''));
+  if(!ref)return null;
+  let f;try{f=await getFile(ref.file);}catch(e){return null;}
+  if(!f||f.stale)return null;
+  const hit=refFind(ref,f.text);
+  if(!hit)return null;
+  const ok=await toggleLine(ref.file,hit.line,null,true,`done via app (plan ref): ${srcTitle(ref.file,hit.body).slice(0,50)}`);
+  return ok?ref.file:null;
+}
+/* swipe-left on a task/loop: push it one day (task due:, loop nudge:). Calendar
+   events and plan rows don't snooze — their left swipe opens the sheet instead. */
+async function snoozeLine(path,it){
+  const key=path==='data/loops.md'?'nudge':path==='data/tasks.md'?'due':null;
+  if(!key)return false;
+  const to=plusDays(1);
+  try{
+    const f=await getFile(path);
+    if(!f)throw new Error('file not found');
+    if(f.stale)throw new Error('offline — reconnect and try again');
+    const lines=f.text.split('\n');
+    const i=lines.findIndex(l=>norm(l)===norm(it.line));
+    if(i<0)throw new Error('item changed elsewhere — pull down to refresh');
+    if(!/^- \[ \] /.test(lines[i]))throw new Error('only open items snooze');
+    lines[i]=setTok(lines[i],key,to);
+    const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
+      message:`snooze via app: ${stripMeta(it.body).slice(0,50)} → ${to}`,sha:f.sha,content:enc(lines.join('\n'))})});
+    try{localStorage.setItem('fc_'+path,JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
+    return true;
+  }catch(e){alert('Snooze failed: '+e.message);return false;}
+}
+
 /* ---- parsers ---- */
 function parseChecklist(text){
   const items=[];let section='';
@@ -987,8 +1289,23 @@ function itemHTML(it,file,extra='',title){
   div.className='item'+(it.checked?' done':'')+(late?' late':'');
   div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${esc(t)}</div>${extra?`<div class="meta">${extra}</div>`:''}</div>`;
   if(!it.checked){
-    div.querySelector('.hit').onclick=e=>{e.stopPropagation();toggleLine(file,it.line,div).then(ok=>{if(ok){afterToggle(file);offerOutcome(file,ok);}});};
+    const hit=div.querySelector('.hit');
+    hit.onclick=e=>{
+      e.stopPropagation();
+      fx('play','check');fx('haptic');fx('burstAt',hit.querySelector('.box'),{n:12});
+      toggleLine(file,it.line,div).then(ok=>{if(ok){
+        // a finished row settles out of the list; the re-render confirms it
+        if(file!=='data/money.md')setTimeout(()=>div.classList.add('gone'),650);
+        afterToggle(file);offerOutcome(file,ok);
+      }});
+    };
     div.onclick=()=>openSheet(it,file,t);
+    fx('swipe',div,{
+      right:()=>hit.click(),
+      left:(file==='data/tasks.md'||file==='data/loops.md')
+        ?async()=>{fx('play','snooze');fx('haptic');if(await snoozeLine(file,it)){div.classList.add('gone');fx('banner','Snoozed to tomorrow','calm',1600);afterToggle(file);}}
+        :()=>openSheet(it,file,t)
+    });
   }
   return div;
 }
@@ -1006,14 +1323,19 @@ function planItem(it,file){
   div.className='item'+(it.checked?' done':'');
   div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${inline(title)}</div>${intent?`<div class="intent">${inline(intent)}</div>`:''}${!it.checked&&st?`<div class="meta">⏸ ${esc(st)}</div>`:''}</div>`;
   if(!it.checked){
-    div.querySelector('.hit').onclick=async e=>{
+    const hit=div.querySelector('.hit');
+    hit.onclick=async e=>{
       e.stopPropagation();
+      const big=div.closest('.top3card');
+      fx('play',big?'big':'check');fx('haptic',big?20:12);fx('burstAt',hit.querySelector('.box'),{n:big?28:14});
       const ok=await toggleLine(file,it.line,div);
       if(!ok)return;
+      await refCascade(it.line); // exact source close (ref:) — no-op on lines without one
       for(const d of (dupCascade[norm(it.line)]||[]))await toggleLine(d.file,d.line,null,true);
       afterToggle(file);
       offerOutcome(file,ok);
     };
+    fx('swipe',div,{right:()=>hit.click(),left:()=>openSheet(it,file,stripMeta(title))});
     // plan rows open the same detail sheet as every other item — without this, "Not done —
     // say why" was unreachable on exactly the items Kevin most needs to explain (his Top 3)
     div.onclick=()=>openSheet(it,file,stripMeta(title));
@@ -1080,12 +1402,46 @@ function top3State(){
   return items.length?{done:items.filter(i=>i.checked).length,total:items.length}:null;
 }
 /* progress dots + acknowledgment; lives in #prog-wrap at the top of Today */
+/* Top 3 ring (hero, left) + live streak chip. Updated in place after every check.
+   Numbers the streak builds on come from data/scoreboard.json (ops/scoreboard.js);
+   the app only adds today, which the script deliberately leaves out (still in play). */
+let SB=null,ringPrev=null;
+function ringSVG(done,total){
+  const C=2*Math.PI*36,n=Math.max(1,total),gap=total>1?9:0,L=C/n-gap,all=done>=total&&total>0;
+  let s='';
+  for(let i=0;i<n;i++){
+    const col=i<done?(all?'var(--green)':'var(--amber)'):'var(--border2)';
+    s+=`<circle class="seg" cx="42" cy="42" r="36" stroke="${col}" stroke-dasharray="${L} ${C-L}" stroke-dashoffset="${-(i*C/n)-gap/2}"/>`;
+  }
+  return `<svg viewBox="0 0 84 84">${s}</svg>`;
+}
+function streakChip(st){
+  if(!SB||!SB.streak)return '';
+  const today=st&&st.done>=1?1:0;
+  const n=(SB.streak.days||0)+today;
+  const dim=SB.streak.dimmed&&!today;
+  return `<span class="hchip fire${dim?' dim':''}" title="${dim?'one miss — don’t miss twice':'days in a row with 1+ Top 3 closed'}">🔥 ${n}${dim?' · don’t miss twice':''}</span>`;
+}
 function renderProgress(){
   const w=$('prog-wrap');if(!w)return;
   const st=top3State();
-  if(!st){w.innerHTML='';return;}
-  w.innerHTML=`<div class="prog"><span class="pdots${st.done>=st.total?' all':''}">${Array.from({length:st.total},(_,i)=>`<span class="pdot${i<st.done?' on':''}"></span>`).join('')}</span><span class="pt">${st.done} of ${st.total}</span></div>`
-    +(st.done>=st.total?'<div class="ack">Top 3 cleared. Anything else today is bonus — or dump it for tomorrow.</div>':'');
+  const ring=w.querySelector('.ring');
+  if(ring){
+    if(!st){ring.style.display='none';}
+    else{
+      const all=st.done>=st.total;
+      ring.style.display='';ring.classList.toggle('all',all);
+      ring.innerHTML=ringSVG(st.done,st.total)+`<div class="c"><div class="n">${st.done}/${st.total}</div><div class="l">TOP 3</div></div>`;
+      // celebrate the moment the day is cleared — once per day, never on a plain re-render
+      if(all&&ringPrev!==null&&ringPrev<st.total){
+        let seen=false;try{seen=localStorage.getItem('fx_perfect')===todayStr();localStorage.setItem('fx_perfect',todayStr());}catch(e){}
+        if(!seen){fx('confetti');fx('play','level');fx('haptic',30);fx('banner','Top 3 cleared<small>Perfect day — anything else is bonus</small>');}
+      }
+      ringPrev=st.done;
+    }
+  }
+  const sc=w.querySelector('.streak-slot');
+  if(sc)sc.innerHTML=streakChip(st);
 }
 /* presentation-layer dedup: a task/loop is "covered" by a plan line when they share
    ≥2 meaningful tokens AND the overlap is ≥60% of the smaller token set.
@@ -1153,11 +1509,14 @@ function parseIntel(lines){
   return items;
 }
 function intelEl(st){
+  // headline only until tapped (Kevin 2026-09-30: less reading) — the story is one tap away
   const div=document.createElement('div');div.className='intel';
-  div.innerHTML=`<div class="ih">${inline(st.title)}</div>`
+  div.onclick=()=>{div.classList.toggle('open');fx('play','tap');};
+  div.innerHTML=`<div class="ih"><span>${inline(st.title)}</span></div><div class="more-body">`
     +(st.body.length?`<div class="ib">${st.body.map(inline).join('<br>')}</div>`:'')
     +(st.why.length?`<div class="iw"><b>Why it matters:</b> ${st.why.map(inline).join(' ')}</div>`:'')
-    +(st.src?`<div class="is">Source: ${esc(st.src)}</div>`:'');
+    +(st.src?`<div class="is">Source: ${esc(st.src)}</div>`:'')
+    +'</div>';
   return div;
 }
 const taskMeta=it=>{
@@ -1212,11 +1571,14 @@ save.onclick=async()=>{
 async function renderToday(){
   const body=$('today-body');
   $('today-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
+  // fold open/closed state survives the check-off re-render (same pattern as Money)
+  const prevFolds=new Map([...body.querySelectorAll('.fold')].map(h=>[h.querySelector('.ft').textContent,h.classList.contains('open')]));
   if(!keepView)body.innerHTML=skel();
   const t=todayStr(),horizon=plusDays(3),dailyPath=`daily/${t}.md`;
-  const [cal,loops,tasks,daily,habits]=await Promise.all([
+  const [cal,loops,tasks,daily,habits,sbf]=await Promise.all([
     getFile('data/calendar.md'),getFile('data/loops.md'),getFile('data/tasks.md'),
-    getFile(dailyPath),getFile('data/habits.md')]);
+    getFile(dailyPath),getFile('data/habits.md'),getFile('data/scoreboard.json').catch(()=>null)]);
+  try{SB=sbf?JSON.parse(sbf.text):null;}catch(e){SB=null;}
   body.innerHTML='';
 
   // parse the daily note into ## sections; Intel gets its own fold further down
@@ -1230,19 +1592,27 @@ async function renderToday(){
   const rqSec=secByName(ns.secs,/^rebate submit/i);
 
   // dedup: anything the plan already covers (Top 3 / due follow-ups) appears ONLY there.
-  // Matching tasks/loops are hidden from every other section, and checking the plan item
-  // cascades to them (dupCascade). Not shown twice, not checked twice.
+  // A plan line with ref: names its source exactly (hidden here, closed by refCascade at
+  // check-off); lines without one fall back to the fuzzy title match + dupCascade.
   const loopsAll=loops?parseChecklist(loops.text).filter(it=>!it.checked):[];
   const tasksAll=tasks?parseChecklist(tasks.text).filter(it=>!it.checked):[];
   // WITHIN the note: a follow-up the briefing also promoted into Top 3 is the SAME job
   // (e.g. "Pelham permit drop-off" in both). Show it once, in Top 3 — the higher-commitment
   // section — and cascade the check-off to its follow-up twin so the note stays consistent.
-  const noteFollowups=noteFollowupsAll.filter(f=>!top3.some(t=>sameThing(t.body,f.body)));
-  const echoedFollowups=noteFollowupsAll.filter(f=>top3.some(t=>sameThing(t.body,f.body)));
+  const twin=(a,b)=>{const ra=refOf(a.body),rb=refOf(b.body);return ra&&rb?(ra.file===rb.file&&refNorm(ra.title)===refNorm(rb.title)):sameThing(a.body,b.body);};
+  const noteFollowups=noteFollowupsAll.filter(f=>!top3.some(t=>twin(t,f)));
+  const echoedFollowups=noteFollowupsAll.filter(f=>top3.some(t=>twin(t,f)));
   const planItems=top3.concat(noteFollowups);
   dupCascade={};
   const hiddenDups=new Set();
   for(const p of planItems){
+    const ref=refOf(p.body);
+    if(ref){
+      const src=ref.file==='data/tasks.md'?tasks:ref.file==='data/loops.md'?loops:cal;
+      const hit=src?refFind(ref,src.text):null;
+      if(hit)hiddenDups.add(hit.line);
+      continue;
+    }
     const dups=[
       ...tasksAll.filter(it=>sameThing(p.body,it.body)).map(it=>({file:'data/tasks.md',line:it.line})),
       ...loopsAll.filter(it=>sameThing(p.body,it.body)).map(it=>({file:'data/loops.md',line:it.line}))
@@ -1251,24 +1621,47 @@ async function renderToday(){
     dups.forEach(d=>hiddenDups.add(d.line));
   }
   for(const t of top3){
-    const echo=echoedFollowups.filter(f=>sameThing(t.body,f.body)&&!f.checked).map(f=>({file:dailyPath,line:f.line}));
+    const echo=echoedFollowups.filter(f=>twin(t,f)&&!f.checked).map(f=>({file:dailyPath,line:f.line}));
     if(echo.length)dupCascade[norm(t.line)]=(dupCascade[norm(t.line)]||[]).concat(echo);
   }
   const isDup=it=>hiddenDups.has(it.line);
 
-  // top-3 progress (filled by renderProgress; updated in place after each check)
-  body.insertAdjacentHTML('beforeend','<div id="prog-wrap"></div>');
+  // calendar window (today → +3 days); plan-covered and ref-linked lines don't repeat
+  const calAll=cal?parseChecklist(cal.text).filter(it=>!it.checked&&!isDup(it)):[];
+  const events=calAll.filter(it=>{
+    const d=(it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];
+    if(!d||d<t||d>horizon)return false;
+    if(!/\d{2}:\d{2}/.test(it.body)&&planItems.some(p=>sameThing(p.body,evTitle(it.body))))return false;
+    return true;
+  }).sort((a,b)=>a.body.localeCompare(b.body));
+
+  /* HERO — one glance: how the day is going (ring), what's next (appointment),
+     momentum (streak), and the month's climb (level → Money tab) */
+  const nowHM=(()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');})();
+  const next=calAll.map(it=>{const m=it.body.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/);return m?{it,d:m[1],hm:m[2]}:null;})
+    .filter(x=>x&&(x.d>t||(x.d===t&&x.hm>=nowHM))&&x.d<=plusDays(7))
+    .sort((a,b)=>(a.d+a.hm).localeCompare(b.d+b.hm))[0];
+  const h12=hm=>{let[h,m]=hm.split(':').map(Number);const ap=h>=12?'p':'a';h=h%12||12;return h+(m?':'+String(m).padStart(2,'0'):'')+ap;};
+  let nextHTML;
+  if(next){
+    const when=next.d===t?h12(next.hm):new Date(next.d+'T12:00').toLocaleDateString(undefined,{weekday:'short'})+' '+h12(next.hm);
+    const where=meta(next.it.body,'where');
+    nextHTML=`<div class="next-k">NEXT · ${esc(when)}</div><div class="next-t">${esc(evTitle(next.it.body))}</div>${where?`<div class="next-w">${esc(where)}</div>`:''}`;
+  }else nextHTML=`<div class="next-k">NEXT</div><div class="next-t">Nothing booked</div><div class="next-w">no appointments in the next 7 days</div>`;
+  const lv=SB&&SB.month?`<span class="hchip lv" id="hero-lv">Lv ${SB.month.level} · ${compactAmt(SB.month.installed)}</span>`:'';
+  body.insertAdjacentHTML('beforeend',`<div id="prog-wrap" class="hero"><div class="ring"></div><div class="hero-r">${nextHTML}<div class="hero-chips"><span class="streak-slot"></span>${lv}</div></div></div>`);
+  const hlv=$('hero-lv');if(hlv)hlv.onclick=()=>goView('money');
 
   if(!daily){
     body.insertAdjacentHTML('beforeend','<div class="sec">Today\'s Plan</div>');
     const c0=card();body.appendChild(c0);
-    empty(c0,'No plan yet. Run <b>/daily</b> in Claude — it sorts every pending dump and hands you Top 3 + first move.');
+    empty(c0,'No plan yet. The morning briefing writes it around 6am — or run <b>/daily</b> in Claude.');
   }
 
-  // TOP 3 — full implementation intentions, never truncated
+  // TOP 3 — bold title + one action line; the coach's why: sits behind a tap (detail sheet)
   if(top3.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Top 3</div>');
-    const c1=card();body.appendChild(c1);
+    const c1=card();c1.classList.add('top3card');body.appendChild(c1);
     top3.forEach((it,i)=>{
       const el=planItem(it,dailyPath);
       if(i===0)el.classList.add('mw'); // the Must Win carries the page's one amber rail
@@ -1276,70 +1669,68 @@ async function renderToday(){
     });
   }
 
-  // FIRST MOVE — the one action that starts the day, above everything secondary
+  // FIRST MOVE — the one action that starts the day
   if(fmSec){
     const fmTxt=fmSec.lines.map(l=>l.trim()).filter(Boolean).map(inline).join('<br>');
     if(fmTxt)body.insertAdjacentHTML('beforeend',`<div class="fm"><b>First move:</b> ${fmTxt}</div>`);
   }
   renderProgress();
 
-  // DUE FOLLOW-UPS from the plan (checkbox lines only; prose stays in the full-plan fold)
+  /* Everything else is ONE LINE each until tapped (Kevin 2026-09-30: "not that much text
+     to read"). The count and any overdue warning ride on the fold's header. */
+  const tfold=(title,count,warn,build)=>{
+    const f=fold(title,count,prevFolds.has(title)?prevFolds.get(title):false,warn);
+    body.appendChild(f.head);body.appendChild(f.card);build(f.card);
+  };
+  if(daily)body.insertAdjacentHTML('beforeend','<div class="sec">Also today</div>');
+
+  // DUE FOLLOW-UPS from the plan
   if(noteFollowups.length){
-    body.insertAdjacentHTML('beforeend','<div class="sec">Due Follow-ups</div>');
-    const cf=card();body.appendChild(cf);
-    noteFollowups.forEach(it=>cf.appendChild(planItem(it,dailyPath)));
-    if(echoedFollowups.length)cf.insertAdjacentHTML('beforeend',`<div class="subsec" style="border-bottom:none;border-top:1px solid var(--border)">${echoedFollowups.length} more already in Top 3</div>`);
+    const open=noteFollowups.filter(i=>!i.checked);
+    const late=open.filter(i=>/⚠/.test(i.body)).length;
+    tfold('Follow-ups',open.length?open.length+' due':'all done',late,c=>{
+      noteFollowups.forEach(it=>c.appendChild(planItem(it,dailyPath)));
+      if(echoedFollowups.length)c.insertAdjacentHTML('beforeend',`<div class="subsec" style="border-bottom:none;border-top:1px solid var(--border)">${echoedFollowups.length} more already in Top 3</div>`);
+    });
   }
 
-  // REBATE SUBMIT QUEUE (Sundays) — actionable money items stay visible
+  // REBATE SUBMIT QUEUE (Sundays)
   if(rqSec&&rqSec.lines.some(l=>l.trim())){
-    body.insertAdjacentHTML('beforeend','<div class="sec">Rebate Submit Queue</div>');
-    const cq=card();body.appendChild(cq);
-    const wq=document.createElement('div');wq.className='note';
-    for(const line of rqSec.lines){
-      if(!line.trim())continue;
-      const m=line.match(/^- \[( |x)\] (.*)$/);
-      if(m){cq.appendChild(planItem({line,checked:m[1]==='x',body:m[2]},dailyPath));continue;}
-      const e=document.createElement('div');e.innerHTML=inline(line.replace(/^- /,'• '));wq.appendChild(e);
-    }
-    if(wq.childNodes.length)cq.insertBefore(wq,cq.firstChild);
+    tfold('Rebate submit queue','Sunday',0,cq=>{
+      const wq=document.createElement('div');wq.className='note';
+      for(const line of rqSec.lines){
+        if(!line.trim())continue;
+        const m=line.match(/^- \[( |x)\] (.*)$/);
+        if(m){cq.appendChild(planItem({line,checked:m[1]==='x',body:m[2]},dailyPath));continue;}
+        const e=document.createElement('div');e.innerHTML=inline(line.replace(/^- /,'• '));wq.appendChild(e);
+      }
+      if(wq.childNodes.length)cq.insertBefore(wq,cq.firstChild);
+    });
   }
 
-  // schedule (today + next 3 days), capped at 5
-  body.insertAdjacentHTML('beforeend','<div class="sec">Schedule</div>');
-  const c2=card();body.appendChild(c2);
-  const events=cal?parseChecklist(cal.text).filter(it=>{
-    const d=(it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];
-    if(it.checked||!d||d<t||d>horizon)return false;
-    // untimed reminder lines already covered by the plan don't repeat here; timed appointments always show
-    if(!/\d{2}:\d{2}/.test(it.body)&&planItems.some(p=>sameThing(p.body,evTitle(it.body))))return false;
-    return true;
-  }).sort((a,b)=>a.body.localeCompare(b.body)):[];
-  if(!events.length)empty(c2,'Nothing scheduled through '+horizon+'. If that\'s wrong, dump it — dates are sacred here.');
-  appendCapped(c2,events,it=>{
-    const d=(it.body.match(/(\d{4}-\d{2}-\d{2})( \d{2}:\d{2})?/)||[]);
-    const label=d[1]===t?`<span class="today-badge">TODAY${d[2]||''}</span>`:d[0];
-    return itemHTML(it,'data/calendar.md',label,evTitle(it.body));
+  // SCHEDULE (today + next 3 days)
+  const todayN=events.filter(e=>e.body.startsWith(t)).length;
+  tfold('Schedule',events.length?`${todayN} today · ${events.length-todayN} next 3 days`:'clear',0,c2=>{
+    if(!events.length){empty(c2,'Nothing scheduled through '+horizon+'. If that\'s wrong, dump it — dates are sacred here.');return;}
+    appendCapped(c2,events,it=>{
+      const d=(it.body.match(/(\d{4}-\d{2}-\d{2})( \d{2}:\d{2})?/)||[]);
+      const label=d[1]===t?`<span class="today-badge">TODAY${d[2]||''}</span>`:d[0];
+      return itemHTML(it,'data/calendar.md',label,evTitle(it.body));
+    },8);
   });
 
-  // NEEDS ATTENTION — plan-covered items are hidden entirely (they live in Top 3);
-  // max 3 visible, overflow behind "Also on the radar"
+  // NEEDS ATTENTION — plan-covered items are hidden entirely (they live in Top 3)
   const dueLoops=loopsAll.filter(it=>!isDup(it)&&(()=>{const n=meta(it.body,'nudge');return n&&n<=t;})());
   const hotTasks=tasksAll.filter(it=>!isDup(it)&&(()=>{const d=meta(it.body,'due');return (d&&d<=t)||meta(it.body,'pri')==='1';})());
   const hot=[
     ...hotTasks.map(it=>({it,file:'data/tasks.md',info:taskMeta(it)})),
     ...dueLoops.map(it=>({it,file:'data/loops.md',info:dueLoopMeta(it)}))
   ];
-  const visibleHot=hot.slice(0,3),radar=hot.slice(3);
-  body.insertAdjacentHTML('beforeend','<div class="sec">Needs Attention</div>');
-  const c3=card();body.appendChild(c3);
-  if(!hot.length)empty(c3,hiddenDups.size?'Everything urgent today is already in your Top 3.':'Nothing due. The system is holding your loops — head clear.');
-  visibleHot.forEach(h=>c3.appendChild(itemHTML(h.it,h.file,h.info)));
-  if(radar.length){
-    const fr=fold('Also on the radar',radar.length+' more');
-    body.appendChild(fr.head);body.appendChild(fr.card);
-    radar.forEach(h=>fr.card.appendChild(itemHTML(h.it,h.file,h.info)));
-  }
+  const hotLate=hot.filter(h=>/⚠|pri1">due /.test(h.info)).length;
+  tfold('Needs attention',hot.length?hot.length+' items':'clear',hotLate,c3=>{
+    if(!hot.length){empty(c3,hiddenDups.size?'Everything urgent today is already in your Top 3.':'Nothing due. The system is holding your loops — head clear.');return;}
+    appendCapped(c3,hot,h=>itemHTML(h.it,h.file,h.info),5);
+  });
 
   // the briefing itself lives on the Brief tab now (Today stays about what Kevin DOES today);
   // one line here so it stays discoverable and Kevin knows whether it's worth the tap
@@ -1662,12 +2053,102 @@ function moneyLineEl(line){
   else{el.className='note';el.style.padding='4px 14px';el.innerHTML=esc(line).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/_(.+?)_/g,'<i>$1</i>');}
   return el;
 }
+/* ---- MONEY HERO: the monthly climb + four tiles (2026-09-30) ----
+   Every number comes from data/scoreboard.json (ops/scoreboard.js, refreshed each
+   morning) — the app formats and animates, it never computes money. The level resets
+   on the 1st: each month is a fresh climb against last month and the best month.
+   Revenue thresholds live in the private repo's JSON, never in this public file. */
+const fmtK=v=>compactAmt(Math.max(0,v||0));
+const fmtUSD=v=>'$'+Math.round(v||0).toLocaleString('en-US');
+function moneyHero(body,sb){
+  const m=sb.month||{},w=sb.week||{},p=sb.pipeline||{};
+  const monthName=m.ym?new Date(m.ym+'-15T12:00').toLocaleDateString(undefined,{month:'long'}):'';
+  const inLvl=Math.max(0,(m.installed||0)-(m.levelFloor||0)),span=Math.max(1,(m.nextLevelAt||1)-(m.levelFloor||0));
+  const pct=Math.min(100,inLvl/span*100);
+  // month bar: 0 → the higher of last/best month (or this month, once it passes them)
+  const ref=Math.max(m.installed||0,(m.lastMonth&&m.lastMonth.gross)||0,(m.best&&m.best.gross)||0,1);
+  const fillPct=Math.min(100,(m.installed||0)/ref*100);
+  const ghostPct=Math.min(100-fillPct,(m.scheduledAhead||0)/ref*100);
+  const lastPct=m.lastMonth?Math.min(100,m.lastMonth.gross/ref*100):null;
+  const el=document.createElement('div');
+  el.className='lvl'+(m.record?' record':'');
+  el.innerHTML=`<div class="lvl-top"><span class="lvl-k">${esc(monthName.toUpperCase())} · INSTALLED${m.record?' · RECORD':''}</span><span class="lvl-badge">LV ${m.level||0}</span></div>
+    <div class="lvl-num" id="lvl-num">${fmtUSD(m.installed)}</div>
+    <div class="lvl-bar"><div class="lvl-fill" style="width:0%"></div></div>
+    <div class="lvl-sub"><span><b>${fmtUSD((m.nextLevelAt||0)-(m.installed||0))}</b> to Lv ${(m.level||0)+1}</span><span>${m.jobs||0} jobs</span></div>
+    <div class="mbar"><div class="f" style="width:0%"></div>${ghostPct>0?`<div class="g" style="left:${fillPct}%;width:${ghostPct}%"></div>`:''}${lastPct!==null?`<div class="tick" style="left:calc(${lastPct}% - 1px)"></div>`:''}</div>
+    <div class="mbar-l"><span>${m.scheduledAhead?fmtK(m.scheduledAhead)+' more booked':'this month'}</span>${m.lastMonth?`<span class="t">${m.beatLastMonth?'✓ beat':'▲'} last month ${fmtK(m.lastMonth.gross)}</span>`:''}</div>`;
+  body.appendChild(el);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    el.querySelector('.lvl-fill').style.width=pct+'%';
+    el.querySelector('.mbar .f').style.width=fillPct+'%';
+  }));
+  const wUp=(w.installed||0)>=((w.prev&&w.prev.installed)||0);
+  const tiles=document.createElement('div');tiles.className='tiles';
+  tiles.innerHTML=`
+    <div class="tile" style="--tc:#6aa9ff"><div class="k">This week</div><div class="v">${fmtK(w.installed)}</div><div class="s"><span class="${wUp?'up':'dn'}">${wUp?'▲':'▼'}</span> vs ${fmtK(w.prev&&w.prev.installed)} · ${w.installs||0} installs</div></div>
+    <div class="tile" style="--tc:#ffb020"><div class="k">To submit</div><div class="v">${fmtK(p.toSubmit&&p.toSubmit.amount)}</div><div class="s">${(p.toSubmit&&p.toSubmit.count)||0} rebates · Con Ed + PSEG</div></div>
+    <div class="tile" style="--tc:#a78bfa"><div class="k">With programs</div><div class="v">${fmtK(p.withPrograms&&p.withPrograms.amount)}</div><div class="s">${(p.withPrograms&&p.withPrograms.count)||0} waiting to pay out</div></div>
+    <div class="tile" style="--tc:${p.aging?'#ff5d51':'#3ecf8e'}"><div class="k">Aging ⚠</div><div class="v">${p.aging||0}</div><div class="s">open rebates past due</div></div>`;
+  body.appendChild(tiles);
+  body.insertAdjacentHTML('beforeend',`<div class="asof">${esc(sb.source==='hcp'?'live from HCP':('from '+(sb.source||'money.md')))} · ${esc(sb.today||'')}${sb.warning?' · ⚠ '+esc(sb.warning):''}</div>`);
+  // celebrate on the network pass only: the cache pass is repainted a moment later,
+  // which would cut the count-up off mid-animation
+  if(!cacheOnly)moneyMoment(el,m);
+}
+/* the reward loop: compare with what THIS phone saw last time and celebrate the delta */
+function moneyMoment(el,m){
+  if(!m||!m.ym)return;
+  let prev=null;try{prev=JSON.parse(localStorage.getItem('fx_money')||'null');}catch(e){}
+  const save=()=>{try{localStorage.setItem('fx_money',JSON.stringify({ym:m.ym,installed:m.installed,level:m.level,record:!!m.record}));}catch(e){}};
+  const num=el.querySelector('#lvl-num');
+  if(!prev){save();return;} // first sighting on this device: nothing to compare, no fake fanfare
+  if(prev.ym!==m.ym){
+    // fresh-start effect: a new month is a clean slate, not a reset to feel bad about
+    fx('banner',`New month — Level ${m.level||0}<small>${m.lastMonth?'Last month: '+fmtUSD(m.lastMonth.gross)+' · beat it':'Fresh climb starts now'}</small>`,'money',4200);
+    save();return;
+  }
+  const gain=(m.installed||0)-(prev.installed||0);
+  if(gain>0){
+    fx('countUp',num,prev.installed,m.installed,fmtUSD,1200);
+    setTimeout(()=>{fx('floatText',num,'+'+fmtK(gain));fx('play','cash');fx('haptic',15);fx('burstAt',num,{n:18,colors:['#3ecf8e','#2dd4bf','#b6f36b','#ffb020']});},250);
+  }
+  if((m.level||0)>(prev.level||0)){
+    setTimeout(()=>{fx('confetti',{colors:['#3ecf8e','#2dd4bf','#b6f36b','#ffb020']});fx('play','level');fx('haptic',30);
+      fx('banner',`LEVEL UP · Lv ${m.level}<small>${fmtUSD(m.installed)} installed in ${new Date(m.ym+'-15T12:00').toLocaleDateString(undefined,{month:'long'})}</small>`,'money');},1300);
+  }
+  if(m.record&&!prev.record){
+    setTimeout(()=>{fx('confetti');fx('banner','NEW RECORD MONTH<small>best month on record — keep climbing</small>');},2600);
+  }
+  save();
+}
+/* only what needs Kevin: money owed out, dated money deadlines, and programs asking for action */
+function moneyNeedsYou(body,text){
+  const secs={};let cur=null;
+  for(const raw of text.split('\n')){const l=raw.replace(/\r$/,'');if(l.startsWith('## ')){cur=l.slice(3).trim();secs[cur]=[];continue;}if(cur)secs[cur].push(l);}
+  const items=[];
+  for(const [title,lines] of Object.entries(secs)){
+    const own=/owed|deadline/i.test(title);
+    for(const l of lines){
+      if(!l.startsWith('- [ ]'))continue;
+      if(own||/action required|needs kevin|kevin:/i.test(l))items.push(l);
+    }
+  }
+  body.insertAdjacentHTML('beforeend','<div class="sec">Needs you</div>');
+  const c=card();body.appendChild(c);
+  if(!items.length){empty(c,'Nothing in the money pipeline needs you right now.');return;}
+  appendCapped(c,items,moneyLineEl,4);
+}
 async function renderMoney(){
   const body=$('money-body');
   // remember which folds the user opened/closed so a check-off re-render doesn't collapse them
   const prevFolds=new Map([...body.querySelectorAll('.fold')].map(h=>[h.querySelector('.ft').textContent,h.classList.contains('open')]));
   if(!keepView)body.innerHTML=skel();
-  const [f,ops]=await Promise.all([getFile('data/money.md'),getFile('data/ops-status.md')]);body.innerHTML='';
+  const [f,ops,sbf]=await Promise.all([getFile('data/money.md'),getFile('data/ops-status.md'),getFile('data/scoreboard.json').catch(()=>null)]);body.innerHTML='';
+  let sb=null;try{sb=sbf?JSON.parse(sbf.text):null;}catch(e){}
+  if(sb)moneyHero(body,sb);
+  if(f)moneyNeedsYou(body,f.text);
+  body.insertAdjacentHTML('beforeend','<div class="sec">Details</div>');
   // ⚙ Ops status — script-written watch feed for the local money routines
   // (ops/ops-status.js, refreshed by the daily 8:30 ACH check). Read-only;
   // buttons stay on the desktop console.
@@ -1694,7 +2175,7 @@ async function renderMoney(){
     (cur?cur.lines:pre).push(line);
   }
   if(pre.length){const pc=card();body.appendChild(pc);pre.forEach(l=>pc.appendChild(moneyLineEl(l)));}
-  const openByDefault=t=>/this month/i.test(t);
+  const openByDefault=()=>false; // the tiles above carry the headline numbers; the ledger is detail
   secs.forEach(s=>{
     const open=prevFolds.has(s.title)?prevFolds.get(s.title):(/status:/i.test(s.title)||openByDefault(s.title));
     const openLines=s.lines.filter(l=>l.startsWith('- [ ]'));
@@ -3135,13 +3616,21 @@ async function aiInsertUnder(path,section,line,msg){
 /* completing an item closes its plan/task/loop twins too (same matcher Today uses) */
 async function aiCascade(srcFile,srcLine){
   const t=todayStr(),done=[];
-  const title=stripMeta(String(srcLine).replace(/^- \[[ x]\] /,''));
+  const srcBody=String(srcLine).replace(/^- \[[ x]\] /,'');
+  const title=stripMeta(srcBody);
+  // a plan line with ref: closes exactly its source; fuzzy matching is only for lines without one
+  const hasRef=!!refOf(srcBody);
+  if(hasRef){const r=await refCascade(srcLine);if(r)done.push(r);}
+  const srcKey=REF_FILES.includes(srcFile)?refNorm(srcTitle(srcFile,srcBody)):null;
   for(const p of ['data/tasks.md','data/loops.md',`daily/${t}.md`]){
     if(p===srcFile)continue;
+    if(hasRef&&p!==`daily/${t}.md`)continue;
     let f;try{f=await getFile(p);}catch(e){continue;}
     if(!f||f.stale)continue;
     for(const it of parseChecklist(f.text).filter(i=>!i.checked)){
-      if(sameThing(title,it.body)){
+      const r=refOf(it.body);
+      const pointsHere=r&&srcKey&&r.file===srcFile&&refNorm(r.title)===srcKey;
+      if(pointsHere||(!r&&sameThing(title,it.body))){
         const ok=await toggleLine(p,it.line,null,true,`ai: done (cascade) — ${title.slice(0,44)}`);
         if(ok)done.push(p);
       }
@@ -4302,12 +4791,24 @@ function goView(v){
      "the chat bot is stickied even when i try to switch tabs"). The log is only
      hidden, never cleared — tapping Ask returns to the same conversation. */
   if(!$('ai-ov').hidden)aiClose();
+  // tabs slide in from the side they sit on in the nav, and each tab brings its color
+  const dir=TAB_ORDER.indexOf(v)>=TAB_ORDER.indexOf(currentView)?'from-r':'from-l';
+  if(v!==currentView)fx('play','tap');
   currentView=v;
+  document.body.dataset.tab=v;
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
-  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
-  const el=$('v-'+v); if(el)el.classList.add('active');
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active','from-r','from-l'));
+  const el=$('v-'+v); if(el)el.classList.add('active',dir);
   runRender(v);
   window.scrollTo(0,0);
+}
+const TAB_ORDER=['dump','dev','today','cal','money','peak','brief','edu'];
+document.body.dataset.tab=currentView;
+/* sound toggle (Dump tab) — per phone, remembered */
+{
+  const sl=$('fx-sound');
+  const paint=()=>{const on=fx('soundOn')!==false;sl.textContent=on?'🔊 sounds on':'🔇 sounds off';};
+  if(sl){paint();sl.onclick=e=>{e.preventDefault();const on=fx('soundOn')!==false;fx('setSound',!on);paint();if(!on)fx('play','check');};}
 }
 function moreOpen(){$('more-ov').hidden=false;}
 function moreClose(){$('more-ov').hidden=true;}
