@@ -7,6 +7,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b0c0e">
 <link rel="icon" href="data:,">
+<!-- Web Push on iOS needs a manifest with a standalone display and a Home Screen
+     install (2026-09-29, push reminders). The service worker sw.js has no fetch
+     handler — it only receives pushes and opens the app. -->
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>KevinOS</title>
 <style>
   /* Dispatch Board: flat asphalt ground, one safety-amber "now" signal,
@@ -502,6 +507,7 @@
     <div id="status"></div>
     <button class="btn2" id="dev-link">🛠 Developer roadmap — what's shipped &amp; what's next</button>
     <div class="tiny"><a href="#" id="reset">change token</a> &nbsp;·&nbsp; <a href="#" id="show-tok">show token</a> &nbsp;·&nbsp; <a href="#" id="ai-reset">reset AI</a></div>
+    <div class="tiny" id="push-row"><a href="#" id="push-toggle">🔔 turn on reminders</a> <span id="push-test-wrap" hidden>&nbsp;·&nbsp; <a href="#" id="push-test">send a test</a></span> <span id="push-status"></span></div>
     <div id="tok-box" hidden style="gap:6px;align-items:center;padding:0 0 10px">
       <input id="tok-val" readonly type="password" style="flex:1;min-width:0;font-family:ui-monospace,monospace;font-size:12px;padding:8px;border:1px solid #444;border-radius:8px;background:transparent;color:inherit">
       <button type="button" class="btn2" id="tok-eye" style="margin:0;padding:8px 10px">👁</button>
@@ -2958,6 +2964,63 @@ function aiToken(){
   if(!t){t=prompt('KevinOS AI proxy token (one-time setup):');if(t)localStorage.setItem('ai_proxy_token',t.trim());}
   return localStorage.getItem('ai_proxy_token');
 }
+
+/* ==================== PUSH REMINDERS (iOS Web Push, 2026-09-29) ====================
+   Kevin: "reminders in the notification bar that open KevinOS on tap." The Worker
+   (ops/ai-proxy) rings the phone with an EMPTY push at 9:00 ET; sw.js wakes,
+   fetches data/reminders-today.txt with the PAT mirrored below, and shows one
+   notification per line. Same Worker, same proxy token, no new secrets on the phone.
+   iOS only offers PushManager to a Home Screen install — Safari-in-browser shows
+   the "add to Home Screen" hint instead. */
+const PUSH_VAPID_PUBLIC='BPLQ7g3Cn7UhN7IK0Kzk4ScFltd64nq25aTmyMz2hrsh_C8PVkTwVcAurJmCYfSxqw9OndXyoG5vezfE0Guimss'; // public half only
+function pushSupported(){return 'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;}
+function pushIdb(){return new Promise((res,rej)=>{const r=indexedDB.open('kevinos-push',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+// The service worker cannot read localStorage; it reads this copy. Refreshed on
+// every boot so a rotated PAT reaches the worker without any extra step.
+async function pushMirrorToken(){
+  try{const db=await pushIdb();const t=localStorage.getItem('gh_token')||'';
+    await new Promise((res,rej)=>{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(t,'gh_token');tx.oncomplete=res;tx.onerror=()=>rej(tx.error);});}catch(e){}
+}
+function pushKey(s){const p='='.repeat((4-s.length%4)%4);const b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(b,c=>c.charCodeAt(0));}
+async function pushReg(){return navigator.serviceWorker.register('sw.js');}
+async function pushCall(path,body){
+  const r=await fetch(aiProxyUrl()+path,{method:'POST',headers:{'Authorization':'Bearer '+aiToken(),'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;
+}
+async function pushRefresh(){
+  const tog=$('push-toggle'),st=$('push-status'),tw=$('push-test-wrap');if(!tog)return;
+  if(!pushSupported()){tog.textContent='🔔 reminders: add KevinOS to your Home Screen first';tog.dataset.mode='unsupported';st.textContent='';tw.hidden=true;return;}
+  try{const reg=await pushReg();const sub=await reg.pushManager.getSubscription();
+    if(sub){tog.textContent='🔔 reminders on — turn off';tog.dataset.mode='on';tw.hidden=false;await pushMirrorToken();}
+    else{tog.textContent='🔔 turn on reminders';tog.dataset.mode='off';tw.hidden=true;}
+  }catch(e){tog.textContent='🔔 reminders unavailable';tog.dataset.mode='unsupported';st.textContent=e.message||'';tw.hidden=true;}
+}
+async function pushEnable(){
+  const st=$('push-status');st.textContent='…';
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){st.textContent='notifications not allowed — Settings › KevinOS › Notifications';return;}
+    const reg=await pushReg();await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:pushKey(PUSH_VAPID_PUBLIC)});
+    await pushMirrorToken();
+    const j=await pushCall('/push/subscribe',{subscription:sub.toJSON()});
+    st.textContent='on — this phone will get today\'s reminders at 9:00 ('+j.count+' device'+(j.count===1?'':'s')+')';
+  }catch(e){st.textContent='could not turn on: '+(e.message||e);}
+  pushRefresh();
+}
+async function pushDisable(){
+  const st=$('push-status');
+  try{const reg=await pushReg();const sub=await reg.pushManager.getSubscription();
+    if(sub){await pushCall('/push/unsubscribe',{endpoint:sub.endpoint});await sub.unsubscribe();}
+    st.textContent='off';
+  }catch(e){st.textContent='could not turn off: '+(e.message||e);}
+  pushRefresh();
+}
+$('push-toggle').onclick=e=>{e.preventDefault();const m=e.currentTarget.dataset.mode;if(m==='on')pushDisable();else if(m==='off')pushEnable();};
+$('push-test').onclick=async e=>{e.preventDefault();const st=$('push-status');st.textContent='sending…';
+  try{const j=await pushCall('/push/test');const ok=j.results.filter(r=>r.status===201).length;st.textContent='test sent to '+ok+' of '+j.results.length+' device'+(j.results.length===1?'':'s')+' — a banner should land in a few seconds';}
+  catch(err){st.textContent='test failed: '+(err.message||err);}};
+if(pushSupported()){pushReg().then(pushRefresh).catch(()=>pushRefresh());}else{pushRefresh();}
 /* THE one place model pricing lives (USD per 1M tokens). When OPENAI_MODEL
    changes on the proxy, update this map in the same session (DEPLOY.md rule). */
 const AI_PRICING={
