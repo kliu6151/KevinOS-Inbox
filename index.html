@@ -679,6 +679,13 @@
   .ai-plan .pn em{display:block;font-style:normal;font-family:var(--mono);font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
   .ai-plan .pf{margin-top:8px;font-size:13.5px;color:var(--muted)}
 
+  /* Ask sheet: Claude (subscription) vs instant (per-token) toggle */
+  #ask-mode{display:flex;gap:6px;padding:10px 16px 2px}
+  #ask-mode button{flex:1;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--muted);font-size:13px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:1px}
+  #ask-mode button small{font-weight:500;font-size:10.5px;color:var(--faint)}
+  #ask-mode button.on{border-color:#a78bfa;color:var(--text);background:rgba(167,139,250,.14)}
+  #ask-mode button.on small{color:#a78bfa}
+
   /* NOW / NEXT block card (2026-10-01) — where a 1-hour push lands */
   .nowcard{margin-top:10px;padding:14px 16px;border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--tab) 16%,var(--panel)),var(--panel) 65%);border:1px solid color-mix(in srgb,var(--tab) 40%,var(--border))}
   .nowcard.focus{box-shadow:0 0 0 2px var(--tab),0 0 24px color-mix(in srgb,var(--tab) 45%,transparent)}
@@ -712,6 +719,7 @@
     <button class="btn2" id="dev-link">🛠 Developer roadmap — what's shipped &amp; what's next</button>
     <div class="tiny"><a href="#" id="reset">change token</a> &nbsp;·&nbsp; <a href="#" id="show-tok">show token</a> &nbsp;·&nbsp; <a href="#" id="ai-reset">reset AI</a></div>
     <div class="tiny"><a href="#" id="blk-setup">⏰ 1-hour heads-ups: set up</a></div>
+    <div class="tiny"><a href="#" id="ask-setup">🤖 Claude in the chat box: set up</a></div>
     <div class="tiny"><a href="#" id="fx-sound">🔊 sounds on</a></div>
     <div class="tiny" id="push-row"><a href="#" id="push-toggle">🔔 turn on reminders</a> <span id="push-test-wrap" hidden>&nbsp;·&nbsp; <a href="#" id="push-test">send a test</a></span> <span id="push-status"></span></div>
     <div id="tok-box" hidden style="gap:6px;align-items:center;padding:0 0 10px">
@@ -865,6 +873,7 @@
       <button id="ai-new">New</button>
       <button id="ai-x">Close</button>
     </div>
+    <div id="ask-mode"></div>
     <div id="ai-log"></div>
     <div id="ai-inrow">
       <textarea id="ai-in" rows="1" placeholder="Ask or tell KevinOS…"></textarea>
@@ -4885,9 +4894,13 @@ async function dpBlockAction(date,start,action,minutes){
     return true;
   }catch(e){alert('Update failed: '+e.message);return false;}
 }
-/* "Tell Claude": the free path for anything the buttons can't express */
+/* "Tell Claude": anything the buttons can't express goes to the Ask routine (Kevin's Claude
+   plan) in the chat sheet; falls back to copy + open Claude if the routine isn't set up */
 async function tellClaude(text){
   const msg=`Schedule change for today (${todayStr()}): ${text}`;
+  if(aiProxyUrl()&&localStorage.getItem('ai_proxy_token')){
+    try{const st=await pushCall('/claude/status');if(st.configured){try{localStorage.setItem('ask_mode','claude');}catch(e){}$('ai-open').click();askKevinOS(msg);return;}}catch(e){}
+  }
   try{await navigator.clipboard.writeText(msg);fx('banner','Copied — paste it to Claude<small>it updates today\'s plan in KevinOS</small>','calm',2200);}catch(e){}
   setTimeout(()=>{window.location.href='https://claude.ai/code';},700);
 }
@@ -5232,10 +5245,94 @@ async function aiShowAgg(){
   if(!text){try{const f=await getFile('data/ai-usage.md');text=f&&f.text;}catch(e){}}
   if(text){const ag=aiAggregates(text);$('ai-agg').innerHTML=`today $${ag.day.toFixed(2)}<br>month $${ag.mon.toFixed(2)}`;}
 }
+/* ==================== ASK CLAUDE (2026-10-01) ====================
+   Kevin: "no way to use my API sub unless I quote it in Claude itself?" — this is the way.
+   The chat box sends ONE message to the "KevinOS Ask" routine (trig_01McGRkzNxs7uhuZ96mTJZcm),
+   a Claude session on his subscription: the app writes inbox/ask/<id>.md, the Worker fires
+   the routine (its token never leaves the Worker), the routine does the work and appends the
+   reply to data/ask-log.md, and the app polls that file for the id. ~1–3 min, no OpenAI
+   cost. The instant per-token assistant stays one toggle away. */
+const askMode=()=>{try{return localStorage.getItem('ask_mode')||'claude';}catch(e){return 'claude';}};
+const askId=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `ask-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}-${Math.random().toString(36).slice(2,6)}`;};
+/* parse the routine's reply block for one id out of data/ask-log.md */
+function askLogFind(text,id){
+  const lines=String(text||'').split(/\r?\n/);
+  const i=lines.findIndex(l=>l.startsWith('## ')&&l.endsWith('· '+id));
+  if(i<0)return null;
+  let claude='',changed='';
+  for(let k=i+1;k<lines.length&&!lines[k].startsWith('## ');k++){
+    const l=lines[k];
+    if(l.startsWith('**Claude:**'))claude=l.slice(11).trim();
+    else if(claude&&!changed&&l.trim()&&!l.startsWith('- changed:')&&!l.startsWith('**'))claude+=' '+l.trim();
+    if(l.startsWith('- changed:'))changed=l.slice(10).trim();
+  }
+  return claude?{claude,changed:/^none$/i.test(changed)?'':changed}:null;
+}
+const askPending=()=>{try{return JSON.parse(localStorage.getItem('ask_pending')||'[]');}catch(e){return [];}};
+const askSetPending=a=>{try{localStorage.setItem('ask_pending',JSON.stringify(a.slice(-10)));}catch(e){}};
+async function askClaude(text){
+  const id=askId();
+  aiMsg('ai-u',esc(text));
+  $('ai-send').disabled=true;$('ai-in').disabled=true;
+  const busy=aiMsg('ai-busy','sending to Claude…');
+  try{
+    // 1. the message itself lives in the repo — nothing is lost if the fire fails
+    await api(`contents/inbox/ask/${id}.md`,{method:'PUT',body:JSON.stringify({message:`ask: ${id}`,content:enc(`[ask via app] ${aiNow()}\n\n${text}\n`)})});
+    // 2. ring the routine
+    const r=await pushCall('/claude/send',{id,text});
+    askSetPending([...askPending(),{id,text:text.slice(0,120),ts:Date.now()}]);
+    aiChip('','SENT TO CLAUDE','working on your Claude plan — usually 1–3 min'+(r.session_url?`. <a href="${esc(r.session_url)}" target="_blank" rel="noopener" style="color:var(--accent)">watch</a>`:''));
+    busy.textContent='Claude is working…';
+    await askAwait(id,busy);
+  }catch(e){
+    busy.remove();
+    aiChip('err','CLAUDE — FAILED',String((e&&e.message)||e));
+  }
+  $('ai-send').disabled=false;$('ai-in').disabled=false;$('ai-in').focus();
+}
+/* poll data/ask-log.md for the reply; keeps polling in the background if the sheet closes */
+async function askAwait(id,busy,maxMs,everyMs){
+  const t0=Date.now(),max=maxMs||6*60*1000,every=everyMs||globalThis.ASK_POLL_MS||12000; // ASK_POLL_MS: test hook
+  while(Date.now()-t0<max){
+    await new Promise(r=>setTimeout(r,every));
+    let f=null;try{f=await getFile('data/ask-log.md');}catch(e){}
+    const hit=f&&!f.stale?askLogFind(f.text,id):null;
+    if(hit){
+      if(busy)busy.remove();
+      askSetPending(askPending().filter(p=>p.id!==id));
+      aiText(hit.claude);
+      if(hit.changed){aiChip('','UPDATED',hit.changed);fx('play','check');fx('haptic');}
+      if(typeof renderers!=='undefined'&&renderers[currentView])runRender(currentView);
+      return true;
+    }
+  }
+  if(busy)busy.textContent='still working — the reply will show up here when it lands';
+  return false;
+}
+/* on opening the sheet: finish any replies that landed while the app was closed */
+async function askResume(){
+  const pend=askPending().filter(p=>Date.now()-p.ts<24*3600e3);
+  if(!pend.length)return;
+  let f=null;try{f=await getFile('data/ask-log.md');}catch(e){return;}
+  for(const p of pend){
+    const hit=f&&askLogFind(f.text,p.id);
+    if(hit){aiChip('','CLAUDE REPLIED',p.text);aiText(hit.claude);if(hit.changed)aiChip('','UPDATED',hit.changed);askSetPending(askPending().filter(x=>x.id!==p.id));}
+    else if(Date.now()-p.ts<15*60e3){const b=aiMsg('ai-busy','Claude is still working on: '+esc(p.text));askAwait(p.id,b);}
+  }
+}
+function askPaintMode(){
+  const m=askMode(),el=$('ask-mode');if(!el)return;
+  el.innerHTML=`<button data-m="claude" class="${m==='claude'?'on':''}">Claude <small>~2 min · plan</small></button><button data-m="ai" class="${m==='ai'?'on':''}">Instant <small>~1¢</small></button>`;
+  $('ai-in').placeholder=m==='claude'?'Tell Claude — changes, plans, questions…':'Ask or tell KevinOS…';
+}
 async function askKevinOS(text){ /* voice later feeds this same entry point */
   text=String(text||'').trim();
   if(!text)return;
   if(!token())return;
+  if(askMode()==='claude'){
+    if(!aiProxyUrl()||!localStorage.getItem('ai_proxy_token')){aiChip('err','SETUP','The Worker URL/token are missing — paste them from the Dump tab (reset AI), then try again.');return;}
+    return askClaude(text);
+  }
   if(!aiProxyUrl()){aiChip('err','SETUP','No AI proxy URL — deploy ops/ai-proxy (DEPLOY.md in the data repo), then tap here again to paste it.');return;}
   if(!aiToken()){aiChip('err','SETUP','No proxy token — send again and paste the token created at deploy.');return;}
   aiMsg('ai-u',esc(text));
@@ -5264,8 +5361,11 @@ $('ai-open').onclick=()=>{
     }else aiHello();
   }
   aiShowAgg();
+  askPaintMode();
+  askResume();
   setTimeout(()=>$('ai-in').focus(),100);
 };
+$('ask-mode').onclick=e=>{const b=e.target.closest('button[data-m]');if(!b)return;try{localStorage.setItem('ask_mode',b.dataset.m);}catch(_){}fx('play','tap');askPaintMode();};
 function aiNavOn(on){
   const ask=document.querySelector('nav button[data-v="ask"]');
   if(!ask)return;
@@ -5406,6 +5506,23 @@ function goView(v){
       const t=prompt('Paste the READ-ONLY GitHub token for 1-hour reminders (fine-grained: KevinOS repo only, Contents: Read-only). Leave empty to turn them off.');
       if(t===null)return;
       try{await pushCall('/push/ghtoken',{token:t.trim()});fx('banner',t.trim()?'1-hour heads-ups are on':'1-hour heads-ups off','calm',1800);paint();}
+      catch(err){alert('Could not save: '+err.message);}
+    };
+    paint();
+  }
+}
+/* the Ask routine's /fire URL + token go to the Worker, never to this phone's storage */
+{
+  const al=$('ask-setup');
+  const paint=async()=>{try{if(!aiProxyUrl()||!localStorage.getItem('ai_proxy_token'))return;const j=await pushCall('/claude/status');al.textContent=j.configured?'🤖 Claude in the chat box: on · change':'🤖 Claude in the chat box: set up';}catch(e){}};
+  if(al){
+    al.onclick=async e=>{
+      e.preventDefault();
+      const u=prompt('Step 1 of 2 — paste the routine\'s API URL (claude.ai/code/routines → KevinOS Ask → Edit → Add trigger → API). Leave empty to turn Claude off.');
+      if(u===null)return;
+      let t='';
+      if(u.trim()){t=prompt('Step 2 of 2 — paste the token you generated there (shown once).');if(t===null)return;}
+      try{await pushCall('/claude/token',{url:u.trim(),token:(t||'').trim()});fx('banner',u.trim()?'Claude is on in the chat box':'Claude off — instant AI only','calm',2000);paint();}
       catch(err){alert('Could not save: '+err.message);}
     };
     paint();
