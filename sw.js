@@ -6,6 +6,7 @@
  *
  *   push              → fetch today's reminders from GitHub and show one
  *                        notification per line
+ *   push after 17:00  → ONE "Plan tomorrow" banner (evening check-in)
  *   notificationclick → focus the app if it is open, else open it
  *
  * The push itself is EMPTY (see ops/ai-proxy/worker.js in the private repo):
@@ -46,6 +47,16 @@ self.addEventListener('push', (e) => {
     const show = (title, body, tag) => self.registration.showNotification(title, {
       body, tag, data: { url: APP }, badge: 'icon-192.png', icon: 'icon-192.png',
     });
+    // EVENING push (8pm cron, 2026-09-30): one banner that opens the check-in.
+    // The push is empty, so the phone's own clock decides which reminder this is.
+    if (new Date().getHours() >= 17) {
+      await self.registration.showNotification('Plan tomorrow', {
+        body: '2 minutes: what got done, one win, and the plan for tomorrow.',
+        tag: 'kevinos-checkin', data: { url: APP + '?checkin=1', checkin: true },
+        badge: 'icon-192.png', icon: 'icon-192.png',
+      });
+      return;
+    }
     let lines = [];
     try {
       const t = await tokenFromIdb();
@@ -72,8 +83,12 @@ self.addEventListener('push', (e) => {
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   e.waitUntil((async () => {
+    const d = e.notification.data || {};
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const c of all) if (c.url.includes(APP) && 'focus' in c) return c.focus();
-    return self.clients.openWindow(APP);
+    for (const c of all) if (c.url.includes(APP) && 'focus' in c) {
+      if (d.checkin) c.postMessage({ checkin: true }); // app already open → start the check-in there
+      return c.focus();
+    }
+    return self.clients.openWindow(d.url || APP);
   })());
 });
