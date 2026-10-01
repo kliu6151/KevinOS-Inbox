@@ -51,7 +51,7 @@ self.addEventListener('push', (e) => {
     // The push is empty, so the phone's own clock decides which reminder this is.
     if (new Date().getHours() >= 17) {
       await self.registration.showNotification('Plan tomorrow', {
-        body: '2 minutes: what got done, one win, and the plan for tomorrow.',
+        body: '2 minutes in Claude: type /checkin in your KevinOS session.',
         tag: 'kevinos-checkin', data: { url: APP + '?checkin=1', checkin: true },
         badge: 'icon-192.png', icon: 'icon-192.png',
       });
@@ -86,7 +86,7 @@ self.addEventListener('notificationclick', (e) => {
     const d = e.notification.data || {};
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const c of all) if (c.url.includes(APP) && 'focus' in c) {
-      if (d.checkin) c.postMessage({ checkin: true }); // app already open → start the check-in there
+      // app already open: just focus it — the Today card offers the Claude /checkin hand-off
       return c.focus();
     }
     return self.clients.openWindow(d.url || APP);

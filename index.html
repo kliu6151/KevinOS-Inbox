@@ -1819,12 +1819,19 @@ async function renderToday(){
   if(new Date().getHours()>=17){
     const tn=await getFile(`daily/${plusDays(1)}.md`).catch(()=>null);
     const done=!!(tn&&tn.text.includes(DP_MARK));
+    // Kevin, 2026-09-30: check-ins run in Claude (his plan) — /checkin in the KevinOS
+    // repo. The button copies the command and opens Claude; the in-app GPT check-in
+    // (billed per token) stays as a small fallback link.
     const b=document.createElement('button');b.className='checkin'+(done?' done':'');
     b.innerHTML=done
-      ?`<span class="ci-i">✓</span><span><b>Tomorrow is planned</b><small>${dpParse(tn.text).filter(x=>x.end).length} blocks · tap to change it</small></span>`
-      :`<span class="ci-i">🌙</span><span><b>Plan tomorrow</b><small>2 minutes · what got done, one win, tomorrow's plan</small></span><span class="ci-go">Start ›</span>`;
-    b.onclick=()=>startCheckin(done);
+      ?`<span class="ci-i">✓</span><span><b>Tomorrow is planned</b><small>${dpParse(tn.text).filter(x=>x.end).length} blocks · to change it, tell Claude in /checkin</small></span>`
+      :`<span class="ci-i">🌙</span><span><b>Plan tomorrow</b><small>2 min in Claude · tap copies <code>/checkin</code></small></span><span class="ci-go">Open Claude ›</span>`;
+    b.onclick=()=>openClaudeCheckin();
     body.appendChild(b);
+    const alt=document.createElement('button');alt.className='more';alt.style.textAlign='center';
+    alt.textContent='or do it here with the KevinOS AI (~5¢)';
+    alt.onclick=()=>startCheckin(done);
+    body.appendChild(alt);
   }
 
   if(!daily){
@@ -5180,12 +5187,19 @@ function startCheckin(replan){
   $('ai-open').click();
   askKevinOS(replan?'Evening check-in — tomorrow is already planned; show it and ask what to change.':'Evening check-in');
 }
+/* the default path: copy "/checkin" and hand off to Claude (claude.ai links open the Claude app) */
+async function openClaudeCheckin(){
+  fx('play','tap');
+  try{await navigator.clipboard.writeText('/checkin');fx('banner','Copied /checkin<small>paste it in your KevinOS Claude session</small>','calm',2200);}catch(e){}
+  setTimeout(()=>{window.location.href='https://claude.ai/code';},700);
+}
 try{
+  // the 8pm banner lands here: show Today (where the check-in card sits) — it never
+  // starts the paid in-app check-in on its own
   if(/[?&]checkin=1\b/.test(location.search)){
     history.replaceState(null,'',location.pathname);
-    setTimeout(()=>{if(localStorage.getItem('gh_token'))startCheckin(false);},400);
+    sessionStorage.setItem('ai_launched','1'); // don't auto-open the assistant over the card
   }
-  if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.checkin)startCheckin(false);});
 }catch(e){}
 $('ai-x').onclick=aiClose;
 $('ai-ov').onclick=e=>{if(e.target.id==='ai-ov')aiClose();};
