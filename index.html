@@ -605,6 +605,44 @@
   .intel .more-body{display:none}
   .intel.open .more-body{display:block;animation:rise .2s}
 
+  /* ---- VISUALS round 2 (2026-09-30): kinds, timeline, quick add, month chart ---- */
+  .kchip{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--text);padding:1px 6px;margin-right:6px;border-radius:5px;background:color-mix(in srgb,var(--k) 28%,transparent);border:1px solid color-mix(in srgb,var(--k) 60%,transparent)}
+  .cal-cell .dots{position:absolute;bottom:5px;display:flex;gap:3px}
+  .cal-cell .dots i{width:5px;height:5px;border-radius:50%}
+  .klegend{display:flex;flex-wrap:wrap;gap:12px;margin:10px 4px 0;font-size:11.5px;color:var(--muted)}
+  .klegend span{display:inline-flex;align-items:center;gap:5px}
+  .klegend i{width:8px;height:8px;border-radius:50%}
+  .tl{margin-top:10px;padding:30px 18px 26px;background:var(--panel);border:1px solid var(--border);border-radius:14px}
+  .tl-rail{position:relative;height:4px;border-radius:2px;background:linear-gradient(90deg,var(--border2),color-mix(in srgb,var(--tab) 40%,var(--border2)),var(--border2))}
+  .tl-tick{position:absolute;top:10px;transform:translateX(-50%);font-family:var(--mono);font-size:9.5px;color:var(--faint)}
+  .tl-tick b{font-weight:600}
+  .tl-now{position:absolute;top:-9px;width:2px;height:22px;margin-left:-1px;border-radius:1px;background:var(--red);box-shadow:0 0 8px var(--red)}
+  .tl-now::after{content:"now";position:absolute;top:24px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:9px;color:var(--red);font-weight:700}
+  .tl-ev{position:absolute;top:-6px;transform:translateX(-50%);background:none;border:none;padding:0;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .tl-ev .tl-d{order:2;width:16px;height:16px;border-radius:50%;background:var(--k);border:3px solid var(--panel);box-shadow:0 0 0 1.5px var(--k),0 0 12px color-mix(in srgb,var(--k) 60%,transparent)}
+  .tl-ev .tl-t{order:1;position:absolute;bottom:20px;white-space:nowrap;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--text)}
+  .tl-ev.r1 .tl-t{bottom:auto;top:20px}
+  .tl-ev.past{opacity:.45}
+  .tl-ev:active{transform:translateX(-50%) scale(.9)}
+  .secn{font-family:var(--mono);color:var(--faint);letter-spacing:.06em;margin-left:4px}
+  .qadd{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 14px;border-bottom:1px solid var(--border)}
+  .qadd .qplus{color:var(--tab);font-size:18px;font-weight:700}
+  .qadd input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--text);font-size:16px;padding:8px 0;color-scheme:dark}
+  .qadd input::placeholder{color:var(--faint)}
+  .qadd button{flex:none;background:var(--tab);color:#1a0d02;border:none;border-radius:9px;padding:8px 14px;font-size:14px;font-weight:800}
+  .qadd button:disabled{opacity:.5}
+  .qlist .qadd:last-child{border-bottom:none}
+  .item.qnew{animation:qin .4s cubic-bezier(.3,1.5,.5,1)}
+  @keyframes qin{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}
+  .mchart{margin-top:10px;padding:12px 12px 6px;border-radius:14px;background:var(--panel);border:1px solid var(--border)}
+  .mc-head{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 4px 4px}
+  .mc-tip{color:var(--text);text-transform:none;letter-spacing:0;font-weight:600;text-align:right}
+  .mchart svg{width:100%;height:auto;display:block}
+  .mc-v{font-family:var(--mono);font-size:10px;font-weight:700;fill:var(--text)}
+  .mc-m{font-family:var(--mono);font-size:9.5px;fill:var(--faint)}
+  .mc-m.cur{fill:#3ecf8e;font-weight:700}
+
   /* motion is a courtesy, never a delay */
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{animation:none!important;transition:none!important}
@@ -1264,6 +1302,36 @@ async function snoozeLine(path,it){
   }catch(e){alert('Snooze failed: '+e.message);return false;}
 }
 
+/* quick add (Today tab, 2026-09-30): one line → a real task due today, under
+   '## Today — quick adds' in data/tasks.md, so it is a normal task everywhere else
+   (Cal, the briefing, archive sweep). Kevin's own action — no ai: prefix. */
+const QUICK_SEC='## Today — quick adds';
+async function quickAddTask(text){
+  const title=String(text||'').replace(/\s*\n\s*/g,' ').replace(/\|/g,'/').trim();
+  if(!title)return false;
+  const line=`- [ ] ${title} | due:${todayStr()} | src:app`;
+  try{
+    const f=await getFile('data/tasks.md');
+    if(!f)throw new Error('tasks.md not found');
+    if(f.stale)throw new Error('offline — reconnect and try again');
+    const lines=f.text.split('\n');
+    let s=lines.findIndex(l=>l.trim()===QUICK_SEC);
+    if(s<0){
+      // first quick add: the section goes right under the file's title block, above the business sections
+      let at=lines.findIndex(l=>l.startsWith('## '));if(at<0)at=lines.length;
+      lines.splice(at,0,QUICK_SEC,line,'');
+    }else{
+      let end=lines.length;for(let j=s+1;j<lines.length;j++)if(lines[j].startsWith('## ')){end=j;break;}
+      let ins=end;while(ins>s+1&&!lines[ins-1].trim())ins--;
+      lines.splice(ins,0,line);
+    }
+    const res=await api('contents/data/tasks.md',{method:'PUT',body:JSON.stringify({
+      message:`task via app: ${title.slice(0,60)}`,sha:f.sha,content:enc(lines.join('\n'))})});
+    try{localStorage.setItem('fc_data/tasks.md',JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
+    return line;
+  }catch(e){alert('Add failed: '+e.message);return false;}
+}
+
 /* ---- parsers ---- */
 function parseChecklist(text){
   const items=[];let section='';
@@ -1282,7 +1350,7 @@ const stripMeta=s=>s.split(' — ')[0].split(' | ')[0].trim();
 const evTitle=b=>b.replace(/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?\s*[—-]?\s*/,'').split(' | ')[0].trim()||stripMeta(b);
 
 function itemHTML(it,file,extra='',title){
-  const t=title||stripMeta(it.body);
+  const t=(title||stripMeta(it.body)).replace(/\*\*/g,''); // plan titles arrive **bold**
   const div=document.createElement('div');
   // red rail = overdue only (a passed due date or an overdue nudge) — priority alone stays neutral
   const late=/⚠|overdue|pri1">due /.test(extra);
@@ -1295,7 +1363,7 @@ function itemHTML(it,file,extra='',title){
       fx('play','check');fx('haptic');fx('burstAt',hit.querySelector('.box'),{n:12});
       toggleLine(file,it.line,div).then(ok=>{if(ok){
         // a finished row settles out of the list; the re-render confirms it
-        if(file!=='data/money.md')setTimeout(()=>div.classList.add('gone'),650);
+        if(file!=='data/money.md'&&!div.closest('.qlist'))setTimeout(()=>div.classList.add('gone'),650); // today's list keeps done rows, struck
         afterToggle(file);offerOutcome(file,ok);
       }});
     };
@@ -1566,6 +1634,34 @@ save.onclick=async()=>{
   save.disabled=false;
 };
 
+/* one rail from ~7a to ~8p: a colored marker per timed event (kind color + time
+   label), stacked onto a second row when two sit close; tap opens the event */
+function dayStrip(evs,h12){
+  const lo=Math.min(7*60,evs[0].min-30),hi=Math.max(20*60,evs[evs.length-1].min+60),span=hi-lo;
+  const pct=m=>Math.max(0,Math.min(100,(m-lo)/span*100));
+  const wrap=document.createElement('div');wrap.className='tl';
+  const now=new Date(),nm=now.getHours()*60+now.getMinutes();
+  let html='<div class="tl-rail">';
+  for(const h of [8,12,16,20])if(h*60>lo&&h*60<hi)html+=`<span class="tl-tick" style="left:${pct(h*60)}%"><b>${h12(String(h).padStart(2,'0')+':00')}</b></span>`;
+  if(nm>lo&&nm<hi)html+=`<span class="tl-now" style="left:${pct(nm)}%"></span>`;
+  html+='</div>';
+  wrap.innerHTML=html;
+  const rail=wrap.firstChild;
+  let lastP=-99,row=0;
+  evs.forEach(e=>{
+    const p=pct(e.min);row=p-lastP<13?1-row:0;lastP=p;
+    const k=EV_KINDS[evKind(e.it.body)];
+    const b=document.createElement('button');
+    b.className='tl-ev'+(e.min+60<nm?' past':'')+(row?' r1':'');
+    b.style.left=p+'%';b.style.setProperty('--k',k.c);
+    b.innerHTML=`<span class="tl-t">${esc(h12(e.hm))}</span><span class="tl-d"></span>`;
+    b.title=`${k.l}: ${evTitle(e.it.body)}`;
+    b.onclick=()=>{fx('play','tap');openSheet(e.it,'data/calendar.md',evTitle(e.it.body));};
+    rail.appendChild(b);
+  });
+  return wrap;
+}
+
 /* ---- TODAY (concept A: progress → top 3 w/ intentions → first move → follow-ups →
         schedule → needs attention (deduped, capped) → intel (folded) → streaks → held → full plan) ---- */
 async function renderToday(){
@@ -1652,6 +1748,11 @@ async function renderToday(){
   body.insertAdjacentHTML('beforeend',`<div id="prog-wrap" class="hero"><div class="ring"></div><div class="hero-r">${nextHTML}<div class="hero-chips"><span class="streak-slot"></span>${lv}</div></div></div>`);
   const hlv=$('hero-lv');if(hlv)hlv.onclick=()=>goView('money');
 
+  // DAY TIMELINE — today's timed commitments on one rail, with a "now" marker
+  const todays=calAll.map(it=>{const m=it.body.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})/);return m&&m[1]===t?{it,min:(+m[2])*60+(+m[3]),hm:m[2]+':'+m[3]}:null;})
+    .filter(Boolean).sort((a,b)=>a.min-b.min);
+  if(todays.length)body.appendChild(dayStrip(todays,h12));
+
   if(!daily){
     body.insertAdjacentHTML('beforeend','<div class="sec">Today\'s Plan</div>');
     const c0=card();body.appendChild(c0);
@@ -1675,6 +1776,31 @@ async function renderToday(){
     if(fmTxt)body.insertAdjacentHTML('beforeend',`<div class="fm"><b>First move:</b> ${fmTxt}</div>`);
   }
   renderProgress();
+
+  /* TODAY'S LIST — quick add + every task due today (Kevin 2026-09-30: "a quick add
+     on tasks for the day"). Done-today rows stay visible, struck, so the list
+     shows progress instead of emptying silently. */
+  const dueToday=tasksAll.filter(it=>meta(it.body,'due')===t&&!isDup(it));
+  const doneToday=tasks?parseChecklist(tasks.text).filter(it=>it.checked&&meta(it.body,'done')===t&&meta(it.body,'due')===t):[];
+  body.insertAdjacentHTML('beforeend',`<div class="sec">Today's list${dueToday.length||doneToday.length?` <span class="secn">${doneToday.length}/${dueToday.length+doneToday.length}</span>`:''}</div>`);
+  const ql=card();ql.classList.add('qlist');body.appendChild(ql);
+  ql.insertAdjacentHTML('beforeend','<form class="qadd"><span class="qplus">＋</span><input type="text" placeholder="Add something for today…" enterkeyhint="done" autocomplete="off" maxlength="140"><button type="submit">Add</button></form>');
+  const qf=ql.querySelector('form'),qi=qf.querySelector('input'),qb=qf.querySelector('button');
+  qf.onsubmit=async e=>{
+    e.preventDefault();
+    const v=qi.value.trim();if(!v){qi.focus();return;}
+    qb.disabled=true;
+    const line=await quickAddTask(v);
+    qb.disabled=false;
+    if(!line)return;
+    qi.value='';
+    fx('play','tap');fx('haptic');
+    const it={line,checked:false,body:line.slice(6),section:'Today — quick adds'};
+    const row=itemHTML(it,'data/tasks.md','');row.classList.add('qnew');
+    qf.after(row);fx('burstAt',row.querySelector('.box'),{n:10,colors:['#ffb020','#ff7a45']});
+  };
+  dueToday.forEach(it=>ql.appendChild(itemHTML(it,'data/tasks.md',stuckBit(it))));
+  doneToday.forEach(it=>ql.appendChild(itemHTML(it,'data/tasks.md','')));
 
   /* Everything else is ONE LINE each until tapped (Kevin 2026-09-30: "not that much text
      to read"). The count and any overdue warning ride on the fold's header. */
@@ -1715,13 +1841,13 @@ async function renderToday(){
     appendCapped(c2,events,it=>{
       const d=(it.body.match(/(\d{4}-\d{2}-\d{2})( \d{2}:\d{2})?/)||[]);
       const label=d[1]===t?`<span class="today-badge">TODAY${d[2]||''}</span>`:d[0];
-      return itemHTML(it,'data/calendar.md',label,evTitle(it.body));
+      return kindRow(itemHTML(it,'data/calendar.md',label,evTitle(it.body)),it);
     },8);
   });
 
   // NEEDS ATTENTION — plan-covered items are hidden entirely (they live in Top 3)
   const dueLoops=loopsAll.filter(it=>!isDup(it)&&(()=>{const n=meta(it.body,'nudge');return n&&n<=t;})());
-  const hotTasks=tasksAll.filter(it=>!isDup(it)&&(()=>{const d=meta(it.body,'due');return (d&&d<=t)||meta(it.body,'pri')==='1';})());
+  const hotTasks=tasksAll.filter(it=>!isDup(it)&&!dueToday.includes(it)&&(()=>{const d=meta(it.body,'due');return (d&&d<=t)||meta(it.body,'pri')==='1';})());
   const hot=[
     ...hotTasks.map(it=>({it,file:'data/tasks.md',info:taskMeta(it)})),
     ...dueLoops.map(it=>({it,file:'data/loops.md',info:dueLoopMeta(it)}))
@@ -1758,7 +1884,7 @@ async function renderToday(){
   }
 
   // held pile — everything open that is NOT due yet (and not covered by the plan), collapsed by default
-  const heldTasks=tasksAll.filter(it=>!hotTasks.includes(it)&&!isDup(it));
+  const heldTasks=tasksAll.filter(it=>!hotTasks.includes(it)&&!isDup(it)&&!dueToday.includes(it));
   const heldLoops=loopsAll.filter(it=>!dueLoops.includes(it)&&!isDup(it));
   if(heldTasks.length||heldLoops.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Held — not lost</div>');
@@ -1802,6 +1928,29 @@ let calMonth=null,calSel=null,calEvs=[],calVirtual={};
 const evDate=it=>(it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];
 const evTime=it=>((it.body.match(/\d{4}-\d{2}-\d{2} (\d{2}:\d{2})/)||[])[1])||'';
 
+/* event kinds — one color per kind across Cal, the Today timeline and the hero.
+   Five slots of a colorblind-validated categorical palette (dataviz validator, dark
+   surface #141619: CVD ΔE ≥ 8.4, contrast ≥ 3:1). Color is never alone: every
+   colored mark sits next to its kind's name. HCP lines are typed by
+   ops/hcp-calendar-sync.js ('Energy audit: …', 'Sales visit: …', 'Job: …'). */
+const EV_KINDS={audit:{c:'#199e70',l:'Audit'},sales:{c:'#d95926',l:'Sales'},job:{c:'#3987e5',l:'Job'},personal:{c:'#d55181',l:'Personal'},other:{c:'#c98500',l:'Other'}};
+function evKind(body){
+  const t=evTitle(body);
+  if(/^Energy audit:/i.test(t))return 'audit';
+  if(/^Sales visit:/i.test(t))return 'sales';
+  if(/^Job:/i.test(t)||/\| hcp:j/.test(body))return 'job';
+  if(/type:\s*personal/i.test(body))return 'personal';
+  return 'other';
+}
+/* paint a calendar row: kind-colored rail + a named chip in front of its meta */
+function kindRow(el,it){
+  const k=EV_KINDS[evKind(it.body)];
+  el.style.borderLeftColor=k.c;
+  let m=el.querySelector('.meta');
+  if(!m){m=document.createElement('div');m.className='meta';const host=el.querySelector('.txt');if(host)host.after(m);}
+  m.insertAdjacentHTML('afterbegin',`<span class="kchip" style="--k:${k.c}">${k.l}</span>`);
+  return el;
+}
 function drawCal(){
   const body=$('cal-body');body.innerHTML='';
   const t=todayStr();
@@ -1828,11 +1977,15 @@ function drawCal(){
     const ds=`${y}-${p(m+1)}-${p(d)}`;
     const cell=document.createElement('button');
     cell.className='cal-cell'+(ds===t?' today':'')+(ds===calSel?' sel':'')+(byDay[ds]&&ds<t?' past-due':'');
-    cell.innerHTML=`${d}${anyDay(ds)?'<span class="dot"></span>':''}`;
+    // up to three dots, one per kind present that day (plan/due items = amber)
+    const kinds=[...new Set((byDay[ds]||[]).map(it=>evKind(it.body)))].slice(0,3);
+    const dots=kinds.map(k=>`<i style="background:${EV_KINDS[k].c}"></i>`).join('')+(!kinds.length&&calVirtual[ds]?'<i style="background:var(--amber)"></i>':'');
+    cell.innerHTML=`${d}${dots?`<span class="dots">${dots}</span>`:''}`;
     cell.onclick=()=>{calSel=ds;drawCal();};
     grid.appendChild(cell);
   }
   body.appendChild(grid);
+  body.insertAdjacentHTML('beforeend',`<div class="klegend">${Object.values(EV_KINDS).map(k=>`<span><i style="background:${k.c}"></i>${k.l}</span>`).join('')}</div>`);
   $('cal-prev').onclick=()=>{calMonth=new Date(y,m-1,1);drawCal();};
   $('cal-next').onclick=()=>{calMonth=new Date(y,m+1,1);drawCal();};
 
@@ -1846,7 +1999,7 @@ function drawCal(){
   items.forEach(it=>{
     let late=calSel<t?'<span class="pri1">past — reschedule or check off</span>':evTime(it);
     const st=stuckBit(it);if(st)late+=(late?' · ':'')+st;
-    c.appendChild(itemHTML(it,'data/calendar.md',late,evTitle(it.body)));
+    c.appendChild(kindRow(itemHTML(it,'data/calendar.md',late,evTitle(it.body)),it));
   });
   virt.forEach(v=>c.appendChild(itemHTML(v.it,v.file,v.label)));
 
@@ -1862,7 +2015,7 @@ function drawCal(){
     const mc=card();body.appendChild(mc);
     appendCapped(mc,missed,it=>{
       const st=stuckBit(it);
-      return itemHTML(it,'data/calendar.md',`<span class="pri1">was ${evDate(it)}</span>`+(st?' · '+st:''),evTitle(it.body));
+      return kindRow(itemHTML(it,'data/calendar.md',`<span class="pri1">was ${evDate(it)}</span>`+(st?' · '+st:''),evTitle(it.body)),it);
     });
   }
 
@@ -1885,7 +2038,7 @@ function drawCal(){
     const shown=r.d===t?`<span class="today-badge">TODAY</span>${r.time?' '+r.time:''}`:label;
     return {...r,label:r.meta?shown+(shown?' · ':'')+r.meta:shown};
   });
-  appendCapped(uc,rows,r=>itemHTML(r.it,r.file,r.label,r.title||undefined),8);
+  appendCapped(uc,rows,r=>{const el=itemHTML(r.it,r.file,r.label,r.title||undefined);return r.file==='data/calendar.md'?kindRow(el,r.it):el;},8);
 }
 
 async function renderCal(){
@@ -2083,6 +2236,7 @@ function moneyHero(body,sb){
     el.querySelector('.lvl-fill').style.width=pct+'%';
     el.querySelector('.mbar .f').style.width=fillPct+'%';
   }));
+  if(m.history&&m.history.length)body.appendChild(monthChart(m));
   const wUp=(w.installed||0)>=((w.prev&&w.prev.installed)||0);
   const tiles=document.createElement('div');tiles.className='tiles';
   tiles.innerHTML=`
@@ -2095,6 +2249,41 @@ function moneyHero(body,sb){
   // celebrate on the network pass only: the cache pass is repainted a moment later,
   // which would cut the count-up off mid-animation
   if(!cacheOnly)moneyMoment(el,m);
+}
+/* month-by-month installed revenue: one series, one hue. Closed months from the
+   month-close snapshots; this month solid (installed) + hatched (already booked).
+   Direct labels only on this month and the best month; tap any bar for its value. */
+function monthChart(m){
+  const bars=[...m.history.map(h=>({ym:h.ym,v:h.gross,ahead:0})),{ym:m.ym,v:m.installed||0,ahead:m.scheduledAhead||0,cur:true}];
+  const max=Math.max(...bars.map(b=>b.v+b.ahead),1);
+  const bestV=Math.max(...m.history.map(h=>h.gross));
+  const W=320,H=128,top=18,base=H-20,n=bars.length,gap=10,bw=Math.min(46,(W-gap*(n+1))/n);
+  const x0=(W-(n*bw+(n-1)*gap))/2;
+  const y=v=>base-(v/max)*(base-top);
+  const mon=ym=>new Date(ym+'-15T12:00').toLocaleDateString(undefined,{month:'short'});
+  // a bar whose data end is 4px-rounded and whose base sits square on the baseline
+  const bar=(x,y1,y2,fill,extra)=>{const h=Math.max(0,y2-y1);if(h<1)return '';const r=Math.min(4,h,bw/2);
+    return `<path d="M${x},${y2}V${y1+r}Q${x},${y1} ${x+r},${y1}H${x+bw-r}Q${x+bw},${y1} ${x+bw},${y1+r}V${y2}Z" fill="${fill}" ${extra||''}/>`;};
+  let svg=`<defs><pattern id="mc-h" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="rgba(62,207,142,.12)"/><rect width="2.5" height="6" fill="rgba(62,207,142,.45)"/></pattern></defs>`;
+  svg+=`<line x1="0" x2="${W}" y1="${base+.5}" y2="${base+.5}" stroke="var(--border2)"/>`;
+  bars.forEach((b,i)=>{
+    const x=x0+i*(bw+gap),yv=y(b.v),ya=y(b.v+b.ahead);
+    const fill=b.cur?'#3ecf8e':'rgba(62,207,142,.45)';
+    if(b.ahead)svg+=bar(x,ya,yv-2,'url(#mc-h)'); // 2px surface gap between booked-ahead and installed
+    svg+=bar(x,yv,base,fill,`data-i="${i}"`);
+    svg+=`<rect x="${x-gap/2}" y="0" width="${bw+gap}" height="${H}" fill="transparent" data-i="${i}" style="cursor:pointer"/>`;
+    const lab=b.cur||(b.v===bestV);
+    if(lab)svg+=`<text x="${x+bw/2}" y="${(b.ahead?ya:yv)-5}" text-anchor="middle" class="mc-v">${compactAmt(b.v)}${!b.cur&&b.v===bestV?' ★':''}</text>`;
+    svg+=`<text x="${x+bw/2}" y="${H-5}" text-anchor="middle" class="mc-m${b.cur?' cur':''}">${mon(b.ym)}</text>`;
+  });
+  const el=document.createElement('div');el.className='mchart';
+  el.innerHTML=`<div class="mc-head"><span>Installed by month</span><span class="mc-tip" id="mc-tip">tap a bar</span></div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Installed revenue by month">${svg}</svg>`;
+  el.querySelector('svg').addEventListener('click',e=>{
+    const i=e.target.getAttribute&&e.target.getAttribute('data-i');if(i===null||i===undefined)return;
+    const b=bars[+i];fx('play','tap');
+    el.querySelector('#mc-tip').textContent=`${new Date(b.ym+'-15T12:00').toLocaleDateString(undefined,{month:'long',year:'numeric'})}: ${fmtUSD(b.v)}${b.ahead?' + '+fmtK(b.ahead)+' booked':''}`;
+  });
+  return el;
 }
 /* the reward loop: compare with what THIS phone saw last time and celebrate the delta */
 function moneyMoment(el,m){
