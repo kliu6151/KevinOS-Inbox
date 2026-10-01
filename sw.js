@@ -6,7 +6,7 @@
  *
  *   push              → fetch today's reminders from GitHub and show one
  *                        notification per line
- *   push after 17:00  → ONE "Plan tomorrow" banner (evening check-in)
+ *   push              → see the handler: 9am reminders, 8pm check-in, 1-hour block heads-ups
  *   notificationclick → focus the app if it is open, else open it
  *
  * The push itself is EMPTY (see ops/ai-proxy/worker.js in the private repo):
@@ -42,41 +42,79 @@ function tokenFromIdb() {
   });
 }
 
+/* One empty push every time the Worker's 5-minute cron has a reason (2026-10-01):
+ * 09:00 → the day's reminders · 20:00 → "Plan tomorrow" · any block of today's plan
+ * starting in ~1 hour → "In 1 hr · …". The push carries nothing, so this handler works
+ * out which of those apply from the phone's clock and today's plan (same rule as
+ * todaysBlocks() in ops/ai-proxy/worker.js — keep the two in step). */
+const GH = 'https://api.github.com/repos/kliu6151/KevinOS/contents/';
+const pad = (n) => String(n).padStart(2, '0');
+const h12 = (hm) => { let [h, m] = hm.split(':').map(Number); const ap = h >= 12 ? 'p' : 'a'; h = h % 12 || 12; return h + (m ? ':' + pad(m) : '') + ap; };
+async function ghText(t, path) {
+  const r = await fetch(GH + path + '?ref=main', { headers: { 'Authorization': 'Bearer ' + t, 'Accept': 'application/vnd.github.raw+json' }, cache: 'no-store' });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('GitHub ' + r.status);
+  return r.text();
+}
+function planBlocks(note, cal, ymd) {
+  const out = [];
+  let inPlan = false;
+  for (const l of (note || '').split(/\r?\n/)) {
+    if (/^## /.test(l)) { inPlan = /^## Day plan\b/i.test(l); continue; }
+    if (!inPlan) continue;
+    const m = l.match(/^- (\d{2}):(\d{2})[–-](\d{2}:\d{2}) — (.+)$/);
+    if (!m) continue;
+    const kind = (m[4].match(/kind:(\w+)/) || [])[1] || 'task';
+    if (/^(buffer|break)$/.test(kind) || /status:(done|skipped)/.test(m[4])) continue;
+    out.push({ start: m[1] + ':' + m[2], min: (+m[1]) * 60 + (+m[2]), title: m[4].split(' | ')[0].replace(/^📌\s*/, '').trim() });
+  }
+  if (!out.length) for (const l of (cal || '').split(/\r?\n/)) {
+    const m = l.match(/^- \[ \] (\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})\s*[—-]\s*(.+)$/);
+    if (m && m[1] === ymd) out.push({ start: m[2] + ':' + m[3], min: (+m[2]) * 60 + (+m[3]), title: m[4].split(' | ')[0].trim() });
+  }
+  return out;
+}
+
 self.addEventListener('push', (e) => {
   e.waitUntil((async () => {
-    const show = (title, body, tag) => self.registration.showNotification(title, {
-      body, tag, data: { url: APP }, badge: 'icon-192.png', icon: 'icon-192.png',
+    const note = (title, body, tag, data) => self.registration.showNotification(title, {
+      body, tag, data: Object.assign({ url: APP }, data || {}), badge: 'icon-192.png', icon: 'icon-192.png',
     });
-    // EVENING push (8pm cron, 2026-09-30): one banner that opens the check-in.
-    // The push is empty, so the phone's own clock decides which reminder this is.
-    if (new Date().getHours() >= 17) {
-      await self.registration.showNotification('Plan tomorrow', {
-        body: '2 minutes in Claude: type /checkin in your KevinOS session.',
-        tag: 'kevinos-checkin', data: { url: APP + '?checkin=1', checkin: true },
-        badge: 'icon-192.png', icon: 'icon-192.png',
-      });
-      return;
-    }
-    let lines = [];
+    const now = new Date(), h = now.getHours(), mnow = h * 60 + now.getMinutes();
+    const ymd = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+    let shown = 0;
     try {
       const t = await tokenFromIdb();
       if (!t) throw new Error('no token on phone — open KevinOS once');
-      const r = await fetch(REM_URL, {
-        headers: { 'Authorization': 'Bearer ' + t, 'Accept': 'application/vnd.github.raw+json' },
-        cache: 'no-store',
-      });
-      if (!r.ok) throw new Error('GitHub ' + r.status);
-      lines = (await r.text()).split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      // 1-hour heads-up for blocks starting 40–80 min from now (the cron rings at start−60)
+      const [plan, cal] = await Promise.all([ghText(t, 'daily/' + ymd + '.md'), ghText(t, 'data/calendar.md')]);
+      for (const b of planBlocks(plan, cal, ymd)) {
+        const d = b.min - mnow;
+        if (d < 40 || d > 80) continue;
+        await note('In 1 hr · ' + h12(b.start), b.title + ' — tap to update', 'kevinos-blk-' + ymd + '-' + b.start, { url: APP + '?block=' + b.start });
+        shown++;
+      }
+      if (h === 20 && now.getMinutes() < 15) {
+        await note('Plan tomorrow', '2 minutes in Claude: type /checkin in your KevinOS session.', 'kevinos-checkin', { url: APP + '?checkin=1', checkin: true });
+        shown++;
+      }
+      if (h === 9 && now.getMinutes() < 15) {
+        const raw = await ghText(t, 'data/reminders-today.txt');
+        const lines = (raw || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+        if (!lines.length) { await note('KevinOS', 'Nothing due today.', 'kevinos-empty'); shown++; }
+        for (let i = 0; i < lines.length; i++) {
+          const m = /^(Top 3|Follow-up):\s*(.*)$/.exec(lines[i]);
+          // a distinct tag per line, or iOS collapses them into one
+          await note(m ? m[1] : 'Today', m ? m[2] : lines[i], 'kevinos-' + i);
+          shown++;
+        }
+      }
     } catch (err) {
-      await show('KevinOS', 'Open for today\'s plan (' + (err && err.message || err) + ')', 'kevinos-fallback');
+      await note('KevinOS', 'Open for today\'s plan (' + (err && err.message || err) + ')', 'kevinos-fallback');
       return;
     }
-    if (!lines.length) { await show('KevinOS', 'Nothing due today.', 'kevinos-empty'); return; }
-    for (let i = 0; i < lines.length; i++) {
-      const m = /^(Top 3|Follow-up):\s*(.*)$/.exec(lines[i]);
-      // a distinct tag per line, or iOS collapses them into one
-      await show(m ? m[1] : 'Today', m ? m[2] : lines[i], 'kevinos-' + i);
-    }
+    // iOS revokes subscriptions whose pushes show nothing — always show something
+    if (!shown) await note('KevinOS', 'Open for today\'s plan.', 'kevinos-fallback');
   })());
 });
 
@@ -86,7 +124,9 @@ self.addEventListener('notificationclick', (e) => {
     const d = e.notification.data || {};
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const c of all) if (c.url.includes(APP) && 'focus' in c) {
-      // app already open: just focus it — the Today card offers the Claude /checkin hand-off
+      // app already open: focus it; a block push also points Today at that block's card
+      const bm = (d.url || '').match(/[?&]block=(\d{2}:\d{2})/);
+      if (bm) c.postMessage({ block: bm[1] });
       return c.focus();
     }
     return self.clients.openWindow(d.url || APP);

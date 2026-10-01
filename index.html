@@ -679,6 +679,21 @@
   .ai-plan .pn em{display:block;font-style:normal;font-family:var(--mono);font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
   .ai-plan .pf{margin-top:8px;font-size:13.5px;color:var(--muted)}
 
+  /* NOW / NEXT block card (2026-10-01) — where a 1-hour push lands */
+  .nowcard{margin-top:10px;padding:14px 16px;border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--tab) 16%,var(--panel)),var(--panel) 65%);border:1px solid color-mix(in srgb,var(--tab) 40%,var(--border))}
+  .nowcard.focus{box-shadow:0 0 0 2px var(--tab),0 0 24px color-mix(in srgb,var(--tab) 45%,transparent)}
+  .nowcard .nk{font-family:var(--mono);font-size:10.5px;font-weight:800;letter-spacing:.14em;color:var(--tab)}
+  .nowcard .nt{font-size:18px;font-weight:800;margin-top:4px;line-height:1.3}
+  .nowcard .nb{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:12px}
+  .nowcard .nb button{padding:10px 4px;border-radius:10px;border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px;font-weight:700}
+  .nowcard .nb button[data-a="done"]{background:var(--green);border-color:var(--green);color:#04140c}
+  .nowcard .ntell{display:flex;gap:8px;margin-top:10px}
+  .nowcard .ntell[hidden]{display:none}
+  .nowcard .ntell input{flex:1;min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--border2);border-radius:10px;padding:10px 12px;font-size:16px;outline:none;color-scheme:dark}
+  .nowcard .ntell button{flex:none;background:#a78bfa;color:#1a1033;border:none;border-radius:10px;padding:0 14px;font-weight:800}
+  .tl-b.st-done{opacity:.9;background:var(--green)}
+  .tl-b.st-skipped{opacity:.25;background:repeating-linear-gradient(45deg,var(--muted) 0 3px,transparent 3px 6px)}
+
   /* motion is a courtesy, never a delay */
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{animation:none!important;transition:none!important}
@@ -696,6 +711,7 @@
     <div id="status"></div>
     <button class="btn2" id="dev-link">🛠 Developer roadmap — what's shipped &amp; what's next</button>
     <div class="tiny"><a href="#" id="reset">change token</a> &nbsp;·&nbsp; <a href="#" id="show-tok">show token</a> &nbsp;·&nbsp; <a href="#" id="ai-reset">reset AI</a></div>
+    <div class="tiny"><a href="#" id="blk-setup">⏰ 1-hour heads-ups: set up</a></div>
     <div class="tiny"><a href="#" id="fx-sound">🔊 sounds on</a></div>
     <div class="tiny" id="push-row"><a href="#" id="push-toggle">🔔 turn on reminders</a> <span id="push-test-wrap" hidden>&nbsp;·&nbsp; <a href="#" id="push-test">send a test</a></span> <span id="push-status"></span></div>
     <div id="tok-box" hidden style="gap:6px;align-items:center;padding:0 0 10px">
@@ -1684,7 +1700,8 @@ function dayStrip(evs,h12,blocks,planned){
   const wrap=document.createElement('div');wrap.className='tl';
   const left=evs.filter(e=>!e.done&&e.min+60>=nm).length,fin=evs.filter(e=>e.done).length;
   // with a plan, the header says what you should be doing NOW (or what's next)
-  const cur=blocks.find(b=>dpMin(b.start)<=nm&&nm<dpMin(b.end)),nxt=blocks.find(b=>dpMin(b.start)>nm);
+  const live=blocks.filter(b=>!b.status);
+  const cur=live.find(b=>dpMin(b.start)<=nm&&nm<dpMin(b.end)),nxt=live.find(b=>dpMin(b.start)>nm);
   const head=cur?`NOW · ${esc(cur.title.replace(/^📌\s*/,''))} <i>until ${h12(cur.end)}</i>`:nxt?`NEXT · ${h12(nxt.start)} ${esc(nxt.title.replace(/^📌\s*/,''))}`:'TODAY';
   const right=planned?'planned last night ✓':`${fin?fin+' done ✓'+(left?' · ':''):''}${left?`${left} still ahead`:(fin?'':'nothing left today')}`;
   wrap.insertAdjacentHTML('beforeend',`<div class="tl-h"><span class="tl-now-l">${head}</span><span>${right}</span></div>`);
@@ -1693,7 +1710,7 @@ function dayStrip(evs,h12,blocks,planned){
     for(const b of blocks){
       const c=b.kind==='appointment'?(EV_KINDS[evKind(b.title.replace(/^📌\s*/,''))]||EV_KINDS.other).c:(DP_COLORS[b.kind]||DP_COLORS.task);
       const l=pct(dpMin(b.start)),w=Math.max(1.2,pct(dpMin(b.end))-l);
-      bars+=`<span class="tl-b${b===cur?' on':''}${dpMin(b.end)<=nm?' past':''}" style="left:${l}%;width:${w}%;--k:${c}" title="${esc(b.start+'–'+b.end+' '+b.title)}"></span>`;
+      bars+=`<span class="tl-b${b===cur?' on':''}${b.status?' st-'+b.status:dpMin(b.end)<=nm?' past':''}" style="left:${l}%;width:${w}%;--k:${c}" title="${esc(b.start+'–'+b.end+' '+b.title)}"></span>`;
     }
     wrap.insertAdjacentHTML('beforeend',bars+'</div>');
   }
@@ -1813,7 +1830,40 @@ async function renderToday(){
     .filter(Boolean).sort((a,b)=>a.min-b.min);
   const dayBlocks=daily?dpParse(daily.text).filter(b=>b.end):[];
   const plannedByKevin=!!(daily&&daily.text.includes(DP_MARK));
-  if(todays.length||dayBlocks.length)body.appendChild(dayStrip(todays,h12,dayBlocks,plannedByKevin));
+  // with a plan, its bars already show the day — only events OUTSIDE every block keep a dot
+  // …and items Kevin chose to skip at the check-in ('- Not in plan: HH:MM …') stay off the rail
+  const skippedAt=new Set(daily?[...daily.text.matchAll(/^- Not in plan: (\d{2}:\d{2})/gm)].map(m=>m[1]):[]);
+  const looseEvents=dayBlocks.length?todays.filter(e=>!skippedAt.has(e.hm)&&!dayBlocks.some(b=>dpMin(b.start)<=e.min&&e.min<dpMin(b.end))):todays;
+  if(looseEvents.length||dayBlocks.length)body.appendChild(dayStrip(looseEvents,h12,dayBlocks,plannedByKevin));
+
+  /* NOW / NEXT block card — where a 1-hour push lands. Done / late / skip are plain
+     writes (no AI); anything else → "Tell Claude" (copies the change, opens Claude). */
+  {
+    const nowM=new Date().getHours()*60+new Date().getMinutes();
+    const actionable=dayBlocks.filter(b=>!b.status&&!/^(buffer|break)$/.test(b.kind));
+    const focus=blockFocus&&actionable.find(b=>b.start===blockFocus);
+    const blk=focus||actionable.find(b=>dpMin(b.start)<=nowM&&nowM<dpMin(b.end))||actionable.find(b=>dpMin(b.start)>nowM);
+    if(blk){
+      const isNow=dpMin(blk.start)<=nowM&&nowM<dpMin(blk.end);
+      const inMin=dpMin(blk.start)-nowM;
+      const when=isNow?`NOW · until ${h12(blk.end)}`:inMin<=90?`IN ${inMin} MIN · ${h12(blk.start)}`:`NEXT · ${h12(blk.start)}–${h12(blk.end)}`;
+      const nc=document.createElement('div');nc.className='nowcard'+(focus?' focus':'');
+      nc.innerHTML=`<div class="nk">${esc(when)}</div><div class="nt">${esc(blk.title.replace(/^📌\s*/,''))}</div>
+        <div class="nb"><button data-a="done">✓ Done</button><button data-a="late">+15 late</button><button data-a="skipped">Skip</button><button data-a="tell">Tell Claude</button></div>
+        <form class="ntell" hidden><input type="text" placeholder="e.g. boat moved to Friday, add a Home Depot stop" autocomplete="off"><button type="submit">Send</button></form>`;
+      nc.querySelectorAll('.nb button').forEach(b=>b.onclick=async()=>{
+        const a=b.dataset.a;
+        if(a==='tell'){const f=nc.querySelector('.ntell');f.hidden=false;f.querySelector('input').focus();return;}
+        b.disabled=true;fx('play',a==='done'?'check':'tap');fx('haptic');
+        const ok=await dpBlockAction(t,blk.start,a,15);
+        b.disabled=false;
+        if(ok){if(a==='done')fx('burstAt',b,{n:18});fx('banner',a==='late'?'Pushed back 15 min':a==='done'?'Done ✓':'Skipped','calm',1400);blockFocus=null;runRender('today');}
+      });
+      nc.querySelector('.ntell').onsubmit=e=>{e.preventDefault();const v=nc.querySelector('.ntell input').value.trim();if(v)tellClaude(`${blk.start} "${blk.title}" — ${v}`);};
+      body.appendChild(nc);
+      if(focus)setTimeout(()=>nc.scrollIntoView({behavior:'smooth',block:'center'}),300);
+    }
+  }
 
   // EVENING: the check-in card (from 5pm) — plan tomorrow + journal, ~2 minutes
   if(new Date().getHours()>=17){
@@ -4683,7 +4733,7 @@ function dpParse(text){
   for(const raw of sec.lines){
     const l=raw.replace(/\r$/,'');
     let m=l.match(/^- (\d{2}:\d{2})[–-](\d{2}:\d{2}) — (.+)$/);
-    if(m){const kind=meta(m[3],'kind')||'task';out.push({start:m[1],end:m[2],title:m[3].split(' | ')[0].trim(),kind,line:l});continue;}
+    if(m){const kind=meta(m[3],'kind')||'task';out.push({start:m[1],end:m[2],title:m[3].split(' | ')[0].trim(),kind,status:meta(m[3],'status')||'',line:l});continue;}
     m=l.match(/^- (?:\[[ x]\] )?(?:📌\s*)?(\d{1,2})(?::(\d{2}))?\s*([ap])m?\b\s*[—-]\s*(.+)$/i);
     if(m){let h=+m[1]%12;if(m[3].toLowerCase()==='p')h+=12;const st=String(h).padStart(2,'0')+':'+(m[2]||'00');
       out.push({start:st,end:null,title:m[4].replace(/\*\*/g,'').trim(),kind:/📌/.test(l)?'appointment':'task',line:l});}
@@ -4799,6 +4849,49 @@ function aiRenderPlan(plan){
   };
   d.querySelector('#ai-editp').onclick=()=>{$('ai-in').focus();$('ai-in').placeholder='e.g. move the supply run to 2pm';};
 }
+/* block actions from the Today card (2026-10-01) — Kevin's own taps, no AI:
+   done / skipped → ' | status:x' on the block line; late → this block and every later
+   one shift by N minutes (lengths kept). The 1-hour push reads the same lines, so a
+   done/skipped block stops pinging and a shifted one pings at its new time. */
+let blockFocus=null; // HH:MM of the block a tapped push points at
+async function dpBlockAction(date,start,action,minutes){
+  const path=`daily/${date}.md`;
+  try{
+    const f=await getFile(path);
+    if(!f)throw new Error('no plan for '+date);
+    if(f.stale)throw new Error('offline — reconnect and try again');
+    const lines=f.text.split('\n');
+    const s=lines.findIndex(l=>/^## Day plan\b/i.test(l));
+    if(s<0)throw new Error('no Day plan section');
+    let e=lines.length;for(let j=s+1;j<lines.length;j++)if(lines[j].startsWith('## ')){e=j;break;}
+    const fmt=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+    let hit=false;
+    for(let j=s+1;j<e;j++){
+      const m=lines[j].match(/^- (\d{2}:\d{2})[–-](\d{2}:\d{2}) — (.+)$/);
+      if(!m)continue;
+      if(action==='late'){
+        if(dpMin(m[1])<dpMin(start)||/status:(done|skipped)/.test(m[3]))continue;
+        const ns=dpMin(m[1])+minutes,ne=dpMin(m[2])+minutes;
+        if(ne>=24*60)continue;
+        lines[j]=`- ${fmt(ns)}–${fmt(ne)} — ${m[3]}`;hit=true;
+      }else if(m[1]===start){
+        lines[j]=lines[j].replace(/\s*\|\s*status:[^|]*/,'').replace(/\s+$/,'')+` | status:${action}`;hit=true;
+      }
+    }
+    if(!hit)throw new Error('block not found — pull down to refresh');
+    const msg=action==='late'?`plan via app: running ${minutes} min late from ${start}`:`plan via app: ${start} ${action}`;
+    const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({message:msg,sha:f.sha,content:enc(lines.join('\n'))})});
+    try{localStorage.setItem('fc_'+path,JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
+    return true;
+  }catch(e){alert('Update failed: '+e.message);return false;}
+}
+/* "Tell Claude": the free path for anything the buttons can't express */
+async function tellClaude(text){
+  const msg=`Schedule change for today (${todayStr()}): ${text}`;
+  try{await navigator.clipboard.writeText(msg);fx('banner','Copied — paste it to Claude<small>it updates today\'s plan in KevinOS</small>','calm',2200);}catch(e){}
+  setTimeout(()=>{window.location.href='https://claude.ai/code';},700);
+}
+
 /* nightly journal → today's note '## Journal' (same 3 lines /recap writes) */
 async function aiWriteJournal(a={}){
   const date=aiDate(a.date)?a.date:todayStr();
@@ -5194,6 +5287,10 @@ async function openClaudeCheckin(){
   setTimeout(()=>{window.location.href='https://claude.ai/code';},700);
 }
 try{
+  // a 1-hour block push lands on ?block=HH:MM — Today opens with that block's card focused
+  const bm=location.search.match(/[?&]block=(\d{2}:\d{2})/);
+  if(bm){blockFocus=bm[1];history.replaceState(null,'',location.pathname);sessionStorage.setItem('ai_launched','1');}
+  if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.block){blockFocus=e.data.block;if(!$('ai-ov').hidden)aiClose();goView('today');}});
   // the 8pm banner lands here: show Today (where the check-in card sits) — it never
   // starts the paid in-app check-in on its own
   if(/[?&]checkin=1\b/.test(location.search)){
@@ -5297,6 +5394,22 @@ function goView(v){
   const el=$('v-'+v); if(el)el.classList.add('active',dir);
   runRender(v);
   window.scrollTo(0,0);
+}
+/* per-block reminders need a READ-ONLY GitHub token on the Worker (ops/specs/evening-checkin.md) */
+{
+  const bl=$('blk-setup');
+  // status check is silent: aiToken() would PROMPT when unset — read storage directly
+  const paint=async()=>{try{if(!aiProxyUrl()||!localStorage.getItem('ai_proxy_token'))return;const j=await pushCall('/push/blocks');bl.textContent=j.configured?`⏰ 1-hour heads-ups: on (${(j.blocks||[]).length} today) · change token`:'⏰ 1-hour heads-ups: set up';}catch(e){}};
+  if(bl){
+    bl.onclick=async e=>{
+      e.preventDefault();
+      const t=prompt('Paste the READ-ONLY GitHub token for 1-hour reminders (fine-grained: KevinOS repo only, Contents: Read-only). Leave empty to turn them off.');
+      if(t===null)return;
+      try{await pushCall('/push/ghtoken',{token:t.trim()});fx('banner',t.trim()?'1-hour heads-ups are on':'1-hour heads-ups off','calm',1800);paint();}
+      catch(err){alert('Could not save: '+err.message);}
+    };
+    paint();
+  }
 }
 const TAB_ORDER=['dump','dev','today','cal','money','peak','brief','edu'];
 document.body.dataset.tab=currentView;
