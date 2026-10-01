@@ -613,17 +613,25 @@
   .klegend{display:flex;flex-wrap:wrap;gap:12px;margin:10px 4px 0;font-size:11.5px;color:var(--muted)}
   .klegend span{display:inline-flex;align-items:center;gap:5px}
   .klegend i{width:8px;height:8px;border-radius:50%}
-  .tl{margin-top:10px;padding:30px 18px 26px;background:var(--panel);border:1px solid var(--border);border-radius:14px}
+  .tl-h{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--muted);margin:-18px -4px 26px}
+  .tl-t i{font-style:normal;font-weight:500;color:var(--muted)}
+  .tl{margin-top:10px;padding:30px 18px 46px;background:var(--panel);border:1px solid var(--border);border-radius:14px}
   .tl-rail{position:relative;height:4px;border-radius:2px;background:linear-gradient(90deg,var(--border2),color-mix(in srgb,var(--tab) 40%,var(--border2)),var(--border2))}
-  .tl-tick{position:absolute;top:10px;transform:translateX(-50%);font-family:var(--mono);font-size:9.5px;color:var(--faint)}
+  .tl-tick{position:absolute;top:30px;transform:translateX(-50%);font-family:var(--mono);font-size:9.5px;color:var(--faint)}
   .tl-tick b{font-weight:600}
   .tl-now{position:absolute;top:-9px;width:2px;height:22px;margin-left:-1px;border-radius:1px;background:var(--red);box-shadow:0 0 8px var(--red)}
-  .tl-now::after{content:"now";position:absolute;top:24px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:9px;color:var(--red);font-weight:700}
+  .tl-now::after{content:"now";position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:9px;color:var(--red);font-weight:700}
   .tl-ev{position:absolute;top:-6px;transform:translateX(-50%);background:none;border:none;padding:0;display:flex;flex-direction:column;align-items:center;gap:3px}
   .tl-ev .tl-d{order:2;width:16px;height:16px;border-radius:50%;background:var(--k);border:3px solid var(--panel);box-shadow:0 0 0 1.5px var(--k),0 0 12px color-mix(in srgb,var(--k) 60%,transparent)}
   .tl-ev .tl-t{order:1;position:absolute;bottom:20px;white-space:nowrap;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--text)}
   .tl-ev.r1 .tl-t{bottom:auto;top:20px}
+  .tl-ev .tl-t{left:50%;transform:translateX(-50%)}
+  .tl-ev.er .tl-t{left:auto;right:-6px;transform:none}
+  .tl-ev.el .tl-t{left:-6px;transform:none}
   .tl-ev.past{opacity:.45}
+  .tl-ev.done .tl-d{background:var(--green);box-shadow:0 0 0 1.5px var(--green),0 0 10px rgba(62,207,142,.5)}
+  .tl-ev.done .tl-d::after{content:"✓";display:block;font-size:9px;line-height:10px;text-align:center;color:#04140c;font-weight:900}
+  .tl-ev.done .tl-t{color:var(--green)}
   .tl-ev:active{transform:translateX(-50%) scale(.9)}
   .secn{font-family:var(--mono);color:var(--faint);letter-spacing:.06em;margin-left:4px}
   .qadd{display:flex;align-items:center;gap:8px;padding:8px 10px 8px 14px;border-bottom:1px solid var(--border)}
@@ -1637,26 +1645,33 @@ save.onclick=async()=>{
 /* one rail from ~7a to ~8p: a colored marker per timed event (kind color + time
    label), stacked onto a second row when two sit close; tap opens the event */
 function dayStrip(evs,h12){
-  const lo=Math.min(7*60,evs[0].min-30),hi=Math.max(20*60,evs[evs.length-1].min+60),span=hi-lo;
+  const now=new Date(),nm=now.getHours()*60+now.getMinutes();
+  // the rail always contains "now" — at 10pm a 7a–8p rail dropped the marker and left a lone
+  // event dot that read as the current time (Kevin, 2026-09-30: "why does it say 5 pm?")
+  const lo=Math.min(7*60,evs[0].min-30,nm-30),hi=Math.max(20*60,evs[evs.length-1].min+60,nm+30),span=hi-lo;
   const pct=m=>Math.max(0,Math.min(100,(m-lo)/span*100));
   const wrap=document.createElement('div');wrap.className='tl';
-  const now=new Date(),nm=now.getHours()*60+now.getMinutes();
+  const left=evs.filter(e=>!e.done&&e.min+60>=nm).length,fin=evs.filter(e=>e.done).length;
+  wrap.insertAdjacentHTML('beforeend',`<div class="tl-h"><span>TODAY</span><span>${fin?fin+' done ✓'+(left?' · ':''):''}${left?`${left} still ahead`:(fin?'':'nothing left today')}</span></div>`);
   let html='<div class="tl-rail">';
   for(const h of [8,12,16,20])if(h*60>lo&&h*60<hi)html+=`<span class="tl-tick" style="left:${pct(h*60)}%"><b>${h12(String(h).padStart(2,'0')+':00')}</b></span>`;
-  if(nm>lo&&nm<hi)html+=`<span class="tl-now" style="left:${pct(nm)}%"></span>`;
+  html+=`<span class="tl-now" style="left:${pct(nm)}%"></span>`;
   html+='</div>';
-  wrap.innerHTML=html;
-  const rail=wrap.firstChild;
+  wrap.insertAdjacentHTML('beforeend',html);
+  const rail=wrap.querySelector('.tl-rail');
   let lastP=-99,row=0;
   evs.forEach(e=>{
     const p=pct(e.min);row=p-lastP<13?1-row:0;lastP=p;
     const k=EV_KINDS[evKind(e.it.body)];
     const b=document.createElement('button');
-    b.className='tl-ev'+(e.min+60<nm?' past':'')+(row?' r1':'');
+    b.className='tl-ev'+(e.done?' done':e.min+60<nm?' past':'')+(row?' r1':'')+(p>78?' er':p<22?' el':'');
     b.style.left=p+'%';b.style.setProperty('--k',k.c);
-    b.innerHTML=`<span class="tl-t">${esc(h12(e.hm))}</span><span class="tl-d"></span>`;
+    // label = time + a couple of words of the event (customer surname for HCP visits)
+    const nm2=evTitle(e.it.body).replace(/^(Energy audit|Sales visit|Job):\s*/i,'').split(/\s+/);
+    const who=(/^(Energy audit|Sales visit|Job):/i.test(evTitle(e.it.body))?nm2[nm2.length-1]:nm2.slice(0,2).join(' ')).slice(0,14);
+    b.innerHTML=`<span class="tl-t">${esc(h12(e.hm))} <i>${esc(who)}</i></span><span class="tl-d"></span>`;
     b.title=`${k.l}: ${evTitle(e.it.body)}`;
-    b.onclick=()=>{fx('play','tap');openSheet(e.it,'data/calendar.md',evTitle(e.it.body));};
+    b.onclick=()=>{fx('play','tap');if(!e.done)openSheet(e.it,'data/calendar.md',evTitle(e.it.body));};
     rail.appendChild(b);
   });
   return wrap;
@@ -1749,7 +1764,8 @@ async function renderToday(){
   const hlv=$('hero-lv');if(hlv)hlv.onclick=()=>goView('money');
 
   // DAY TIMELINE — today's timed commitments on one rail, with a "now" marker
-  const todays=calAll.map(it=>{const m=it.body.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})/);return m&&m[1]===t?{it,min:(+m[2])*60+(+m[3]),hm:m[2]+':'+m[3]}:null;})
+  // includes events already checked off today — they show as green ticks (progress, not gaps)
+  const todays=(cal?parseChecklist(cal.text):[]).map(it=>{const m=it.body.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})/);return m&&m[1]===t?{it,min:(+m[2])*60+(+m[3]),hm:m[2]+':'+m[3],done:it.checked}:null;})
     .filter(Boolean).sort((a,b)=>a.min-b.min);
   if(todays.length)body.appendChild(dayStrip(todays,h12));
 
