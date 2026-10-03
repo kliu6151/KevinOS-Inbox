@@ -613,6 +613,31 @@
   .klegend{display:flex;flex-wrap:wrap;gap:12px;margin:10px 4px 0;font-size:11.5px;color:var(--muted)}
   .klegend span{display:inline-flex;align-items:center;gap:5px}
   .klegend i{width:8px;height:8px;border-radius:50%}
+  /* ---- CAL week strip + day timeline (2026-10-03, Kevin's pick over the month grid) ---- */
+  .wk-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .wk-cell{border-radius:14px;border:1px solid transparent;background:transparent;color:var(--text);padding:8px 0 7px;
+    display:flex;flex-direction:column;align-items:center;gap:3px;min-height:68px;transition:background .12s,border-color .12s}
+  .wk-cell .wd{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--faint);text-transform:uppercase}
+  .wk-cell .dn{font-size:16px;font-weight:600;line-height:1.1}
+  .wk-cell.past .dn,.wk-cell.past .wd{color:var(--faint)}
+  .wk-cell.today{border-color:var(--accent)}
+  .wk-cell.today .dn{font-weight:800;color:var(--accent)}
+  .wk-cell.sel{background:var(--accent-soft);border-color:var(--accent)}
+  .wk-cell .cnts{display:flex;gap:3px;min-height:14px;flex-wrap:wrap;justify-content:center;padding:0 2px}
+  .wk-cell .cnts b{font-family:var(--mono);font-size:9.5px;font-weight:800;line-height:14px;min-width:14px;padding:0 3px;border-radius:7px;
+    color:var(--text);background:color-mix(in srgb,var(--k) 34%,transparent);border:1px solid color-mix(in srgb,var(--k) 70%,transparent)}
+  .cal-head .mon small{display:block;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0}
+  .cal-view{margin:6px 2px 0;display:flex;justify-content:flex-end}
+  .cal-view button{background:transparent;border:0;color:var(--muted);font-size:12px;font-weight:600;padding:6px 4px}
+  .tlrow{display:flex;gap:0;align-items:stretch}
+  .tlrow .tl-time{flex:0 0 52px;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--muted);padding:14px 8px 0 2px;text-align:right}
+  .tlrow .tl-time.untimed{color:var(--faint)}
+  .tlrow .item{flex:1;min-width:0;border-bottom:none}
+  .tlrow{border-bottom:1px solid var(--border)}
+  .tlrow:last-child{border-bottom:none}
+  .item .where{font-size:12px;color:var(--muted);margin-top:3px;display:flex;gap:6px;align-items:baseline}
+  .item .where span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .item .where a{color:var(--accent);text-decoration:none;font-weight:700;flex:0 0 auto;padding:2px 6px;border-radius:6px;background:var(--accent-soft)}
   .tl-h{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--muted);margin:-18px -4px 26px}
   .tl-t i{font-style:normal;font-weight:500;color:var(--muted)}
   .tl{margin-top:10px;padding:30px 18px 46px;background:var(--panel);border:1px solid var(--border);border-radius:14px}
@@ -2065,6 +2090,20 @@ async function renderToday(){
 
 /* ---- CALENDAR (month grid + day agenda) ---- */
 let calMonth=null,calSel=null,calEvs=[],calVirtual={};
+/* Cal view (2026-10-03): 'week' = 7-day strip + the day as a time rail (default — Kevin lives
+   day-to-week; the month grid was 42 taps of nothing); 'month' = the original grid, one tap away. */
+let calView=(()=>{try{return localStorage.getItem('cal_view')==='month'?'month':'week';}catch(e){return 'week';}})();
+const calShift=(ds,n)=>{const d=new Date(ds+'T00:00');d.setDate(d.getDate()+n);const p=x=>String(x).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;};
+const calH12=hm=>{let[h,m]=hm.split(':').map(Number);const ap=h>=12?'p':'a';h=h%12||12;return h+(m?':'+String(m).padStart(2,'0'):'')+ap;};
+/* address line under a calendar row: the where: meta + a Maps link (Apple Maps URL — opens the
+   Maps app on iPhone, a web map elsewhere). The link never opens the detail sheet. */
+function whereLine(el,it){
+  const w=meta(it.body,'where');if(!w)return el;
+  const host=el.querySelector('.meta')||el.querySelector('.txt');if(!host)return el;
+  host.insertAdjacentHTML('afterend',`<div class="where"><span>${esc(w)}</span><a href="https://maps.apple.com/?q=${encodeURIComponent(w)}" target="_blank" rel="noopener">Maps ↗</a></div>`);
+  el.querySelector('.where a').onclick=e=>e.stopPropagation();
+  return el;
+}
 const evDate=it=>(it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];
 const evTime=it=>((it.body.match(/\d{4}-\d{2}-\d{2} (\d{2}:\d{2})/)||[])[1])||'';
 
@@ -2102,32 +2141,63 @@ function drawCal(){
   // source files each render, so the two tabs cannot drift.
   const anyDay=ds=>byDay[ds]||calVirtual[ds];
 
-  // header
+  // header — week view shows the week's span, month view the month
+  const wkStart=calShift(calSel,-new Date(calSel+'T00:00').getDay());
+  const wkEnd=calShift(wkStart,6);
+  const fmt=(ds,o)=>new Date(ds+'T00:00').toLocaleDateString(undefined,o);
+  const headLabel=calView==='week'
+    ?`${fmt(wkStart,{month:'short',day:'numeric'})} – ${fmt(wkEnd,{month:'short',day:'numeric'})}<small>${fmt(calSel,{month:'long',year:'numeric'})}</small>`
+    :calMonth.toLocaleDateString(undefined,{month:'long',year:'numeric'});
   body.insertAdjacentHTML('beforeend',`<div class="cal-head">
     <button id="cal-prev">‹</button>
-    <div class="mon">${calMonth.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</div>
+    <div class="mon">${headLabel}</div>
     <button id="cal-next">›</button></div>`);
 
-  // grid
-  const grid=document.createElement('div');grid.className='cal-grid';
-  ['S','M','T','W','T','F','S'].forEach(d=>grid.insertAdjacentHTML('beforeend',`<div class="dow">${d}</div>`));
-  const first=new Date(y,m,1),days=new Date(y,m+1,0).getDate();
-  for(let i=0;i<first.getDay();i++)grid.insertAdjacentHTML('beforeend','<div></div>');
-  for(let d=1;d<=days;d++){
-    const ds=`${y}-${p(m+1)}-${p(d)}`;
-    const cell=document.createElement('button');
-    cell.className='cal-cell'+(ds===t?' today':'')+(ds===calSel?' sel':'')+(byDay[ds]&&ds<t?' past-due':'');
-    // up to three dots, one per kind present that day (plan/due items = amber)
-    const kinds=[...new Set((byDay[ds]||[]).map(it=>evKind(it.body)))].slice(0,3);
-    const dots=kinds.map(k=>`<i style="background:${EV_KINDS[k].c}"></i>`).join('')+(!kinds.length&&calVirtual[ds]?'<i style="background:var(--amber)"></i>':'');
-    cell.innerHTML=`${d}${dots?`<span class="dots">${dots}</span>`:''}`;
-    cell.onclick=()=>{calSel=ds;drawCal();};
-    grid.appendChild(cell);
+  // count chips per kind for a day (max 3 kinds; plan/due items = one amber chip)
+  const cntChips=ds=>{
+    const per={};(byDay[ds]||[]).forEach(it=>{const k=evKind(it.body);per[k]=(per[k]||0)+1;});
+    let html=Object.entries(per).slice(0,3).map(([k,n])=>`<b style="--k:${EV_KINDS[k].c}">${n}</b>`).join('');
+    if(calVirtual[ds]&&calVirtual[ds].length)html+=`<b style="--k:var(--amber)">${calVirtual[ds].length}</b>`;
+    return html;
+  };
+  const toMonth=ds=>new Date(+ds.slice(0,4),+ds.slice(5,7)-1,1);
+
+  if(calView==='week'){
+    const strip=document.createElement('div');strip.className='wk-strip';
+    for(let i=0;i<7;i++){
+      const ds=calShift(wkStart,i);
+      const cell=document.createElement('button');
+      cell.className='wk-cell'+(ds===t?' today':'')+(ds===calSel?' sel':'')+(ds<t?' past':'');
+      cell.innerHTML=`<span class="wd">${fmt(ds,{weekday:'short'}).slice(0,3)}</span><span class="dn">${Number(ds.slice(8))}</span><span class="cnts">${cntChips(ds)}</span>`;
+      cell.onclick=()=>{calSel=ds;calMonth=toMonth(ds);drawCal();};
+      strip.appendChild(cell);
+    }
+    body.appendChild(strip);
+    $('cal-prev').onclick=()=>{calSel=calShift(calSel,-7);calMonth=toMonth(calSel);drawCal();};
+    $('cal-next').onclick=()=>{calSel=calShift(calSel,7);calMonth=toMonth(calSel);drawCal();};
+  }else{
+    const grid=document.createElement('div');grid.className='cal-grid';
+    ['S','M','T','W','T','F','S'].forEach(d=>grid.insertAdjacentHTML('beforeend',`<div class="dow">${d}</div>`));
+    const first=new Date(y,m,1),days=new Date(y,m+1,0).getDate();
+    for(let i=0;i<first.getDay();i++)grid.insertAdjacentHTML('beforeend','<div></div>');
+    for(let d=1;d<=days;d++){
+      const ds=`${y}-${p(m+1)}-${p(d)}`;
+      const cell=document.createElement('button');
+      cell.className='cal-cell'+(ds===t?' today':'')+(ds===calSel?' sel':'')+(byDay[ds]&&ds<t?' past-due':'');
+      // up to three dots, one per kind present that day (plan/due items = amber)
+      const kinds=[...new Set((byDay[ds]||[]).map(it=>evKind(it.body)))].slice(0,3);
+      const dots=kinds.map(k=>`<i style="background:${EV_KINDS[k].c}"></i>`).join('')+(!kinds.length&&calVirtual[ds]?'<i style="background:var(--amber)"></i>':'');
+      cell.innerHTML=`${d}${dots?`<span class="dots">${dots}</span>`:''}`;
+      cell.onclick=()=>{calSel=ds;drawCal();};
+      grid.appendChild(cell);
+    }
+    body.appendChild(grid);
+    $('cal-prev').onclick=()=>{calMonth=new Date(y,m-1,1);drawCal();};
+    $('cal-next').onclick=()=>{calMonth=new Date(y,m+1,1);drawCal();};
   }
-  body.appendChild(grid);
   body.insertAdjacentHTML('beforeend',`<div class="klegend">${Object.values(EV_KINDS).map(k=>`<span><i style="background:${k.c}"></i>${k.l}</span>`).join('')}</div>`);
-  $('cal-prev').onclick=()=>{calMonth=new Date(y,m-1,1);drawCal();};
-  $('cal-next').onclick=()=>{calMonth=new Date(y,m+1,1);drawCal();};
+  body.insertAdjacentHTML('beforeend',`<div class="cal-view"><button id="cal-view-btn">${calView==='week'?'Month grid ▾':'Week strip ▴'}</button></div>`);
+  $('cal-view-btn').onclick=()=>{calView=calView==='week'?'month':'week';try{localStorage.setItem('cal_view',calView);}catch(e){}drawCal();};
 
   // selected day agenda
   const selDate=new Date(calSel+'T00:00');
@@ -2136,12 +2206,16 @@ function drawCal(){
   const items=(byDay[calSel]||[]).sort((a,b)=>evTime(a).localeCompare(evTime(b)));
   const virt=calVirtual[calSel]||[];
   if(!items.length&&!virt.length)empty(c,'Nothing this day.');
+  // the day as a time rail: time column left, kind-colored row, address + Maps link
+  const tlRow=(timeLabel,el)=>{const r=document.createElement('div');r.className='tlrow';
+    r.innerHTML=`<div class="tl-time${timeLabel?'':' untimed'}">${timeLabel||'—'}</div>`;r.appendChild(el);return r;};
   items.forEach(it=>{
-    let late=calSel<t?'<span class="pri1">past — reschedule or check off</span>':evTime(it);
+    let late=calSel<t?'<span class="pri1">past — reschedule or check off</span>':'';
     const st=stuckBit(it);if(st)late+=(late?' · ':'')+st;
-    c.appendChild(kindRow(itemHTML(it,'data/calendar.md',late,evTitle(it.body)),it));
+    const tm=evTime(it);
+    c.appendChild(tlRow(tm?calH12(tm):'',whereLine(kindRow(itemHTML(it,'data/calendar.md',late,evTitle(it.body)),it),it)));
   });
-  virt.forEach(v=>c.appendChild(itemHTML(v.it,v.file,v.label)));
+  virt.forEach(v=>c.appendChild(tlRow('',itemHTML(v.it,v.file,v.label))));
 
   const add=document.createElement('button');
   add.className='btn2';add.textContent='＋ Add event';
