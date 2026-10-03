@@ -1813,9 +1813,10 @@ async function renderToday(){
   const prevFolds=new Map([...body.querySelectorAll('.fold')].map(h=>[h.querySelector('.ft').textContent,h.classList.contains('open')]));
   if(!keepView)body.innerHTML=skel();
   const t=todayStr(),horizon=plusDays(3),dailyPath=`daily/${t}.md`;
-  const [cal,loops,tasks,daily,habits,sbf]=await Promise.all([
+  const [cal,loops,tasks,daily,habits,sbf,edu]=await Promise.all([
     getFile('data/calendar.md'),getFile('data/loops.md'),getFile('data/tasks.md'),
-    getFile(dailyPath),getFile('data/habits.md'),getFile('data/scoreboard.json').catch(()=>null)]);
+    getFile(dailyPath),getFile('data/habits.md'),getFile('data/scoreboard.json').catch(()=>null),
+    getFile('learning/insulation.md').catch(()=>null)]);
   try{SB=sbf?JSON.parse(sbf.text):null;}catch(e){SB=null;}
   body.innerHTML='';
 
@@ -2063,7 +2064,10 @@ async function renderToday(){
     if(nI||nM){
       const b=document.createElement('button');b.className='more';b.style.marginTop='14px';
       b.style.border='1px solid var(--border)';b.style.borderRadius='10px';b.style.background='var(--panel)';
-      b.innerHTML=`📰 Today's brief — <b>${nI}</b> industry · <b>${nM}</b> markets <span style="color:var(--faint)">›</span>`;
+      // the day's top headline is the cue — Kevin decides from one line whether the tab is worth opening
+      const top=(intelSec?parseIntel(intelSec.lines):[]).concat(mk?parseIntel(mk.lines):[])[0];
+      b.innerHTML=`📰 <b>${top?esc(top.title):"Today's brief"}</b><div class="meta">${nI} industry · ${nM} markets · <span style="color:var(--faint)">tap for the brief ›</span></div>`;
+      b.style.textAlign='left';
       b.onclick=()=>goView('brief');
       body.appendChild(b);
     }
@@ -2077,6 +2081,26 @@ async function renderToday(){
       const chips=document.createElement('div');chips.className='chips';
       hs.forEach(h=>chips.insertAdjacentHTML('beforeend',`<div class="chip">${esc(h[1].trim())} <b>${h[2]}🔥</b></div>`));
       body.appendChild(chips);
+    }
+  }
+
+  // next lesson (Kevin 2026-10-03: "I haven't used Learn at all and I really do want to"). The tab had no
+  // cue; this is the cue — the first unchecked curriculum item, checkable here, ~10 minutes.
+  if(edu){
+    const el=edu.text.split('\n').map(l=>l.replace(/\r$/,''));
+    const total=el.filter(l=>/^\s*- \[( |x)\] /.test(l)).length, done=el.filter(l=>/^\s*- \[x\] /.test(l)).length;
+    const nextLine=el.find(l=>/^\s*- \[ \] /.test(l));
+    if(nextLine){
+      let sec='';for(const l of el){if(l.startsWith('### '))sec=l.slice(4);if(l===nextLine)break;}
+      body.insertAdjacentHTML('beforeend',`<div class="sec">Next lesson <span class="secn">${done}/${total}</span></div>`);
+      const lc=card();lc.classList.add('lesson');body.appendChild(lc);
+      const it={checked:false,body:nextLine.replace(/^\s*- \[ \] /,'')};
+      const div=document.createElement('div');div.className='item';
+      div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${eduMd(it.body)}</div><div class="meta">${sec?esc(sec)+' · ':''}~10 min · <span class="lesson-open">open Learn ›</span></div></div>`;
+      div.querySelector('.hit').onclick=e=>{e.stopPropagation();fx('play','check');fx('haptic');fx('burstAt',div.querySelector('.box'),{n:14});
+        toggleLine('learning/insulation.md',nextLine,div).then(ok=>{if(ok){setTimeout(()=>div.classList.add('gone'),650);setTimeout(()=>runRender('today'),900);}});};
+      div.querySelector('.lesson-open').onclick=e=>{e.stopPropagation();goView('edu');};
+      lc.appendChild(div);
     }
   }
 
