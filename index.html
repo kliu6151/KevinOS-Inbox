@@ -635,6 +635,9 @@
   .tlrow .item{flex:1;min-width:0;border-bottom:none}
   .tlrow{border-bottom:1px solid var(--border)}
   .tlrow:last-child{border-bottom:none}
+  .item.covered{opacity:.55}
+  .item.covered .txt{text-decoration:line-through;text-decoration-color:var(--faint)}
+  .covered-l{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.04em;color:var(--muted)}
   .item .where{font-size:12px;color:var(--muted);margin-top:3px;display:flex;gap:6px;align-items:baseline}
   .item .where span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .item .where a{color:var(--accent);text-decoration:none;font-weight:700;flex:0 0 auto;padding:2px 6px;border-radius:6px;background:var(--accent-soft)}
@@ -2119,6 +2122,11 @@ async function renderToday(){
 
 /* ---- CALENDAR (month grid + day agenda) ---- */
 let calMonth=null,calSel=null,calEvs=[],calVirtual={};
+/* visits handed off at the evening check-in: the daily note carries '- Not in plan: HH:MM Title — reason'.
+   HCP still lists Kevin as the assignee, so the sync keeps the line; the Cal tab shows it as
+   covered (dim, with the reason) instead of as his appointment. Keyed by date; today's note only. */
+let calCovered={};
+const coveredFor=(ds,it)=>(calCovered[ds]||[]).find(c=>c.time===evTime(it)&&c.title===evTitle(it.body))||null;
 /* Cal view (2026-10-03): 'week' = 7-day strip + the day as a time rail (default — Kevin lives
    day-to-week; the month grid was 42 taps of nothing); 'month' = the original grid, one tap away. */
 let calView=(()=>{try{return localStorage.getItem('cal_view')==='month'?'month':'week';}catch(e){return 'week';}})();
@@ -2184,7 +2192,7 @@ function drawCal(){
 
   // count chips per kind for a day (max 3 kinds; plan/due items = one amber chip)
   const cntChips=ds=>{
-    const per={};(byDay[ds]||[]).forEach(it=>{const k=evKind(it.body);per[k]=(per[k]||0)+1;});
+    const per={};(byDay[ds]||[]).forEach(it=>{if(coveredFor(ds,it))return;const k=evKind(it.body);per[k]=(per[k]||0)+1;});
     let html=Object.entries(per).slice(0,3).map(([k,n])=>`<b style="--k:${EV_KINDS[k].c}">${n}</b>`).join('');
     if(calVirtual[ds]&&calVirtual[ds].length)html+=`<b style="--k:var(--amber)">${calVirtual[ds].length}</b>`;
     return html;
@@ -2242,7 +2250,10 @@ function drawCal(){
     let late=calSel<t?'<span class="pri1">past — reschedule or check off</span>':'';
     const st=stuckBit(it);if(st)late+=(late?' · ':'')+st;
     const tm=evTime(it);
-    c.appendChild(tlRow(tm?calH12(tm):'',whereLine(kindRow(itemHTML(it,'data/calendar.md',late,evTitle(it.body)),it),it)));
+    const cov=coveredFor(calSel,it);
+    const el=kindRow(itemHTML(it,'data/calendar.md',cov?`<span class="covered-l">covered — ${esc(cov.reason)}</span>`:late,evTitle(it.body)),it);
+    if(cov)el.classList.add('covered');
+    c.appendChild(tlRow(tm?calH12(tm):'',cov?el:whereLine(el,it)));
   });
   virt.forEach(v=>c.appendChild(tlRow('',itemHTML(v.it,v.file,v.label))));
 
@@ -2295,6 +2306,8 @@ async function renderCal(){
   // nudge: date. Rebuilt from source files each render; nothing is written anywhere.
   // Past-due items stay OFF the calendar — Today's Needs Attention already owns them.
   calVirtual={};
+  calCovered={};
+  if(dl)calCovered[t]=[...dl.text.matchAll(/^- Not in plan: (\d{2}:\d{2}) (.+?) — (.+)$/gm)].map(m=>({time:m[1],title:m[2].trim(),reason:m[3].trim()}));
   const add=(d,it,file,label)=>{(calVirtual[d]=calVirtual[d]||[]).push({it,file,label});};
   const plan=[];
   if(dl){
