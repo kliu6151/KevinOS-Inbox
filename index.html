@@ -37,10 +37,9 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     background:var(--bg);
     color:var(--text); min-height:100vh;
-    overflow-x:hidden; /* 2026-10-03: the business strip scrolls sideways inside itself; iOS must never pan the page (Kevin saw it on the Ask sheet) */
     padding:env(safe-area-inset-top) 0 calc(88px + env(safe-area-inset-bottom));
   }
-  main{padding:12px 16px;max-width:660px;margin:0 auto}
+  main{padding:12px 16px;max-width:660px;margin:0 auto;overflow-x:clip} /* clip, not hidden: no scroll container, so position:sticky inside keeps working (2026-10-03) */
   .view{display:none}
   .view.active{display:block;animation:rise .22s cubic-bezier(.2,.7,.3,1)}
   @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -635,7 +634,7 @@
   .biz .bt{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:8px;letter-spacing:.04em}
   .biz-hint{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.06em;margin:-8px 2px 12px;text-transform:uppercase}
   @media (min-width:880px){.biz{flex-basis:calc(33.33% - 7px)}}
-  .biz-bar{position:sticky;top:0;z-index:20;display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;margin:0 0 12px;padding:8px 0 10px;
+  .biz-bar{position:-webkit-sticky;position:sticky;top:0;z-index:20;display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;margin:0 0 12px;padding:8px 0 10px;
     background:linear-gradient(var(--bg) 78%,transparent)}
   .biz-bar::-webkit-scrollbar{display:none}
   .bchip{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:7px 11px;border-radius:999px;
