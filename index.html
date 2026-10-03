@@ -1877,8 +1877,10 @@ async function renderToday(){
   /* HERO — one glance: how the day is going (ring), what's next (appointment),
      momentum (streak), and the month's climb (level → Money tab) */
   const nowHM=(()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');})();
+  // visits handed off at the check-in ('- Not in plan: HH:MM Title — reason') are not Kevin's NEXT
+  const notInPlan=new Set(daily?[...daily.text.matchAll(/^- Not in plan: (\d{2}:\d{2}) (.+?) — /gm)].map(m=>m[1]+'|'+m[2].trim()):[]);
   const next=calAll.map(it=>{const m=it.body.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/);return m?{it,d:m[1],hm:m[2]}:null;})
-    .filter(x=>x&&(x.d>t||(x.d===t&&x.hm>=nowHM))&&x.d<=plusDays(7))
+    .filter(x=>x&&(x.d>t||(x.d===t&&x.hm>=nowHM))&&x.d<=plusDays(7)&&!(x.d===t&&notInPlan.has(x.hm+'|'+evTitle(x.it.body))))
     .sort((a,b)=>(a.d+a.hm).localeCompare(b.d+b.hm))[0];
   const h12=hm=>{let[h,m]=hm.split(':').map(Number);const ap=h>=12?'p':'a';h=h%12||12;return h+(m?':'+String(m).padStart(2,'0'):'')+ap;};
   let nextHTML;
