@@ -1101,6 +1101,10 @@ async function getFile(path){
   try{
     const j=await api(`contents/${path}`);
     if(!j){localStorage.removeItem('fc_'+path);return null;}
+    // GitHub reads can lag a write by a few seconds: a copy we wrote <20s ago with a different sha
+    // is newer than what just came back — use it, and do not let the stale read overwrite the cache
+    const rw=(typeof recentWrite!=='undefined')&&recentWrite[path];
+    if(rw&&Date.now()-rw.ts<20000&&j.sha!==rw.sha)return{text:rw.text,sha:rw.sha};
     const f={text:dec(j.content.replace(/\n/g,'')),sha:j.sha};
     try{localStorage.setItem('fc_'+path,JSON.stringify({text:f.text,sha:f.sha,ts:Date.now()}));}catch(e){}
     return f;
@@ -1133,7 +1137,7 @@ function withFile(path,fn){
 }
 async function freshFile(path){
   const r=recentWrite[path];
-  if(r&&Date.now()-r.ts<20000)return{text:r.text,sha:r.sha};
+  if(r&&Date.now()-r.ts<20000)return{text:r.text,sha:r.sha,recent:true};
   return getFile(path);
 }
 function noteWrite(path,text,sha){
@@ -1143,8 +1147,10 @@ function noteWrite(path,text,sha){
 const isConflict=e=>/does not match|conflict|409/i.test(String(e&&e.message||e));
 /* edit one line of a file: find → mutate → PUT, with the conflict retry. mutate(lines,i) returns the new line text. */
 async function editLine(path,line,mutate,msg){
+  let usedRecent=false;
   const attempt=async(fresh)=>{
     const f=fresh?await getFile(path):await freshFile(path);
+    usedRecent=!!(f&&f.recent);
     if(!f)throw new Error('file not found');
     if(f.stale)throw new Error('offline — reconnect and try again');
     const lines=f.text.split('\n');
@@ -1159,7 +1165,6 @@ async function editLine(path,line,mutate,msg){
   catch(e){
     // a sha conflict, or a line that is not in the copy we just wrote (another device or a routine
     // committed in between): re-fetch once and retry, then give up honestly
-    const usedRecent=!!recentWrite[path];
     if(!isConflict(e)&&!(usedRecent&&/changed elsewhere/.test(e.message)))throw e;
     delete recentWrite[path];return attempt(true);
   }
@@ -1405,17 +1410,11 @@ async function snoozeLine(path,it){
   if(!key)return false;
   const to=plusDays(1);
   try{
-    const f=await getFile(path);
-    if(!f)throw new Error('file not found');
-    if(f.stale)throw new Error('offline — reconnect and try again');
-    const lines=f.text.split('\n');
-    const i=lines.findIndex(l=>norm(l)===norm(it.line));
-    if(i<0)throw new Error('item changed elsewhere — pull down to refresh');
-    if(!/^- \[ \] /.test(lines[i]))throw new Error('only open items snooze');
-    lines[i]=setTok(lines[i],key,to);
-    const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
-      message:`snooze via app: ${stripMeta(it.body).slice(0,50)} → ${to}`,sha:f.sha,content:enc(lines.join('\n'))})});
-    try{localStorage.setItem('fc_'+path,JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
+    // same per-file queue + conflict retry as check-offs (a snooze right after a tap used to race it)
+    await withFile(path,()=>editLine(path,it.line,(lines,i)=>{
+      if(!/^- \[ \] /.test(lines[i]))throw new Error('only open items snooze');
+      return setTok(lines[i],key,to);
+    },`snooze via app: ${stripMeta(it.body).slice(0,50)} → ${to}`));
     return true;
   }catch(e){alert('Snooze failed: '+e.message);return false;}
 }
