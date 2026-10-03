@@ -1096,15 +1096,18 @@ async function api(path,opts={}){
 let cacheOnly=false,usedStale=false,keepView=false;
 const cacheGet=p=>{try{const c=localStorage.getItem('fc_'+p);return c?JSON.parse(c):null;}catch(e){return null;}};
 const hasCache=()=>Object.keys(localStorage).some(k=>k.startsWith('fc_'));
+/* per-file write queue + the copy we wrote most recently (see editLine below) — declared here
+   because getFile consults recentWrite and a const must exist before its first use */
+var fileQ={},recentWrite={}; // var: the test harness resets recentWrite between cases (its clock is frozen, so the 20s window never closes there)
 async function getFile(path){
   if(cacheOnly)return cacheGet(path);
   try{
     const j=await api(`contents/${path}`);
     if(!j){localStorage.removeItem('fc_'+path);return null;}
-    // GitHub reads can lag a write by a few seconds: a copy we wrote <20s ago with a different sha
-    // is newer than what just came back — use it, and do not let the stale read overwrite the cache
-    const rw=(typeof recentWrite!=='undefined')&&recentWrite[path];
-    if(rw&&Date.now()-rw.ts<20000&&j.sha!==rw.sha)return{text:rw.text,sha:rw.sha};
+    // GitHub reads can lag a write by a few seconds: if the read returns exactly the version we
+    // just wrote OVER, our copy (<20s old) is newer — use it and keep the stale read out of the cache
+    const rw=recentWrite[path];
+    if(rw&&Date.now()-rw.ts<20000&&j.sha===rw.prevSha)return{text:rw.text,sha:rw.sha};
     const f={text:dec(j.content.replace(/\n/g,'')),sha:j.sha};
     try{localStorage.setItem('fc_'+path,JSON.stringify({text:f.text,sha:f.sha,ts:Date.now()}));}catch(e){}
     return f;
@@ -1128,7 +1131,6 @@ const outcomeFile=p=>/^(data\/(tasks|loops|calendar)\.md|daily\/)/.test(p);
    2. a write we just made is the truth for the next 20s (GitHub's read-after-write can lag),
       so the next toggle edits THAT text instead of re-fetching a stale copy;
    3. a sha conflict re-fetches once and retries before giving up. */
-const fileQ={},recentWrite={};
 function withFile(path,fn){
   const prev=fileQ[path]||Promise.resolve();
   const next=prev.then(fn,fn);
@@ -1140,8 +1142,8 @@ async function freshFile(path){
   if(r&&Date.now()-r.ts<20000)return{text:r.text,sha:r.sha,recent:true};
   return getFile(path);
 }
-function noteWrite(path,text,sha){
-  recentWrite[path]={text,sha,ts:Date.now()};
+function noteWrite(path,text,sha,prevSha){
+  recentWrite[path]={text,sha,prevSha,ts:Date.now()};
   try{localStorage.setItem('fc_'+path,JSON.stringify({text,sha,ts:Date.now()}));}catch(e){}
 }
 const isConflict=e=>/does not match|conflict|409/i.test(String(e&&e.message||e));
@@ -1158,7 +1160,7 @@ async function editLine(path,line,mutate,msg){
     if(i<0)throw new Error('item changed elsewhere — pull down to refresh');
     lines[i]=mutate(lines,i);
     const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({message:msg,sha:f.sha,content:enc(lines.join('\n'))})});
-    noteWrite(path,lines.join('\n'),res.content.sha);
+    noteWrite(path,lines.join('\n'),res.content.sha,f.sha);
     return lines[i];
   };
   try{return await attempt(false);}
