@@ -639,6 +639,12 @@
   .biz-bar.fixed{position:fixed;top:0;left:0;right:0;margin:0;padding:calc(8px + env(safe-area-inset-top)) 16px 10px;z-index:30;
     background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
   @media (min-width:880px){.biz-bar.fixed{left:232px}}
+  .signals{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}
+  .sigrow{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--border);
+    text-align:left;color:var(--text);font-size:13px;line-height:1.3;width:100%}
+  .sigrow .sl{flex:0 0 auto;font-size:15px}
+  .sigrow .st{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sigrow .sm{flex:0 0 auto;font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.04em}
   .biz-bar::-webkit-scrollbar{display:none}
   .bchip{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:7px 11px;border-radius:999px;
     border:1px solid var(--border);background:var(--panel);color:var(--muted);transition:background .15s,border-color .15s,color .15s}
@@ -2051,6 +2057,9 @@ async function renderToday(){
     empty(c0,'No plan yet. The morning briefing writes it around 6am — or run <b>/daily</b> in Claude.');
   }
 
+  // SIGNALS (Kevin 2026-10-03: "I rarely scroll down this far"): the three one-line cues live here, above Top 3
+  const sig=document.createElement('div');sig.className='signals';body.appendChild(sig);
+  const sigRow=(icon,text,metaTxt,onTap)=>{const b=document.createElement('button');b.className='sigrow';b.innerHTML=`<span class="sl">${icon}</span><span class="st">${text}</span><span class="sm">${metaTxt||''}</span>`;b.onclick=onTap;sig.appendChild(b);};
   // TOP 3 — bold title + one action line; the coach's why: sits behind a tap (detail sheet)
   if(top3.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Top 3</div>');
@@ -2150,38 +2159,23 @@ async function renderToday(){
     appendCapped(c3,hot,h=>itemHTML(h.it,h.file,h.info),5);
   });
 
-  // the briefing itself lives on the Brief tab now (Today stays about what Kevin DOES today);
-  // one line here so it stays discoverable and Kevin knows whether it's worth the tap
-  {
+  // the day's headline (not under KV — the brief is HVAC/electrification news)
+  if(bizFilter!=='kv'){
     const mk=secByName(ns.secs,/^markets?\b/i);
     const nI=intelSec?parseIntel(intelSec.lines).length:0, nM=mk?parseIntel(mk.lines).length:0;
-    if(nI||nM){
-      const b=document.createElement('button');b.className='more';b.style.marginTop='14px';
-      b.style.border='1px solid var(--border)';b.style.borderRadius='10px';b.style.background='var(--panel)';
-      // the day's top headline is the cue — Kevin decides from one line whether the tab is worth opening
-      const top=(intelSec?parseIntel(intelSec.lines):[]).concat(mk?parseIntel(mk.lines):[])[0];
-      b.innerHTML=`📰 <b>${top?esc(top.title):"Today's brief"}</b><div class="meta">${nI} industry · ${nM} markets · <span style="color:var(--faint)">tap for the brief ›</span></div>`;
-      b.style.textAlign='left';
-      b.onclick=()=>goView('brief');
-      body.appendChild(b);
-    }
+    const top=(intelSec?parseIntel(intelSec.lines):[]).concat(mk?parseIntel(mk.lines):[])[0];
+    if(nI||nM)sigRow('📰',`<b>${top?esc(top.title):"Today's brief"}</b>`,`${nI+nM} ›`,()=>goView('brief'));
   }
 
-  // money out (Kevin 2026-10-03): one line from the script-owned '## People I owe' section in money.md —
-  // the overdue total is the cue; nothing here is computed, the script already did that
-  if(mny){
+  // money out — Airsync's payouts only (the People I owe section is Airsync's); one line, overdue first
+  if(mny&&(bizFilter==='all'||bizFilter==='airsync')){
     const pio=secByName(noteSections(mny.text).secs,/^People I owe/i);const sec=pio?pio.lines.join('\n'):'';
     const tot=sec.match(/This week: \*\*\$([0-9,.]+)\*\* across (\d+) payout[^·]*· Overdue: \*\*\$([0-9,.]+)\*\* \((\d+)\)/);
     const andrea=(sec.match(/### Andrea[\s\S]*?- due (\d{4}-\d{2}-\d{2})/)||[])[1];
     if(tot){
       const over=+tot[3].replace(/,/g,''),week=+tot[1].replace(/,/g,'');
-      const b=document.createElement('button');b.className='more';b.style.marginTop='10px';b.style.textAlign='left';
-      b.style.border='1px solid var(--border)';b.style.borderRadius='10px';b.style.background='var(--panel)';
-      const lead=over>0?`<b class="pri1">${tot[3]} overdue</b> (${tot[4]})`:week>0?`<b>${tot[1]} going out this week</b> (${tot[2]})`:'<b>Nothing owed this week</b>';
-      const sub=[andrea?`Andrea ${new Date(andrea+'T12:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}`:'',over>0&&week>0?`${tot[1]} more this week`:''].filter(Boolean).join(' · ');
-      b.innerHTML=`💸 ${lead}<div class="meta">${sub?esc(sub)+' · ':''}<span style="color:var(--faint)">tap for People I owe ›</span></div>`;
-      b.onclick=()=>goView('money');
-      body.appendChild(b);
+      const lead=over>0?`<b class="pri1">$${tot[3]} overdue</b> (${tot[4]})`:week>0?`<b>$${tot[1]} out this week</b> (${tot[2]})`:'Nothing owed this week';
+      sigRow('💸',lead,andrea?'Andrea '+new Date(andrea+'T12:00').toLocaleDateString(undefined,{weekday:'short'})+' ›':'›',()=>goView('money'));
     }
   }
 
@@ -2196,24 +2190,12 @@ async function renderToday(){
     }
   }
 
-  // next lesson (Kevin 2026-10-03: "I haven't used Learn at all and I really do want to"). The tab had no
-  // cue; this is the cue — the first unchecked curriculum item, checkable here, ~10 minutes.
+  // next lesson — one line; the check-off lives on the Learn tab
   if(edu){
     const el=edu.text.split('\n').map(l=>l.replace(/\r$/,''));
     const total=el.filter(l=>/^\s*- \[( |x)\] /.test(l)).length, done=el.filter(l=>/^\s*- \[x\] /.test(l)).length;
     const nextLine=el.find(l=>/^\s*- \[ \] /.test(l));
-    if(nextLine){
-      let sec='';for(const l of el){if(l.startsWith('### '))sec=l.slice(4);if(l===nextLine)break;}
-      body.insertAdjacentHTML('beforeend',`<div class="sec">Next lesson <span class="secn">${done}/${total}</span></div>`);
-      const lc=card();lc.classList.add('lesson');body.appendChild(lc);
-      const it={checked:false,body:nextLine.replace(/^\s*- \[ \] /,'')};
-      const div=document.createElement('div');div.className='item';
-      div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${eduMd(it.body)}</div><div class="meta">${sec?esc(sec)+' · ':''}~10 min · <span class="lesson-open">open Learn ›</span></div></div>`;
-      div.querySelector('.hit').onclick=e=>{e.stopPropagation();fx('play','check');fx('haptic');fx('burstAt',div.querySelector('.box'),{n:14});
-        toggleLine('learning/insulation.md',nextLine,div).then(ok=>{if(ok){setTimeout(()=>div.classList.add('gone'),650);setTimeout(()=>runRender('today'),900);}});};
-      div.querySelector('.lesson-open').onclick=e=>{e.stopPropagation();goView('edu');};
-      lc.appendChild(div);
-    }
+    if(nextLine)sigRow('📚',eduMd(nextLine.replace(/^\s*- \[ \] /,'')),`${done}/${total} ›`,()=>goView('edu'));
   }
 
   // held pile — everything open that is NOT due yet (and not covered by the plan), collapsed by default
