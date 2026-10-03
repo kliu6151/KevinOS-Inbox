@@ -634,6 +634,12 @@
   .biz .bt{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:8px;letter-spacing:.04em}
   .biz-hint{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.06em;margin:-8px 2px 12px;text-transform:uppercase}
   @media (min-width:880px){.biz{flex-basis:calc(33.33% - 7px)}}
+  .biz-bar{position:sticky;top:0;z-index:20;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 12px;padding:8px 16px 10px;
+    background:linear-gradient(var(--bg) 78%,transparent)}
+  .biz-bar::-webkit-scrollbar{display:none}
+  .bchip{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:7px 11px;border-radius:999px;
+    border:1px solid var(--border);background:var(--panel);color:var(--muted);transition:background .15s,border-color .15s,color .15s}
+  .bchip.on{color:var(--text);border-color:var(--k);background:color-mix(in srgb,var(--k) 22%,var(--panel));box-shadow:0 0 14px color-mix(in srgb,var(--k) 30%,transparent)}
   /* ---- CAL week strip + day timeline (2026-10-03, Kevin's pick over the month grid) ---- */
   .wk-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
   .wk-cell{border-radius:14px;border:1px solid transparent;background:transparent;color:var(--text);padding:8px 0 7px;
@@ -1851,6 +1857,13 @@ function bizOfLine(it,file){
 }
 const bizVisible=(it,file)=>{if(bizFilter==='all')return true;const b=bizOfLine(it,file);return b==='personal'||b===bizFilter;};
 const bizChip=(it,file)=>{const b=bizOfLine(it,file);const d=BIZ.find(x=>x.id===b);return (b==='a1'||b==='kv')&&d?`<span class="kchip" style="--k:${d.k}">${b==='a1'?'A1':'KV'}</span>`:'';};
+/* switch business without losing the place on the page: re-render, then put the scroll back */
+function setBiz(id){
+  fx('haptic');bizFilter=id;try{localStorage.setItem('biz',id);}catch(e){}
+  const y=window.scrollY;
+  runRender('today');
+  const back=()=>window.scrollTo({top:y,behavior:'instant'});setTimeout(back,60);setTimeout(back,400);
+}
 function bizStrip(body,tasksAll){
   const strip=document.createElement('div');strip.className='biz-strip';
   for(const b of BIZ){
@@ -1861,11 +1874,15 @@ function bizStrip(body,tasksAll){
     card.innerHTML=`<div class="bk"><i></i>${b.id==='airsync'?'cash engine':b.id==='a1'?'next up':'leverage'}</div><div class="bn">${esc(b.name)}</div>
       <div class="bv">${m?`<div class="bring" style="--p:${pct}"><b>L${m.level}</b></div><div><div class="bm">${compactAmt(m.installed||0)}</div><div class="bs">this month · Lv ${m.level} → ${compactAmt(m.nextLevelAt||0)}</div></div>`:`<div><div class="bm">—</div><div class="bs">no revenue feed yet · ${esc(b.sub)}</div></div>`}</div>
       <div class="bt">${open} open task${open===1?'':'s'}${bizFilter===b.id?' · showing only this':''}</div>`;
-    card.onclick=()=>{fx('haptic');bizFilter=bizFilter===b.id?'all':b.id;try{localStorage.setItem('biz',bizFilter);}catch(e){}runRender('today');};
+    card.onclick=()=>setBiz(bizFilter===b.id?'all':b.id);
     strip.appendChild(card);
   }
   body.appendChild(strip);
-  if(bizFilter!=='all'){const b=BIZ.find(x=>x.id===bizFilter);body.insertAdjacentHTML('beforeend',`<div class="biz-hint">filtered to ${esc(b?b.name:bizFilter)} · tap the card again for everything</div>`);}
+  // sticky chip bar: the switcher follows the scroll, so changing business never means scrolling back up
+  const bar=document.createElement('div');bar.className='biz-bar';
+  const chip=(id,label,k)=>{const c=document.createElement('button');c.className='bchip'+(bizFilter===id?' on':'');c.style.setProperty('--k',k);c.textContent=label;c.onclick=()=>setBiz(id);bar.appendChild(c);};
+  chip('all','All','#9aa5b5');for(const b of BIZ)chip(b.id,b.id==='airsync'?'Airsync':b.id==='a1'?'A1':'KV',b.k);
+  body.appendChild(bar);
 }
 async function renderToday(){
   const body=$('today-body');
