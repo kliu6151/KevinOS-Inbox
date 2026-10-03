@@ -9,14 +9,14 @@
 // Reads the same private files the app reads (calendar, daily note, scoreboard) with the
 // token stored in Scriptable's Keychain — never in this file. Tap → the KevinOS app.
 //
-// TAP TARGET: an https URL from a widget always opens Safari, not the home-screen app.
-// So the tap runs a Shortcut named "KevinOS" whose only action is "Open App → KevinOS"
-// (the home-screen web app shows up in that picker). Make it once in the Shortcuts app;
-// see the spec. If you never made the shortcut, set OPEN_IN_SAFARI = true.
+// TAP TARGET: iOS gives a widget no way to open a home-screen web app — an https URL opens
+// Safari, and (on Kevin's phone, 2026-10-03) the web app is not offered in Shortcuts' Open App
+// picker either. Default = Safari (paste the token once on the Dump tab there). If a later iOS
+// lists the app in Shortcuts, make a shortcut named KevinOS → Open App and set OPEN_IN_SAFARI = false.
 
 const OWNER = 'kliu6151', REPO = 'KevinOS';
 const APP = 'https://kliu6151.github.io/KevinOS-Inbox/';
-const OPEN_IN_SAFARI = false;
+const OPEN_IN_SAFARI = true; // Kevin 2026-10-03: his iOS does not list the home-screen app in Shortcuts' Open App picker, so Safari it is
 const TAP_URL = OPEN_IN_SAFARI ? APP : 'shortcuts://run-shortcut?name=' + encodeURIComponent('KevinOS');
 const KEY = 'kevinos_gh_token';
 const C = {
