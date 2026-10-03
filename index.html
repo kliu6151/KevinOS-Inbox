@@ -1814,10 +1814,10 @@ async function renderToday(){
   const prevFolds=new Map([...body.querySelectorAll('.fold')].map(h=>[h.querySelector('.ft').textContent,h.classList.contains('open')]));
   if(!keepView)body.innerHTML=skel();
   const t=todayStr(),horizon=plusDays(3),dailyPath=`daily/${t}.md`;
-  const [cal,loops,tasks,daily,habits,sbf,edu]=await Promise.all([
+  const [cal,loops,tasks,daily,habits,sbf,edu,mny]=await Promise.all([
     getFile('data/calendar.md'),getFile('data/loops.md'),getFile('data/tasks.md'),
     getFile(dailyPath),getFile('data/habits.md'),getFile('data/scoreboard.json').catch(()=>null),
-    getFile('learning/insulation.md').catch(()=>null)]);
+    getFile('learning/insulation.md').catch(()=>null),getFile('data/money.md').catch(()=>null)]);
   try{SB=sbf?JSON.parse(sbf.text):null;}catch(e){SB=null;}
   body.innerHTML='';
 
@@ -2072,6 +2072,24 @@ async function renderToday(){
       b.innerHTML=`📰 <b>${top?esc(top.title):"Today's brief"}</b><div class="meta">${nI} industry · ${nM} markets · <span style="color:var(--faint)">tap for the brief ›</span></div>`;
       b.style.textAlign='left';
       b.onclick=()=>goView('brief');
+      body.appendChild(b);
+    }
+  }
+
+  // money out (Kevin 2026-10-03): one line from the script-owned '## People I owe' section in money.md —
+  // the overdue total is the cue; nothing here is computed, the script already did that
+  if(mny){
+    const pio=secByName(noteSections(mny.text).secs,/^People I owe/i);const sec=pio?pio.lines.join('\n'):'';
+    const tot=sec.match(/This week: \*\*\$([0-9,.]+)\*\* across (\d+) payout[^·]*· Overdue: \*\*\$([0-9,.]+)\*\* \((\d+)\)/);
+    const andrea=(sec.match(/### Andrea[\s\S]*?- due (\d{4}-\d{2}-\d{2})/)||[])[1];
+    if(tot){
+      const over=+tot[3].replace(/,/g,''),week=+tot[1].replace(/,/g,'');
+      const b=document.createElement('button');b.className='more';b.style.marginTop='10px';b.style.textAlign='left';
+      b.style.border='1px solid var(--border)';b.style.borderRadius='10px';b.style.background='var(--panel)';
+      const lead=over>0?`<b class="pri1">${tot[3]} overdue</b> (${tot[4]})`:week>0?`<b>${tot[1]} going out this week</b> (${tot[2]})`:'<b>Nothing owed this week</b>';
+      const sub=[andrea?`Andrea ${new Date(andrea+'T12:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}`:'',over>0&&week>0?`${tot[1]} more this week`:''].filter(Boolean).join(' · ');
+      b.innerHTML=`💸 ${lead}<div class="meta">${sub?esc(sub)+' · ':''}<span style="color:var(--faint)">tap for People I owe ›</span></div>`;
+      b.onclick=()=>goView('money');
       body.appendChild(b);
     }
   }
@@ -3863,6 +3881,19 @@ async function renderEdu(){
   }
   if(pre.some(l=>l.trim())){const pc=card();const w=document.createElement('div');w.className='note';pre.forEach(l=>eduLine(w,l));pc.appendChild(w);body.appendChild(pc);}
   const folds=[];
+  // next lesson first (Kevin 2026-10-03): the tab opened on a wall of 136 checkboxes; now the one to do is on top
+  const nextLine=lines.find(l=>/^\s*- \[ \] /.test(l));
+  const nextSec=nextLine?secs.find(sc=>sc.lines.includes(nextLine)):null;
+  if(nextLine){
+    let sub='';for(const l of (nextSec?nextSec.lines:[])){if(l.startsWith('### '))sub=l.slice(4);if(l===nextLine)break;}
+    body.insertAdjacentHTML('beforeend','<div class="sec">Next lesson</div>');
+    const lc=card();lc.classList.add('lesson');
+    const div=document.createElement('div');div.className='item';
+    div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${eduMd(nextLine.replace(/^\s*- \[ \] /,''))}</div><div class="meta">${esc([nextSec&&nextSec.title,sub].filter(Boolean).join(' · '))} · ~10 min</div></div>`;
+    div.querySelector('.hit').onclick=e=>{e.stopPropagation();fx('play','check');fx('haptic');fx('burstAt',div.querySelector('.box'),{n:14});
+      toggleLine('learning/insulation.md',nextLine,div).then(ok=>{if(ok){setTimeout(()=>div.classList.add('gone'),650);setTimeout(()=>runRender('edu'),900);}});};
+    lc.appendChild(div);body.appendChild(lc);
+  }
   // table of contents
   if(secs.length>1){
     body.insertAdjacentHTML('beforeend','<div class="sec">Contents</div>');
@@ -3881,7 +3912,8 @@ async function renderEdu(){
     const todo=s.lines.filter(l=>/^\s*- \[ \] /.test(l)).length;
     const dn=s.lines.filter(l=>/^\s*- \[x\] /.test(l)).length;
     const label=(todo+dn)?`${dn}/${todo+dn} done`:'';
-    const fd=fold(s.title,label,i===0,0);
+    // open the section the next lesson lives in; finished and later sections stay folded
+    const fd=fold(s.title,label,nextSec?s===nextSec:i===0,0);
     const w=document.createElement('div');w.className='note';
     s.lines.forEach(l=>eduLine(w,l));
     fd.card.appendChild(w);
