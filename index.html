@@ -37,6 +37,7 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     background:var(--bg);
     color:var(--text); min-height:100vh;
+    overflow-x:hidden; /* 2026-10-03: the business strip scrolls sideways inside itself; iOS must never pan the page (Kevin saw it on the Ask sheet) */
     padding:env(safe-area-inset-top) 0 calc(88px + env(safe-area-inset-bottom));
   }
   main{padding:12px 16px;max-width:660px;margin:0 auto}
@@ -614,7 +615,7 @@
   .klegend span{display:inline-flex;align-items:center;gap:5px}
   .klegend i{width:8px;height:8px;border-radius:50%}
   /* ---- BUSINESS STRIP (2026-10-03): one card per business on Today ---- */
-  .biz-strip{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -16px 14px;padding:4px 16px 8px;scrollbar-width:none}
+  .biz-strip{display:flex;gap:10px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;margin:0 -16px 14px;padding:4px 16px 8px;scrollbar-width:none}
   .biz-strip::-webkit-scrollbar{display:none}
   .biz{flex:0 0 74%;scroll-snap-align:start;position:relative;overflow:hidden;border-radius:18px;padding:13px 14px 12px;text-align:left;
     background:linear-gradient(135deg,color-mix(in srgb,var(--k) 16%,var(--panel)),var(--panel) 70%);
@@ -634,7 +635,7 @@
   .biz .bt{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:8px;letter-spacing:.04em}
   .biz-hint{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.06em;margin:-8px 2px 12px;text-transform:uppercase}
   @media (min-width:880px){.biz{flex-basis:calc(33.33% - 7px)}}
-  .biz-bar{position:sticky;top:0;z-index:20;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 12px;padding:8px 16px 10px;
+  .biz-bar{position:sticky;top:0;z-index:20;display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;margin:0 0 12px;padding:8px 0 10px;
     background:linear-gradient(var(--bg) 78%,transparent)}
   .biz-bar::-webkit-scrollbar{display:none}
   .bchip{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:7px 11px;border-radius:999px;
