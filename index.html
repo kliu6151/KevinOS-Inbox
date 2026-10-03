@@ -1495,7 +1495,8 @@ function itemHTML(it,file,extra='',title){
   // red rail = overdue only (a passed due date or an overdue nudge) — priority alone stays neutral
   const late=/⚠|overdue|pri1">due /.test(extra);
   div.className='item'+(it.checked?' done':'')+(late?' late':'');
-  div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${esc(t)}</div>${extra?`<div class="meta">${extra}</div>`:''}</div>`;
+  const bc=bizChip(it,file);
+  div.innerHTML=`<div class="hit"><div class="box">✓</div></div><div style="flex:1"><div class="txt">${esc(t)}</div>${extra||bc?`<div class="meta">${bc}${extra||''}</div>`:''}</div>`;
   if(!it.checked){
     const hit=div.querySelector('.hit');
     hit.onclick=e=>{
@@ -1796,7 +1797,8 @@ function dayStrip(evs,h12,blocks,planned){
   if(blocks.length){
     let bars='<div class="tl-blocks">';
     for(const b of blocks){
-      const c=b.kind==='appointment'?(EV_KINDS[evKind(b.title.replace(/^📌\s*/,''))]||EV_KINDS.other).c:(DP_COLORS[b.kind]||DP_COLORS.task);
+      const bzc=b.biz&&(BIZ.find(x=>x.id===b.biz)||{}).k; // an A1 / KV block wears its business color
+      const c=bzc||(b.kind==='appointment'?(EV_KINDS[evKind(b.title.replace(/^📌\s*/,''))]||EV_KINDS.other).c:(DP_COLORS[b.kind]||DP_COLORS.task));
       const l=pct(dpMin(b.start)),w=Math.max(1.2,pct(dpMin(b.end))-l);
       bars+=`<span class="tl-b${b===cur?' on':''}${b.status?' st-'+b.status:dpMin(b.end)<=nm?' past':''}" style="left:${l}%;width:${w}%;--k:${c}" title="${esc(b.start+'–'+b.end+' '+b.title)}"></span>`;
     }
@@ -1838,6 +1840,17 @@ const BIZ=[
 ];
 let bizFilter=(()=>{try{return localStorage.getItem('biz')||'all';}catch(e){return 'all';}})();
 const bizOf=section=>{const b=BIZ.find(x=>x.sec.test(section||''));return b?b.id:'other';};
+/* which business a line belongs to. Airsync is the untagged default (CLAUDE.md → Business tags):
+   tasks by section; calendar by type:a1/kv (HCP lines are Airsync); loops by | biz:a1/kv; personal is its own thing */
+function bizOfLine(it,file){
+  const b=it.body||'';
+  if(/^data\/tasks\.md$/.test(file||'')){const x=bizOf(it.section);return x==='other'?(/^personal/i.test(it.section||'')?'personal':'airsync'):x;}
+  if(/^data\/calendar\.md$/.test(file||'')){const t=(meta(b,'type')||'').toLowerCase();return t==='a1'?'a1':t==='kv'?'kv':t==='personal'?'personal':'airsync';}
+  if(/^data\/loops\.md$/.test(file||'')){const t=(meta(b,'biz')||'').toLowerCase();return t==='a1'?'a1':t==='kv'?'kv':'airsync';}
+  return 'airsync';
+}
+const bizVisible=(it,file)=>{if(bizFilter==='all')return true;const b=bizOfLine(it,file);return b==='personal'||b===bizFilter;};
+const bizChip=(it,file)=>{const b=bizOfLine(it,file);const d=BIZ.find(x=>x.id===b);return (b==='a1'||b==='kv')&&d?`<span class="kchip" style="--k:${d.k}">${b==='a1'?'A1':'KV'}</span>`:'';};
 function bizStrip(body,tasksAll){
   const strip=document.createElement('div');strip.className='biz-strip';
   for(const b of BIZ){
@@ -1881,7 +1894,7 @@ async function renderToday(){
   // dedup: anything the plan already covers (Top 3 / due follow-ups) appears ONLY there.
   // A plan line with ref: names its source exactly (hidden here, closed by refCascade at
   // check-off); lines without one fall back to the fuzzy title match + dupCascade.
-  const loopsAll=loops?parseChecklist(loops.text).filter(it=>!it.checked):[];
+  const loopsAll=loops?parseChecklist(loops.text).filter(it=>!it.checked&&bizVisible(it,'data/loops.md')):[];
   let tasksAll=tasks?parseChecklist(tasks.text).filter(it=>!it.checked):[];
   bizStrip(body,tasksAll); // first thing on the screen
   if(bizFilter!=='all')tasksAll=tasksAll.filter(it=>bizOf(it.section)===bizFilter);
@@ -1916,7 +1929,7 @@ async function renderToday(){
   const isDup=it=>hiddenDups.has(it.line);
 
   // calendar window (today → +3 days); plan-covered and ref-linked lines don't repeat
-  const calAll=cal?parseChecklist(cal.text).filter(it=>!it.checked&&!isDup(it)):[];
+  const calAll=cal?parseChecklist(cal.text).filter(it=>!it.checked&&!isDup(it)&&bizVisible(it,'data/calendar.md')):[];
   const events=calAll.filter(it=>{
     const d=(it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];
     if(!d||d<t||d>horizon)return false;
@@ -2279,6 +2292,7 @@ function drawCal(){
   const headLabel=calView==='week'
     ?`${fmt(wkStart,{month:'short',day:'numeric'})} – ${fmt(wkEnd,{month:'short',day:'numeric'})}<small>${fmt(calSel,{month:'long',year:'numeric'})}</small>`
     :calMonth.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  if(bizFilter!=='all'){const bz=BIZ.find(x=>x.id===bizFilter);body.insertAdjacentHTML('beforeend',`<button class="biz-hint" id="cal-biz-clear" style="background:none;border:0;padding:0;margin:0 2px 10px;text-align:left">filtered to ${esc(bz?bz.name:bizFilter)} · tap to show everything</button>`);$('cal-biz-clear').onclick=()=>{bizFilter='all';try{localStorage.setItem('biz','all');}catch(e){}renderCal();};}
   body.insertAdjacentHTML('beforeend',`<div class="cal-head">
     <button id="cal-prev">‹</button>
     <div class="mon">${headLabel}</div>
@@ -2394,7 +2408,7 @@ async function renderCal(){
   const t=todayStr(),dailyPath=`daily/${t}.md`;
   const [f,tk,lp,dl]=await Promise.all([
     getFile('data/calendar.md'),getFile('data/tasks.md'),getFile('data/loops.md'),getFile(dailyPath)]);
-  calEvs=f?parseChecklist(f.text).filter(it=>!it.checked&&it.body.match(/\d{4}-\d{2}-\d{2}/)):[];
+  calEvs=f?parseChecklist(f.text).filter(it=>!it.checked&&it.body.match(/\d{4}-\d{2}-\d{2}/)&&bizVisible(it,'data/calendar.md')):[];
   // Today⇄Cal sync (2026-07-20): the calendar is the date-lens over EVERYTHING dated —
   // today's plan items land on today, tasks land on their due: date, loops on their
   // nudge: date. Rebuilt from source files each render; nothing is written anywhere.
@@ -2411,9 +2425,9 @@ async function renderCal(){
       .filter(x=>!x.checked).forEach(x=>{plan.push(x);add(t,x,dailyPath,'<span class="today-badge">PLAN</span>');});
   }
   const covered=b=>plan.some(p=>sameThing(p.body,b)); // plan-covered items show once, as PLAN
-  if(tk)parseChecklist(tk.text).filter(it=>!it.checked).forEach(it=>{
+  if(tk)parseChecklist(tk.text).filter(it=>!it.checked&&bizVisible(it,'data/tasks.md')).forEach(it=>{
     const d=meta(it.body,'due');if(d&&d>=t&&!covered(it.body))add(d,it,'data/tasks.md',taskMeta(it));});
-  if(lp)parseChecklist(lp.text).filter(it=>!it.checked).forEach(it=>{
+  if(lp)parseChecklist(lp.text).filter(it=>!it.checked&&bizVisible(it,'data/loops.md')).forEach(it=>{
     const n=meta(it.body,'nudge');if(n&&n>=t&&!covered(it.body))add(n,it,'data/loops.md',loopMeta(it));});
   $('cal-count').textContent=calEvs.length?calEvs.length+' scheduled':'';
   if(!calMonth){calMonth=new Date();calMonth.setDate(1);calSel=todayStr();}
@@ -4966,7 +4980,7 @@ function dpParse(text){
   for(const raw of sec.lines){
     const l=raw.replace(/\r$/,'');
     let m=l.match(/^- (\d{2}:\d{2})[–-](\d{2}:\d{2}) — (.+)$/);
-    if(m){const kind=meta(m[3],'kind')||'task';out.push({start:m[1],end:m[2],title:m[3].split(' | ')[0].trim(),kind,status:meta(m[3],'status')||'',line:l});continue;}
+    if(m){const kind=meta(m[3],'kind')||'task';out.push({start:m[1],end:m[2],title:m[3].split(' | ')[0].trim(),kind,status:meta(m[3],'status')||'',biz:(meta(m[3],'biz')||'').toLowerCase(),line:l});continue;}
     m=l.match(/^- (?:\[[ x]\] )?(?:📌\s*)?(\d{1,2})(?::(\d{2}))?\s*([ap])m?\b\s*[—-]\s*(.+)$/i);
     if(m){let h=+m[1]%12;if(m[3].toLowerCase()==='p')h+=12;const st=String(h).padStart(2,'0')+':'+(m[2]||'00');
       out.push({start:st,end:null,title:m[4].replace(/\*\*/g,'').trim(),kind:/📌/.test(l)?'appointment':'task',line:l});}
