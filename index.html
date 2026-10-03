@@ -1114,22 +1114,61 @@ const norm=s=>s.replace(/\r/g,'').trim();
 /* files where check-off gets a done: stamp + outcome offer — money.md (pipeline owns
    that format, checks are stage advances) and learning/ (progress %) stay untouched */
 const outcomeFile=p=>/^(data\/(tasks|loops|calendar)\.md|daily\/)/.test(p);
-async function toggleLine(path,line,el,quiet,msg){
-  if(el)el.classList.add('done');
-  try{
-    const f=await getFile(path);
+/* Fast check-offs (2026-10-03): two taps on the same file inside a second used to race —
+   both GETs returned the same sha, the second PUT hit GitHub's 409 ("does not match") and
+   the item bounced back unchecked with "Sync failed". Three guards, all local:
+   1. writes to one file run one after another (fileQ);
+   2. a write we just made is the truth for the next 20s (GitHub's read-after-write can lag),
+      so the next toggle edits THAT text instead of re-fetching a stale copy;
+   3. a sha conflict re-fetches once and retries before giving up. */
+const fileQ={},recentWrite={};
+function withFile(path,fn){
+  const prev=fileQ[path]||Promise.resolve();
+  const next=prev.then(fn,fn);
+  fileQ[path]=next.catch(()=>{});
+  return next;
+}
+async function freshFile(path){
+  const r=recentWrite[path];
+  if(r&&Date.now()-r.ts<20000)return{text:r.text,sha:r.sha};
+  return getFile(path);
+}
+function noteWrite(path,text,sha){
+  recentWrite[path]={text,sha,ts:Date.now()};
+  try{localStorage.setItem('fc_'+path,JSON.stringify({text,sha,ts:Date.now()}));}catch(e){}
+}
+const isConflict=e=>/does not match|conflict|409/i.test(String(e&&e.message||e));
+/* edit one line of a file: find → mutate → PUT, with the conflict retry. mutate(lines,i) returns the new line text. */
+async function editLine(path,line,mutate,msg){
+  const attempt=async(fresh)=>{
+    const f=fresh?await getFile(path):await freshFile(path);
     if(!f)throw new Error('file not found');
     if(f.stale)throw new Error('offline — reconnect and try again');
     const lines=f.text.split('\n');
     const i=lines.findIndex(l=>norm(l)===norm(line));
     if(i<0)throw new Error('item changed elsewhere — pull down to refresh');
-    lines[i]=lines[i].replace('- [ ]','- [x]');
-    if(outcomeFile(path)&&!/\bdone:\d{4}-\d{2}-\d{2}/.test(lines[i]))lines[i]+=` | done:${todayStr()}`;
-    const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
-      message:msg||`done via app: ${norm(line).slice(6,60)}`,sha:f.sha,
-      content:enc(lines.join('\n'))})});
-    try{localStorage.setItem('fc_'+path,JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
-    return lines[i]; // the checked+stamped line — offerOutcome appends to THIS text
+    lines[i]=mutate(lines,i);
+    const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({message:msg,sha:f.sha,content:enc(lines.join('\n'))})});
+    noteWrite(path,lines.join('\n'),res.content.sha);
+    return lines[i];
+  };
+  try{return await attempt(false);}
+  catch(e){
+    // a sha conflict, or a line that is not in the copy we just wrote (another device or a routine
+    // committed in between): re-fetch once and retry, then give up honestly
+    const usedRecent=!!recentWrite[path];
+    if(!isConflict(e)&&!(usedRecent&&/changed elsewhere/.test(e.message)))throw e;
+    delete recentWrite[path];return attempt(true);
+  }
+}
+async function toggleLine(path,line,el,quiet,msg){
+  if(el)el.classList.add('done');
+  try{
+    return await withFile(path,()=>editLine(path,line,(lines,i)=>{
+      let l=lines[i].replace('- [ ]','- [x]');
+      if(outcomeFile(path)&&!/\bdone:\d{4}-\d{2}-\d{2}/.test(l))l+=` | done:${todayStr()}`;
+      return l;
+    },msg||`done via app: ${norm(line).slice(6,60)}`)); // the checked+stamped line — offerOutcome appends to THIS text
   }catch(e){
     if(el)el.classList.remove('done');
     if(quiet)console.warn('quiet toggle failed for',path,e.message); // /recap reconciles stragglers
@@ -1140,17 +1179,7 @@ async function toggleLine(path,line,el,quiet,msg){
 /* append ' | outcome: …' to an already-checked line (second commit, only if Kevin types) */
 async function appendToLine(path,line,suffix,msg,quiet){
   try{
-    const f=await getFile(path);
-    if(!f)throw new Error('file not found');
-    if(f.stale)throw new Error('offline — reconnect and try again');
-    const lines=f.text.split('\n');
-    const i=lines.findIndex(l=>norm(l)===norm(line));
-    if(i<0)throw new Error('item changed elsewhere');
-    lines[i]+=suffix;
-    const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({
-      message:msg||`outcome via app: ${suffix.replace(/^\s*\|\s*/,'').slice(0,60)}`,sha:f.sha,
-      content:enc(lines.join('\n'))})});
-    try{localStorage.setItem('fc_'+path,JSON.stringify({text:lines.join('\n'),sha:res.content.sha,ts:Date.now()}));}catch(e){}
+    await withFile(path,()=>editLine(path,line,(lines,i)=>lines[i]+suffix,msg||`outcome via app: ${suffix.replace(/^\s*\|\s*/,'').slice(0,60)}`));
     return true;
   }catch(e){if(!quiet)alert('Note failed: '+e.message);return false;}
 }
