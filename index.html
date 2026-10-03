@@ -634,8 +634,11 @@
   .biz .bt{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:8px;letter-spacing:.04em}
   .biz-hint{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.06em;margin:-8px 2px 12px;text-transform:uppercase}
   @media (min-width:880px){.biz{flex-basis:calc(33.33% - 7px)}}
-  .biz-bar{position:-webkit-sticky;position:sticky;top:0;z-index:20;display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;margin:0 0 12px;padding:8px 0 10px;
-    background:linear-gradient(var(--bg) 78%,transparent)}
+  .biz-bar{position:relative;z-index:20;display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;margin:0 0 12px;padding:8px 0 10px;background:var(--bg)}
+  /* pinned state (JS-driven; iOS ignores sticky here): fixed to the viewport, blurred backdrop, safe-area aware */
+  .biz-bar.fixed{position:fixed;top:0;left:0;right:0;margin:0;padding:calc(8px + env(safe-area-inset-top)) 16px 10px;z-index:30;
+    background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+  @media (min-width:880px){.biz-bar.fixed{left:232px}}
   .biz-bar::-webkit-scrollbar{display:none}
   .bchip{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:7px 11px;border-radius:999px;
     border:1px solid var(--border);background:var(--panel);color:var(--muted);transition:background .15s,border-color .15s,color .15s}
@@ -1882,8 +1885,17 @@ function bizStrip(body,tasksAll){
   const bar=document.createElement('div');bar.className='biz-bar';
   const chip=(id,label,k)=>{const c=document.createElement('button');c.className='bchip'+(bizFilter===id?' on':'');c.style.setProperty('--k',k);c.textContent=label;c.onclick=()=>setBiz(id);bar.appendChild(c);};
   chip('all','All','#9aa5b5');for(const b of BIZ)chip(b.id,b.id==='airsync'?'Airsync':b.id==='a1'?'A1':'KV',b.k);
-  body.appendChild(bar);
+  // sentinel + observer: when the bar's natural spot scrolls off the top, pin the bar and let the sentinel hold its height
+  const sent=document.createElement('div');sent.className='biz-sent';body.appendChild(sent);body.appendChild(bar);
+  if(bizIO){bizIO.disconnect();bizIO=null;}
+  if('IntersectionObserver' in window){
+    bizIO=new IntersectionObserver(es=>{const e=es[0];const pin=!e.isIntersecting&&e.boundingClientRect.top<0;
+      if(pin){if(!bar.classList.contains('fixed')){sent.style.height=bar.offsetHeight+'px';bar.classList.add('fixed');}}
+      else{bar.classList.remove('fixed');sent.style.height='0';}},{threshold:0});
+    bizIO.observe(sent);
+  }
 }
+let bizIO=null;
 async function renderToday(){
   const body=$('today-body');
   $('today-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
