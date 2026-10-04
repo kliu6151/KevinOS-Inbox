@@ -4053,13 +4053,21 @@ function pushIdb(){return new Promise((res,rej)=>{const r=indexedDB.open('kevino
 // The service worker cannot read localStorage; it reads this copy. Refreshed on
 // every boot so a rotated PAT reaches the worker without any extra step.
 async function pushMirrorToken(){
-  try{const db=await pushIdb();const t=localStorage.getItem('gh_token')||'';
-    await new Promise((res,rej)=>{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(t,'gh_token');tx.oncomplete=res;tx.onerror=()=>rej(tx.error);});}catch(e){}
+  try{const db=await pushIdb();
+    const put=(k,v)=>new Promise((res,rej)=>{const tx=db.transaction('kv','readwrite');tx.objectStore('kv').put(v,k);tx.oncomplete=res;tx.onerror=()=>rej(tx.error);});
+    await put('gh_token',localStorage.getItem('gh_token')||'');
+    // trading signals (2026-10-04): the worker asks the AI proxy for /signal/latest with these
+    await put('proxy_url',aiProxyUrl()||'');await put('proxy_token',localStorage.getItem('ai_proxy_token')||'');
+  }catch(e){}
 }
 function pushKey(s){const p='='.repeat((4-s.length%4)%4);const b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(b,c=>c.charCodeAt(0));}
 async function pushReg(){return navigator.serviceWorker.register('sw.js');}
 async function pushCall(path,body){
   const r=await fetch(aiProxyUrl()+path,{method:'POST',headers:{'Authorization':'Bearer '+aiToken(),'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;
+}
+async function pushGet(path){
+  const r=await fetch(aiProxyUrl()+path,{headers:{'Authorization':'Bearer '+aiToken()},cache:'no-store'});
   const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;
 }
 async function pushRefresh(){
@@ -5651,11 +5659,46 @@ async function openClaudeCheckin(){
   try{await navigator.clipboard.writeText('/checkin');fx('banner','Copied /checkin<small>paste it in your KevinOS Claude session</small>','calm',2200);}catch(e){}
   setTimeout(()=>{window.location.href='https://claude.ai/code';},700);
 }
+/* Trading signal card (2026-10-04, spec ops/specs/trading-signals.md): a watch-only alert tapped on
+   the phone lands on ?signal=<id>. One card above Today, two taps — "Would take" / "Skip" — posted to
+   the Worker's /signal/ack. The evening digest (ops/trading/signal-digest.js) turns the day's signals
+   + taps into data/trading/signals/. The card never places or suggests a trade (OD-0018). */
+async function sigCard(id){
+  const main=document.querySelector('main');if(!main||!id)return;
+  let card=$('sig-card');
+  if(!card){card=document.createElement('section');card.id='sig-card';card.className='card';card.style.cssText='margin:10px 16px;padding:12px 14px;border:1px solid var(--amber);border-left-width:4px';main.insertBefore(card,main.firstChild);}
+  card.innerHTML='<div class="note">Loading signal…</div>';
+  let s=null;
+  try{
+    if(!aiProxyUrl()||!localStorage.getItem('ai_proxy_token'))throw new Error('AI proxy token missing — Dump tab');
+    const j=await pushGet('/signal/latest');if(j.signal&&j.signal.id===id)s=j.signal;
+    if(!s){const ny=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});const l=await pushGet('/signal/log?date='+ny);s=(l.signals||[]).filter(x=>x.id===id).pop()||null;}
+  }catch(e){card.innerHTML='<div class="note">Could not load the signal ('+esc(e.message||String(e))+')</div>';return;}
+  if(!s){card.innerHTML='<div class="note">Signal '+esc(id)+' is no longer available.</div>';return;}
+  const root=String(s.contract||'').replace(/^[A-Z_]+:/,'').replace(/[FGHJKMNQUVXZ]\d{4}$/,'')||'NQ';
+  const n=v=>v==null?'—':Number(v).toLocaleString('en-US');
+  const dead=/INVALIDATED|EXPIRED|STOPPED/.test(s.state), done=/ENTERED|TARGET|FLAT/.test(s.state);
+  const when=new Date(s.receivedAt||s.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>'+esc(root)+' · Setup '+esc(s.setup||'?')+' · '+esc(s.state)+(s.test?' (TEST)':'')+'</b><small class="note">'+esc(when)+'</small></div>'
+    +'<div class="note" style="margin:4px 0 10px">'+(dead?esc(s.note||s.state)+' — do not take.':done?esc(s.note||s.state):esc(s.side||'')+' · entry '+n(s.entry)+' · stop '+n(s.stop)+' · target '+n(s.target)+(s.rr?' ('+esc(s.rr)+'R)':'')+' · <b>watch-only</b>'+(s.note?'<br>'+esc(s.note):''))+'</div>'
+    +(dead||done?'':'<div style="display:flex;gap:8px"><button class="btn" data-v="take">Would take</button><button class="btn" data-v="skip">Skip</button></div>');
+  card.querySelectorAll('button[data-v]').forEach(b=>b.onclick=async()=>{
+    fx('play','tap');const v=b.dataset.v;card.querySelectorAll('button').forEach(x=>x.disabled=true);
+    try{await pushCall('/signal/ack',{id:s.id,verdict:v});card.innerHTML='<div class="note">Logged: '+(v==='take'?'would take':'skip')+' · '+esc(root)+' '+esc(s.state)+'</div>';setTimeout(()=>card.remove(),4000);}
+    catch(e){card.querySelectorAll('button').forEach(x=>x.disabled=false);fx('banner','Could not log: '+esc(e.message||String(e)),'warn',2500);}
+  });
+}
 try{
   // a 1-hour block push lands on ?block=HH:MM — Today opens with that block's card focused
   const bm=location.search.match(/[?&]block=(\d{2}:\d{2})/);
   if(bm){blockFocus=bm[1];history.replaceState(null,'',location.pathname);sessionStorage.setItem('ai_launched','1');}
-  if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.block){blockFocus=e.data.block;if(!$('ai-ov').hidden)aiClose();goView('today');}});
+  // a trading signal push lands on ?signal=<id> — Today opens with the signal card on top
+  const sm=location.search.match(/[?&]signal=([^&]+)/);
+  if(sm){history.replaceState(null,'',location.pathname);sessionStorage.setItem('ai_launched','1');setTimeout(()=>{try{goView('today');}catch(e){}sigCard(decodeURIComponent(sm[1]));},0);}
+  if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{
+    if(e.data&&e.data.block){blockFocus=e.data.block;if(!$('ai-ov').hidden)aiClose();goView('today');}
+    if(e.data&&e.data.signal){if(!$('ai-ov').hidden)aiClose();goView('today');sigCard(String(e.data.signal));}
+  });
   // the 8pm banner lands here: show Today (where the check-in card sits) — it never
   // starts the paid in-app check-in on its own
   if(/[?&]checkin=1\b/.test(location.search)){

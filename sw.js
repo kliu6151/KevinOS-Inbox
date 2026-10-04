@@ -6,7 +6,8 @@
  *
  *   push              → fetch today's reminders from GitHub and show one
  *                        notification per line
- *   push              → see the handler: 9am reminders, 8pm check-in, 1-hour block heads-ups
+ *   push              → see the handler: 9am reminders, 8pm check-in, 1-hour block heads-ups,
+ *                        and (2026-10-04) a trading signal if the Worker holds a fresh one
  *   notificationclick → focus the app if it is open, else open it
  *
  * The push itself is EMPTY (see ops/ai-proxy/worker.js in the private repo):
@@ -14,6 +15,11 @@
  * data/reminders-today.txt, fetched here with the GitHub PAT the app mirrors
  * into IndexedDB (a service worker cannot read localStorage). Same origin,
  * same secret, same exposure as the app itself.
+ *
+ * Trading signals (2026-10-04): the desktop relay posts Trading OS engine events to the
+ * Worker, which rings the phone. This handler asks the Worker for /signal/latest (with the
+ * AI-proxy token the app mirrors here too), shows it once per id+state, labelled watch-only,
+ * and the tap lands on ?signal=<id> where the app's card takes "would take" / "skip".
  *
  * iOS shows a push only if the handler shows a notification, and quietly
  * revokes subscriptions that keep failing to — so every path below ends in
@@ -25,22 +31,36 @@ const REM_URL = 'https://api.github.com/repos/kliu6151/KevinOS/contents/data/rem
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 
-function tokenFromIdb() {
-  return new Promise((res) => {
+function idbOpen() {
+  return new Promise((res, rej) => {
     try {
       const r = indexedDB.open('kevinos-push', 1);
       r.onupgradeneeded = () => r.result.createObjectStore('kv');
-      r.onsuccess = () => {
-        try {
-          const g = r.result.transaction('kv').objectStore('kv').get('gh_token');
-          g.onsuccess = () => res(g.result || null);
-          g.onerror = () => res(null);
-        } catch (_) { res(null); }
-      };
-      r.onerror = () => res(null);
-    } catch (_) { res(null); }
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    } catch (e) { rej(e); }
   });
 }
+function idbGet(key) {
+  return idbOpen().then((db) => new Promise((res) => {
+    try {
+      const g = db.transaction('kv').objectStore('kv').get(key);
+      g.onsuccess = () => res(g.result === undefined ? null : g.result);
+      g.onerror = () => res(null);
+    } catch (_) { res(null); }
+  })).catch(() => null);
+}
+function idbPut(key, val) {
+  return idbOpen().then((db) => new Promise((res) => {
+    try {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put(val, key);
+      tx.oncomplete = () => res(true);
+      tx.onerror = () => res(false);
+    } catch (_) { res(false); }
+  })).catch(() => false);
+}
+function tokenFromIdb() { return idbGet('gh_token'); }
 
 /* One empty push every time the Worker's 5-minute cron has a reason (2026-10-01):
  * 09:00 → the day's reminders · 20:00 → "Plan tomorrow" · any block of today's plan
@@ -75,14 +95,46 @@ function planBlocks(note, cal, ymd) {
   return out;
 }
 
+/* ---- trading signals (2026-10-04) ---- */
+const SIG_FRESH_MS = 20 * 60 * 1000; // a QUALIFIED older than this is history, not an alert
+async function signalLatest() {
+  const [url, tok] = await Promise.all([idbGet('proxy_url'), idbGet('proxy_token')]);
+  if (!url || !tok) return null;
+  const r = await fetch(String(url).replace(/\/$/, '') + '/signal/latest', { headers: { 'Authorization': 'Bearer ' + tok }, cache: 'no-store' });
+  if (!r.ok) return null;
+  const j = await r.json().catch(() => ({}));
+  return j && j.signal ? j.signal : null;
+}
+const sigRoot = (c) => String(c || '').replace(/^[A-Z_]+:/, '').replace(/[FGHJKMNQUVXZ]\d{4}$/, '') || 'NQ';
+const sigNum = (v) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('en-US'));
+function sigTitle(s) { return sigRoot(s.contract) + ' · Setup ' + (s.setup || '?') + ' · ' + s.state + (s.test ? ' (TEST)' : ''); }
+function sigBody(s) {
+  if (/INVALIDATED|EXPIRED|STOPPED/.test(s.state)) return (s.note || s.state) + ' — do not take.';
+  if (/ENTERED|TARGET|FLAT/.test(s.state)) return (s.note || s.state) + (s.rr ? ' · ' + s.rr + 'R' : '');
+  return (s.side || '') + ' · entry ' + sigNum(s.entry) + ' · stop ' + sigNum(s.stop) + ' · target ' + sigNum(s.target) +
+    (s.rr ? ' (' + s.rr + 'R)' : '') + ' — watch-only. Tap: would take / skip.';
+}
+
 self.addEventListener('push', (e) => {
   e.waitUntil((async () => {
-    const note = (title, body, tag, data) => self.registration.showNotification(title, {
+    const note = (title, body, tag, data, extra) => self.registration.showNotification(title, Object.assign({
       body, tag, data: Object.assign({ url: APP }, data || {}), badge: 'icon-192.png', icon: 'icon-192.png',
-    });
+    }, extra || {}));
     const now = new Date(), h = now.getHours(), mnow = h * 60 + now.getMinutes();
     const ymd = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
     let shown = 0;
+    // a trading signal first: it is the only push that is time-critical, and it needs no GitHub token
+    try {
+      const s = await signalLatest();
+      if (s && s.id && Date.now() - Date.parse(s.receivedAt || s.ts) < SIG_FRESH_MS) {
+        const k = 'sig_shown:' + s.id + ':' + s.state;
+        if (!(await idbGet(k))) {
+          await note(sigTitle(s), sigBody(s), 'kevinos-sig-' + s.id, { url: APP + '?signal=' + encodeURIComponent(s.id), signal: s.id }, { requireInteraction: true });
+          await idbPut(k, Date.now());
+          shown++;
+        }
+      }
+    } catch (_) { /* a signal problem must never hide the reminders below */ }
     try {
       const t = await tokenFromIdb();
       if (!t) throw new Error('no token on phone — open KevinOS once');
@@ -110,6 +162,7 @@ self.addEventListener('push', (e) => {
         }
       }
     } catch (err) {
+      if (shown) return; // the signal already showed — do not stack a fallback on it
       await note('KevinOS', 'Open for today\'s plan (' + (err && err.message || err) + ')', 'kevinos-fallback');
       return;
     }
@@ -124,9 +177,11 @@ self.addEventListener('notificationclick', (e) => {
     const d = e.notification.data || {};
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const c of all) if (c.url.includes(APP) && 'focus' in c) {
-      // app already open: focus it; a block push also points Today at that block's card
+      // app already open: focus it; a block push also points Today at that block's card,
+      // a signal push opens its card
       const bm = (d.url || '').match(/[?&]block=(\d{2}:\d{2})/);
       if (bm) c.postMessage({ block: bm[1] });
+      if (d.signal) c.postMessage({ signal: d.signal });
       return c.focus();
     }
     return self.clients.openWindow(d.url || APP);
