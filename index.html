@@ -2708,7 +2708,7 @@ async function renderMoney(){
   // remember which folds the user opened/closed so a check-off re-render doesn't collapse them
   const prevFolds=new Map([...body.querySelectorAll('.fold')].map(h=>[h.querySelector('.ft').textContent,h.classList.contains('open')]));
   if(!keepView)body.innerHTML=skel();
-  const [f,ops,sbf]=await Promise.all([getFile('data/money.md'),getFile('data/ops-status.md'),getFile('data/scoreboard.json').catch(()=>null)]);body.innerHTML='';
+  const [f,ops,sbf,sec]=await Promise.all([getFile('data/money.md'),getFile('data/ops-status.md'),getFile('data/scoreboard.json').catch(()=>null),getFile('data/security-status.md').catch(()=>null)]);body.innerHTML='';
   let sb=null;try{sb=sbf?JSON.parse(sbf.text):null;}catch(e){}
   if(sb)moneyHero(body,sb);
   if(f)moneyNeedsYou(body,f.text);
@@ -2718,7 +2718,7 @@ async function renderMoney(){
   // buttons stay on the desktop console.
   if(ops){
     const lines=ops.text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.startsWith('- ')||l.startsWith('## '));
-    const warn=lines.filter(l=>/⚠|🔴/.test(l)).length;
+    const warn=lines.filter(l=>/⚠|🔴|🚨/.test(l)).length;
     const upd=((lines.find(l=>l.startsWith('- updated:'))||'').split('updated:')[1]||'').trim();
     const open=prevFolds.has('⚙ Ops status')?prevFolds.get('⚙ Ops status'):warn>0;
     const of=fold('⚙ Ops status',upd,open,warn);
@@ -2728,6 +2728,22 @@ async function renderMoney(){
       of.card.appendChild(moneyLineEl(l));
     }
     body.appendChild(of.head);body.appendChild(of.card);
+  }
+  // 🛡 Security — the daily machine check (ops/security-posture.js, one '## HOST' per machine). Read-only;
+  // 🚨 lines are alarms, ⚠ are drift, ✅ unchanged. Spec docs/security/PROTECTION-PLAN.md §3 (2026-10-03).
+  if(sec){
+    const lines=sec.text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.startsWith('- ')||l.startsWith('## ')||l.startsWith('### '));
+    const alarms=lines.filter(l=>/🚨/.test(l)).length, warn=lines.filter(l=>/⚠/.test(l)).length;
+    const upd=((lines.find(l=>l.startsWith('- updated:'))||'').split('updated:')[1]||'').trim();
+    const open=prevFolds.has('🛡 Security')?prevFolds.get('🛡 Security'):alarms>0;
+    const sf=fold('🛡 Security',(alarms?alarms+' alarm'+(alarms===1?'':'s')+' · ':'')+upd,open,alarms+warn);
+    if(alarms)sf.head.style.borderColor='var(--red)';
+    for(const l of lines){
+      if(l.startsWith('- updated:'))continue;
+      if(l.startsWith('## ')||l.startsWith('### ')){const h=document.createElement('div');h.className='note';h.style.padding='6px 14px 2px';h.innerHTML='<b>'+esc(l.replace(/^#+ /,''))+'</b>';sf.card.appendChild(h);continue;}
+      sf.card.appendChild(moneyLineEl(l));
+    }
+    body.appendChild(sf.head);body.appendChild(sf.card);
   }
   if(!f){const c=card();body.appendChild(c);empty(c,'No money.md yet — the weekend pipeline builds it.');return;}
   // split into preamble + ## sections
@@ -4105,7 +4121,7 @@ const aiCost=(m,inp,cached,out)=>{const p=aiPrice(m);return (Math.max(0,inp-cach
    plan.md, coaching.md, now.md and archive/ to the readable set. */
 const AI_EXCLUDE=[/^data\/peak\/(hair|config|progress|state)/,/^weekly\/peak\//,/^docs\/operations\//,/^ops\//,/^data\/money/,
   /^data\/sales-commissions/,/^data\/ai-usage/,/^data\/hcp-api-notes/,/^data\/worker-verdict/,
-  /^data\/ops-status/,/^data\/intel-history/,/^Programs\//,/^data\/fieldpacket-exports\//];
+  /^data\/ops-status/,/^data\/intel-history/,/^Programs\//,/^data\/fieldpacket-exports\//,/^data\/security/];
 const AI_READ_OK=[/^daily\//,/^weekly\//,/^inbox\//,/^data\/archive\//,/^docs\/strategy\/STRATEGY_DECISIONS\.md$/,
   /^data\/memory\.md$/,/^data\/peak\/log\//,/^data\/peak\/library\//,/^data\/peak\/archive\//,
   /^data\/peak\/(profile\.json|plan\.md|coaching\.md|now\.md)$/,
