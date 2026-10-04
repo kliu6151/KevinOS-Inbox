@@ -5680,7 +5680,7 @@ async function sigCard(id){
   const dead=/INVALIDATED|EXPIRED|STOPPED/.test(s.state), done=/ENTERED|TARGET|FLAT/.test(s.state);
   const when=new Date(s.receivedAt||s.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
   card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>'+esc(root)+' · Setup '+esc(s.setup||'?')+' · '+esc(s.state)+(s.test?' (TEST)':'')+'</b><small class="note">'+esc(when)+'</small></div>'
-    +'<div class="note" style="margin:4px 0 10px">'+(dead?esc(s.note||s.state)+' — do not take.':done?esc(s.note||s.state):esc(s.side||'')+' · entry '+n(s.entry)+' · stop '+n(s.stop)+' · target '+n(s.target)+(s.rr?' ('+esc(s.rr)+'R)':'')+' · <b>watch-only</b>'+(s.note?'<br>'+esc(s.note):''))+'</div>'
+    +'<div class="note" style="margin:4px 0 10px">'+(dead?esc(s.note||s.state)+' — do not take.':done?esc(s.note||s.state):esc(s.side||'')+' · entry '+n(s.entry)+' · stop '+n(s.stop)+' · target '+n(s.target)+(s.rr?' ('+esc(String(s.rr))+'R)':'')+' · <b>watch-only</b>'+(s.note?'<br>'+esc(s.note):''))+'</div>'
     +(dead||done?'':'<div style="display:flex;gap:8px"><button class="btn" data-v="take">Would take</button><button class="btn" data-v="skip">Skip</button></div>');
   card.querySelectorAll('button[data-v]').forEach(b=>b.onclick=async()=>{
     fx('play','tap');const v=b.dataset.v;card.querySelectorAll('button').forEach(x=>x.disabled=true);

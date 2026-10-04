@@ -107,7 +107,7 @@ async function signalLatest() {
 }
 const sigRoot = (c) => String(c || '').replace(/^[A-Z_]+:/, '').replace(/[FGHJKMNQUVXZ]\d{4}$/, '') || 'NQ';
 const sigNum = (v) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('en-US'));
-function sigTitle(s) { return sigRoot(s.contract) + ' · Setup ' + (s.setup || '?') + ' · ' + s.state + (s.test ? ' (TEST)' : ''); }
+function sigTitle(s) { return sigRoot(s.contract) + ' · Setup ' + (s.setup || '?') + ' · ' + s.state + (s.test && s.state !== 'TEST' ? ' (TEST)' : ''); }
 function sigBody(s) {
   if (/INVALIDATED|EXPIRED|STOPPED/.test(s.state)) return (s.note || s.state) + ' — do not take.';
   if (/ENTERED|TARGET|FLAT/.test(s.state)) return (s.note || s.state) + (s.rr ? ' · ' + s.rr + 'R' : '');
