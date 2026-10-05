@@ -5677,7 +5677,7 @@ async function sigCard(id){
   if(!s){card.innerHTML='<div class="note">Signal '+esc(id)+' is no longer available.</div>';return;}
   const root=String(s.contract||'').replace(/^[A-Z_]+:/,'').replace(/[FGHJKMNQUVXZ]\d{4}$/,'')||'NQ';
   const n=v=>v==null?'—':Number(v).toLocaleString('en-US');
-  const dead=/INVALIDATED|EXPIRED|STOPPED/.test(s.state), done=/ENTERED|TARGET|FLAT/.test(s.state);
+  const dead=/INVALIDATED|EXPIRED|STOPPED/.test(s.state), done=/ENTERED|TARGET|FLAT|TEST/.test(s.state);
   const when=new Date(s.receivedAt||s.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
   card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>'+esc(root)+' · Setup '+esc(s.setup||'?')+' · '+esc(s.state)+(s.test?' (TEST)':'')+'</b><small class="note">'+esc(when)+'</small></div>'
     +'<div class="note" style="margin:4px 0 10px">'+(dead?esc(s.note||s.state)+' — do not take.':done?esc(s.note||s.state):esc(s.side||'')+' · entry '+n(s.entry)+' · stop '+n(s.stop)+' · target '+n(s.target)+(s.rr?' ('+esc(String(s.rr))+'R)':'')+' · <b>watch-only</b>'+(s.note?'<br>'+esc(s.note):''))+'</div>'

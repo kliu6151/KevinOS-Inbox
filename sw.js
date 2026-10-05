@@ -107,8 +107,12 @@ async function signalLatest() {
 }
 const sigRoot = (c) => String(c || '').replace(/^[A-Z_]+:/, '').replace(/[FGHJKMNQUVXZ]\d{4}$/, '') || 'NQ';
 const sigNum = (v) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('en-US'));
-function sigTitle(s) { return sigRoot(s.contract) + ' · Setup ' + (s.setup || '?') + ' · ' + s.state + (s.test && s.state !== 'TEST' ? ' (TEST)' : ''); }
+function sigTitle(s) {
+  if (s.state === 'TEST' && /^ENGINE /.test(s.note || '')) return s.note.split(' — ')[0]; // "ENGINE LIVE" / "ENGINE DOWN" (the 9:35 health push)
+  return sigRoot(s.contract) + ' · Setup ' + (s.setup || '?') + ' · ' + s.state + (s.test && s.state !== 'TEST' ? ' (TEST)' : '');
+}
 function sigBody(s) {
+  if (s.state === 'TEST' && /^ENGINE /.test(s.note || '')) return s.note.split(' — ').slice(1).join(' — ') || s.note;
   if (/INVALIDATED|EXPIRED|STOPPED/.test(s.state)) return (s.note || s.state) + ' — do not take.';
   if (/ENTERED|TARGET|FLAT/.test(s.state)) return (s.note || s.state) + (s.rr ? ' · ' + s.rr + 'R' : '');
   return (s.side || '') + ' · entry ' + sigNum(s.entry) + ' · stop ' + sigNum(s.stop) + ' · target ' + sigNum(s.target) +
