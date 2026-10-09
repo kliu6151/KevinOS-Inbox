@@ -193,7 +193,7 @@ button:disabled{opacity:.6;cursor:not-allowed;transform:none}
       <h2>3 · Date &amp; time</h2>
       <div class="step">
         <div class="row">
-          <input type="datetime-local" id="when" step="60">
+          <input type="datetime-local" id="when" step="0.001">
           <button type="button" id="now" class="tight">Now</button>
           <button type="button" id="fromPhoto" class="tight" disabled title="Use the date the photo was taken">From photo</button>
         </div>
@@ -256,12 +256,23 @@ function p2(n){ return String(n).padStart(2,'0'); }
 function setHint(el, text, cls){ el.textContent = text || ''; el.className = 'hint' + (cls ? ' ' + cls : ''); }
 function store(k, v){ try { localStorage.setItem('gs_' + k, v); } catch(e){} }
 function recall(k){ try { return localStorage.getItem('gs_' + k); } catch(e){ return null; } }
-function toLocalInput(d){ return d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()) + 'T' + p2(d.getHours()) + ':' + p2(d.getMinutes()); }
-function parseLocalInput(v){
-  var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(v || '');
-  if(!m) return null;
-  return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
+// Seconds + milliseconds (2026-10-08, Kevin): the field accepts HH:MM:SS.mmm; seconds/ms are written
+// only when non-zero so a plain minute stays a plain minute.
+function p3(n){ return String(n).padStart(3,'0'); }
+function toLocalInput(d){
+  var s = d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()) + 'T' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+  if(d.getSeconds() || d.getMilliseconds()) s += ':' + p2(d.getSeconds());
+  if(d.getMilliseconds()) s += '.' + p3(d.getMilliseconds());
+  return s;
 }
+function parseLocalInput(v){
+  var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?/.exec(v || '');
+  if(!m) return null;
+  var ms = m[7] ? +(m[7] + '00').slice(0, 3) : 0;
+  return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0), ms);
+}
+// EXIF SubSecTime*: the milliseconds as a 3-digit string, alongside the whole-second DateTime tags
+function exifSubSec(d){ return p3(d.getMilliseconds()); }
 function fmtHumanDate(d){
   var h = d.getHours(), ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
   return (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear() + ' ' + h + ':' + p2(d.getMinutes()) + ' ' + ap;
@@ -462,7 +473,11 @@ function readExif(o){
   try {
     var ds = (o.Exif && o.Exif[piexif.ExifIFD.DateTimeOriginal]) || (o['0th'] && o['0th'][piexif.ImageIFD.DateTime]);
     var m = ds && /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(ds);
-    if(m) r.date = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]);
+    if(m){
+      var sub = o.Exif && (o.Exif[piexif.ExifIFD.SubSecTimeOriginal] || o.Exif[piexif.ExifIFD.SubSecTime]);
+      var ms = sub && /^\d+/.test(String(sub)) ? +(String(sub).match(/^\d+/)[0] + '00').slice(0, 3) : 0;
+      r.date = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6], ms);
+    }
     var g = o.GPS;
     if(g && g[piexif.GPSIFD.GPSLatitude] && g[piexif.GPSIFD.GPSLongitude]){
       var lat = piexif.GPSHelper.dmsRationalToDeg(g[piexif.GPSIFD.GPSLatitude], g[piexif.GPSIFD.GPSLatitudeRef] || 'N');
@@ -658,6 +673,11 @@ function buildExif(){
   if(desc) zeroth[piexif.ImageIFD.ImageDescription] = desc;
   exif[piexif.ExifIFD.DateTimeOriginal] = exifDate(d);
   exif[piexif.ExifIFD.DateTimeDigitized] = exifDate(d);
+  if(d.getMilliseconds()){
+    exif[piexif.ExifIFD.SubSecTime] = exifSubSec(d);
+    exif[piexif.ExifIFD.SubSecTimeOriginal] = exifSubSec(d);
+    exif[piexif.ExifIFD.SubSecTimeDigitized] = exifSubSec(d);
+  }
   if(c){
     gps[piexif.GPSIFD.GPSVersionID] = [2, 3, 0, 0];
     gps[piexif.GPSIFD.GPSLatitudeRef] = c.lat >= 0 ? 'N' : 'S';
