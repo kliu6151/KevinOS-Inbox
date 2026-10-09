@@ -5663,31 +5663,58 @@ async function openClaudeCheckin(){
    the phone lands on ?signal=<id>. One card above Today, two taps — "Would take" / "Skip" — posted to
    the Worker's /signal/ack. The evening digest (ops/trading/signal-digest.js) turns the day's signals
    + taps into data/trading/signals/. The card never places or suggests a trade (OD-0018). */
-async function sigCard(id){
+/* Signal card. The tap on a push used to be the ONLY way in, and iOS drops the message when the
+   app was suspended (Kevin 2026-10-08: "I couldn't find it when I click on the notifications"). Now the
+   card is built from the day's signal LOG: it shows the setup as it QUALIFIED, with its latest state,
+   and keeps Would take / Skip until answered — even after it expired, because the answer is what the
+   20-session count needs. sigPending() runs on every open and every return to the front. */
+function sigNyDate(){return new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});}
+async function sigLoad(){const j=await pushGet('/signal/log?date='+sigNyDate());return {signals:(j.signals||[]).filter(x=>!x.test),acks:j.acks||{}};}
+async function sigCard(id,pre){
   const main=document.querySelector('main');if(!main||!id)return;
   let card=$('sig-card');
   if(!card){card=document.createElement('section');card.id='sig-card';card.className='card';card.style.cssText='margin:10px 16px;padding:12px 14px;border:1px solid var(--amber);border-left-width:4px';main.insertBefore(card,main.firstChild);}
   card.innerHTML='<div class="note">Loading signal…</div>';
-  let s=null;
+  let log;
   try{
     if(!aiProxyUrl()||!localStorage.getItem('ai_proxy_token'))throw new Error('AI proxy token missing — Dump tab');
-    const j=await pushGet('/signal/latest');if(j.signal&&j.signal.id===id)s=j.signal;
-    if(!s){const ny=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});const l=await pushGet('/signal/log?date='+ny);s=(l.signals||[]).filter(x=>x.id===id).pop()||null;}
+    log=pre||await sigLoad();
   }catch(e){card.innerHTML='<div class="note">Could not load the signal ('+esc(e.message||String(e))+')</div>';return;}
-  if(!s){card.innerHTML='<div class="note">Signal '+esc(id)+' is no longer available.</div>';return;}
-  const root=String(s.contract||'').replace(/^[A-Z_]+:/,'').replace(/[FGHJKMNQUVXZ]\d{4}$/,'')||'NQ';
+  const rows=log.signals.filter(x=>x.id===id);
+  if(!rows.length){card.innerHTML='<div class="note">Signal '+esc(id)+' is not in the log for today.</div>';return;}
+  const q=rows.filter(x=>x.state==='QUALIFIED'||x.state==='ENTRY').pop(), last=rows[rows.length-1], s=q||last;
+  const ack=log.acks[id];
+  const root=String(s.contract||'').replace(/^[A-Z_]+:/,'').replace(/[FGHJKMNQUVXZ]d{4}$/,'')||'NQ';
   const n=v=>v==null?'—':Number(v).toLocaleString('en-US');
-  const dead=/INVALIDATED|EXPIRED|STOPPED/.test(s.state), done=/ENTERED|TARGET|FLAT|TEST/.test(s.state);
-  const when=new Date(s.receivedAt||s.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-  card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>'+esc(root)+' · Setup '+esc(s.setup||'?')+' · '+esc(s.state)+(s.test?' (TEST)':'')+'</b><small class="note">'+esc(when)+'</small></div>'
-    +'<div class="note" style="margin:4px 0 10px">'+(dead?esc(s.note||s.state)+' — do not take.':done?esc(s.note||s.state):esc(s.side||'')+' · entry '+n(s.entry)+' · stop '+n(s.stop)+' · target '+n(s.target)+(s.rr?' ('+esc(String(s.rr))+'R)':'')+' · <b>watch-only</b>'+(s.note?'<br>'+esc(s.note):''))+'</div>'
-    +(dead||done?'':'<div style="display:flex;gap:8px"><button class="btn" data-v="take">Would take</button><button class="btn" data-v="skip">Skip</button></div>');
+  const t=x=>new Date(x.receivedAt||x.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  const ended=last!==s?' · now <b>'+esc(last.state)+'</b> at '+esc(t(last)):'';
+  const answerable=!!q&&!ack;
+  card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>'+esc(root)+' · Setup '+esc(s.setup||'?')+' · '+esc(s.state)+'</b><small class="note">'+esc(t(s))+'</small></div>'
+    +'<div class="note" style="margin:4px 0 10px">'+(q?esc(s.side||'')+' · entry '+n(s.entry)+' · stop '+n(s.stop)+' · target '+n(s.target)+(s.rr?' ('+esc(String(s.rr))+'R)':'')+' · <b>watch-only</b>':esc(s.note||s.state))+ended
+    +(ack?'<br>Answered: <b>'+(ack.verdict==='take'?'would take':esc(ack.verdict))+'</b>':answerable?'<br>What would you have done?':'')+'</div>'
+    +(answerable?'<div style="display:flex;gap:8px"><button class="btn" data-v="take">Would take</button><button class="btn" data-v="skip">Skip</button><button class="btn" data-v="later" style="margin-left:auto">Later</button></div>':'');
   card.querySelectorAll('button[data-v]').forEach(b=>b.onclick=async()=>{
-    fx('play','tap');const v=b.dataset.v;card.querySelectorAll('button').forEach(x=>x.disabled=true);
-    try{await pushCall('/signal/ack',{id:s.id,verdict:v});card.innerHTML='<div class="note">Logged: '+(v==='take'?'would take':'skip')+' · '+esc(root)+' '+esc(s.state)+'</div>';setTimeout(()=>card.remove(),4000);}
+    fx('play','tap');const v=b.dataset.v;
+    if(v==='later'){try{sessionStorage.setItem('sig_later_'+id,'1');}catch(e){}card.remove();return;}
+    card.querySelectorAll('button').forEach(x=>x.disabled=true);
+    try{await pushCall('/signal/ack',{id:s.id,verdict:v});card.innerHTML='<div class="note">Logged: '+(v==='take'?'would take':'skip')+' · '+esc(root)+' Setup '+esc(s.setup||'')+'</div>';setTimeout(()=>card.remove(),4000);sigPending();}
     catch(e){card.querySelectorAll('button').forEach(x=>x.disabled=false);fx('banner','Could not log: '+esc(e.message||String(e)),'warn',2500);}
   });
 }
+let sigBusy=false;
+async function sigPending(){
+  if(sigBusy||$('sig-card'))return;
+  if(!aiProxyUrl()||!localStorage.getItem('ai_proxy_token'))return;
+  sigBusy=true;
+  try{
+    const log=await sigLoad();
+    const ids=[...new Set(log.signals.filter(x=>x.state==='QUALIFIED'||x.state==='ENTRY').map(x=>x.id))]
+      .filter(id=>!log.acks[id]&&!sessionStorage.getItem('sig_later_'+id));
+    if(ids.length)await sigCard(ids[ids.length-1],log);
+  }catch(e){}finally{sigBusy=false;}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(sigPending,600);});
+setTimeout(sigPending,1500);
 try{
   // a 1-hour block push lands on ?block=HH:MM — Today opens with that block's card focused
   const bm=location.search.match(/[?&]block=(\d{2}:\d{2})/);
