@@ -193,7 +193,8 @@ button:disabled{opacity:.6;cursor:not-allowed;transform:none}
       <h2>3 · Date &amp; time</h2>
       <div class="step">
         <div class="row">
-          <input type="datetime-local" id="when" step="0.001">
+          <input type="datetime-local" id="when" step="60" style="flex:1 1 100%">
+          <input type="text" id="whenSec" class="tight" inputmode="decimal" placeholder="sec.ms" title="Seconds and milliseconds, e.g. 07.042 (the iPhone time picker has no seconds column)" style="flex:0 0 86px">
           <button type="button" id="now" class="tight">Now</button>
           <button type="button" id="fromPhoto" class="tight" disabled title="Use the date the photo was taken">From photo</button>
         </div>
@@ -235,7 +236,7 @@ var els = {
   addr:$('addr'), find:$('find'), results:$('results'), geoHint:$('geoHint'), locate:$('locate'),
   lat:$('lat'), lng:$('lng'), acc:$('acc'), label:$('label'),
   weather:$('weather'), getWeather:$('getWeather'), weatherHint:$('weatherHint'),
-  when:$('when'), now:$('now'), fromPhoto:$('fromPhoto'), whenHint:$('whenHint'),
+  when:$('when'), whenSec:$('whenSec'), now:$('now'), fromPhoto:$('fromPhoto'), whenHint:$('whenHint'),
   note:$('note'), noteCount:$('noteCount'),
   canvas:$('canvas'), dims:$('dims'), download:$('download'), status:$('status'),
   result:$('result'), resultImg:$('resultImg'), resultLink:$('resultLink'),
@@ -288,7 +289,23 @@ function getCoords(){
   if(Math.abs(lat) < 1e-4 && Math.abs(lng) < 1e-4) return null;
   return { lat:lat, lng:lng };
 }
-function getWhen(){ return parseLocalInput(els.when.value) || new Date(); }
+// The minute comes from the date/time picker; seconds + milliseconds from the "sec.ms" box beside it
+// (2026-10-11: iOS's datetime picker never shows a seconds column, whatever step= says).
+function parseSecMs(v){
+  var m = /^\s*(\d{1,2})(?:[.,](\d{1,3}))?\s*$/.exec(v || '');
+  if(!m || +m[1] > 59) return null;
+  return { s: +m[1], ms: m[2] ? +(m[2] + '00').slice(0, 3) : 0 };
+}
+function getWhen(){
+  var d = parseLocalInput(els.when.value) || new Date();
+  var sm = parseSecMs(els.whenSec.value);
+  if(sm){ d.setSeconds(sm.s); d.setMilliseconds(sm.ms); }
+  return d;
+}
+function setWhen(d){
+  els.when.value = toLocalInput(new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes()));
+  els.whenSec.value = (d.getSeconds() || d.getMilliseconds()) ? p2(d.getSeconds()) + '.' + p3(d.getMilliseconds()) : '';
+}
 function setCoords(lat, lng){
   els.lat.value = (+lat).toFixed(6); els.lng.value = (+lng).toFixed(6);
   store('lat', els.lat.value); store('lng', els.lng.value);
@@ -561,7 +578,7 @@ function loadFile(file){
       els.photoInfo.className = 'hint ok';
       if(exif.date){
         els.fromPhoto.disabled = false;
-        els.when.value = toLocalInput(exif.date);
+        setWhen(exif.date);
         setHint(els.whenHint, 'Set to when the photo was taken: ' + fmtHumanDate(exif.date), 'ok');
       } else {
         els.fromPhoto.disabled = true;
@@ -981,16 +998,17 @@ els.weather.addEventListener('input', function(){ store('weather', els.weather.v
 els.getWeather.addEventListener('click', function(){ lookupWeather(false); });
 els.label.addEventListener('input', function(){ store('label', els.label.value); renderSoon(); });
 els.when.addEventListener('input', function(){ setHint(els.whenHint, ''); renderSoon(); });
-els.now.addEventListener('click', function(){ els.when.value = toLocalInput(new Date()); setHint(els.whenHint, ''); render(); });
+els.whenSec.addEventListener('input', function(){ var ok = !els.whenSec.value.trim() || parseSecMs(els.whenSec.value); setHint(els.whenHint, ok ? '' : 'Seconds box: use SS or SS.mmm, 00–59, e.g. 07.042', ok ? '' : 'bad'); renderSoon(); });
+els.now.addEventListener('click', function(){ setWhen(new Date()); setHint(els.whenHint, ''); render(); });
 els.fromPhoto.addEventListener('click', function(){
-  if(state.exif && state.exif.date){ els.when.value = toLocalInput(state.exif.date); setHint(els.whenHint, 'Set to when the photo was taken: ' + fmtHumanDate(state.exif.date), 'ok'); render(); }
+  if(state.exif && state.exif.date){ setWhen(state.exif.date); setHint(els.whenHint, 'Set to when the photo was taken: ' + fmtHumanDate(state.exif.date), 'ok'); render(); }
 });
 els.note.addEventListener('input', function(){ els.noteCount.textContent = els.note.value.length + ' / 160'; renderSoon(); });
 els.download.addEventListener('click', exportJpeg);
 
 // ---------- boot: restore the last job site so repeat photos are two taps ----------
 (function boot(){
-  els.when.value = toLocalInput(new Date());
+  setWhen(new Date());
   var lat = recall('lat'), lng = recall('lng'), label = recall('label'), addr = recall('addr');
   if(lat && lng){ els.lat.value = lat; els.lng.value = lng; }
   if(label) els.label.value = label;
