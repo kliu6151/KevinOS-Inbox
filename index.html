@@ -197,6 +197,23 @@
   .sp-who span{display:block;font-size:12px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sp-pill{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 8px;border-radius:999px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;
     color:var(--pc,var(--muted));background:color-mix(in srgb,var(--pc,var(--muted)) 14%,transparent);border:1px solid color-mix(in srgb,var(--pc,var(--muted)) 35%,transparent)}
+  /* evening check-in FORM (2026-10-13): the whole check-in on one screen, sent once to the
+     Claude routine — no account switch, no back-and-forth */
+  #ci-ov#ci-ov{z-index:61} /* above the Ask sheet and the nav */
+  #ci-sheet{max-height:90vh}
+  .ci-h{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+  .ci-h:first-of-type{margin-top:6px}
+  .ci-it{border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:6px;background:var(--bg)}
+  .ci-it .ci-t{font-size:14px;line-height:1.35}
+  .ci-it .ci-t small{display:block;font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:2px}
+  .ci-seg{display:flex;gap:6px;margin-top:8px}
+  .ci-seg button{flex:1;padding:7px 0;border-radius:9px;border:1px solid var(--border2);background:var(--panel);color:var(--muted);font-size:13px;font-weight:600}
+  .ci-seg button.on[data-s="done"]{background:rgba(62,207,142,.16);border-color:var(--green);color:var(--green)}
+  .ci-seg button.on[data-s="slip"]{background:rgba(255,176,32,.14);border-color:var(--amber);color:var(--amber)}
+  .ci-it input{margin-top:8px}
+  .ci-fx{font-size:13.5px;line-height:1.5;color:var(--muted);border-left:3px solid var(--accent);padding:2px 0 2px 10px;margin-bottom:8px}
+  .ci-fx b{font-family:var(--mono);color:var(--text);font-weight:700}
+  #ci-sheet textarea{min-height:76px}
   .fold.subfold{margin:10px 10px 0;width:calc(100% - 20px);background:var(--bg);border-radius:8px;font-size:14px;padding:11px 12px}
   .foldcard.subfoldcard{margin:6px 10px 10px;width:calc(100% - 20px);background:var(--bg);border-radius:8px}
   .foldcard.subfoldcard:last-child{margin-bottom:12px}
@@ -226,12 +243,12 @@
   .day-title{margin:18px 2px 8px;font-size:14px;font-weight:700}
 
   /* detail sheet */
-  #sheet-ov,#ev-ov,#pk-ov{
+  #sheet-ov,#ev-ov,#pk-ov,#ci-ov{
     position:fixed;inset:0;background:rgba(4,6,10,.68);z-index:50;
     display:flex;align-items:flex-end;backdrop-filter:blur(4px);
   }
-  #sheet-ov[hidden],#ev-ov[hidden],#pk-ov[hidden]{display:none}
-  #sheet,#ev-sheet,#pk-sheet{
+  #sheet-ov[hidden],#ev-ov[hidden],#pk-ov[hidden],#ci-ov[hidden]{display:none}
+  #sheet,#ev-sheet,#pk-sheet,#ci-sheet{
     width:100%;background:linear-gradient(180deg,var(--panel),var(--panel2));
     border-radius:22px 22px 0 0;border-top:1px solid var(--border2);
     padding:20px 18px calc(20px + env(safe-area-inset-bottom));
@@ -898,6 +915,18 @@
     <div id="pk-sheet-body"></div>
     <button class="pk-btn" id="pk-primary">Generate workout</button>
     <button class="btn2" id="pk-close">Close</button>
+  </div>
+</div>
+
+<!-- EVENING CHECK-IN form (2026-10-13): one screen → one message to the Claude routine -->
+<div id="ci-ov" hidden>
+  <div id="ci-sheet">
+    <div class="grab"></div>
+    <div class="sh-title">Evening check-in</div>
+    <div id="ci-body"><div class="loading">Loading…</div></div>
+    <div id="ci-status"></div>
+    <button class="btn" id="ci-send">Send to Claude</button>
+    <button class="btn2" id="ci-close">Close</button>
   </div>
 </div>
 
@@ -2065,18 +2094,18 @@ async function renderToday(){
   if(new Date().getHours()>=17){
     const tn=await getFile(`daily/${plusDays(1)}.md`).catch(()=>null);
     const done=!!(tn&&tn.text.includes(DP_MARK));
-    // Kevin, 2026-09-30: check-ins run in Claude (his plan) — /checkin in the KevinOS
-    // repo. The button copies the command and opens Claude; the in-app GPT check-in
-    // (billed per token) stays as a small fallback link.
+    // Kevin, 2026-10-13: the check-in is a one-screen FORM sent once to the Claude routine
+    // (his plan, no account switch). /checkin in Claude stays as the talk-it-through path;
+    // the per-token GPT check-in is no longer offered on the card (startCheckin still exists).
     const b=document.createElement('button');b.className='checkin'+(done?' done':'');
     b.innerHTML=done
-      ?`<span class="ci-i">✓</span><span><b>Tomorrow is planned</b><small>${dpParse(tn.text).filter(x=>x.end).length} blocks · to change it, tell Claude in /checkin</small></span>`
-      :`<span class="ci-i">🌙</span><span><b>Plan tomorrow</b><small>2 min in Claude · tap copies <code>/checkin</code></small></span><span class="ci-go">Open Claude ›</span>`;
-    b.onclick=()=>openClaudeCheckin();
+      ?`<span class="ci-i">✓</span><span><b>Tomorrow is planned</b><small>${dpParse(tn.text).filter(x=>x.end).length} blocks · tap to change it</small></span>`
+      :`<span class="ci-i">🌙</span><span><b>Plan tomorrow</b><small>one screen · Claude builds it in ~2 min</small></span><span class="ci-go">Check in ›</span>`;
+    b.onclick=()=>openCheckinForm();
     body.appendChild(b);
     const alt=document.createElement('button');alt.className='more';alt.style.textAlign='center';
-    alt.textContent='or do it here with the KevinOS AI (~5¢)';
-    alt.onclick=()=>startCheckin(done);
+    alt.textContent='or talk it through in Claude (/checkin)';
+    alt.onclick=()=>openClaudeCheckin();
     body.appendChild(alt);
   }
 
@@ -5621,16 +5650,16 @@ function askLogFind(text,id){
   for(let k=i+1;k<lines.length&&!lines[k].startsWith('## ');k++){
     const l=lines[k];
     if(l.startsWith('**Claude:**'))claude=l.slice(11).trim();
-    else if(claude&&!changed&&l.trim()&&!l.startsWith('- changed:')&&!l.startsWith('**'))claude+=' '+l.trim();
+    else if(claude&&!changed&&l.trim()&&!l.startsWith('- changed:')&&!l.startsWith('**'))claude+='\n'+l.trim(); // keep line breaks: the check-in reply lists one block per line
     if(l.startsWith('- changed:'))changed=l.slice(10).trim();
   }
   return claude?{claude,changed:/^none$/i.test(changed)?'':changed}:null;
 }
 const askPending=()=>{try{return JSON.parse(localStorage.getItem('ask_pending')||'[]');}catch(e){return [];}};
 const askSetPending=a=>{try{localStorage.setItem('ask_pending',JSON.stringify(a.slice(-10)));}catch(e){}};
-async function askClaude(text){
+async function askClaude(text,shown){
   const id=askId();
-  aiMsg('ai-u',esc(text));
+  aiMsg('ai-u',esc(shown||text));
   $('ai-send').disabled=true;$('ai-in').disabled=true;
   const busy=aiMsg('ai-busy','sending to Claude…');
   try{
@@ -5638,7 +5667,7 @@ async function askClaude(text){
     await api(`contents/inbox/ask/${id}.md`,{method:'PUT',body:JSON.stringify({message:`ask: ${id}`,content:enc(`[ask via app] ${aiNow()}\n\n${text}\n`)})});
     // 2. ring the routine
     const r=await pushCall('/claude/send',{id,text});
-    askSetPending([...askPending(),{id,text:text.slice(0,120),ts:Date.now()}]);
+    askSetPending([...askPending(),{id,text:(shown||text).slice(0,120),ts:Date.now()}]);
     aiChip('','SENT TO CLAUDE','working on your Claude plan — usually 1–3 min'+(r.session_url?`. <a href="${esc(r.session_url)}" target="_blank" rel="noopener" style="color:var(--accent)">watch</a>`:''));
     busy.textContent='Claude is working…';
     await askAwait(id,busy);
@@ -5744,6 +5773,93 @@ async function openClaudeCheckin(){
   try{await navigator.clipboard.writeText('/checkin');fx('banner','Copied /checkin<small>paste it in your KevinOS Claude session</small>','calm',2200);}catch(e){}
   setTimeout(()=>{window.location.href='https://claude.ai/code';},700);
 }
+/* EVENING CHECK-IN FORM (2026-10-13). Kevin: "I am too lazy to do checkin since I have to change
+   accounts on my phone then run /checkin". The whole check-in on one screen — what got done
+   (done / slipped + why), win, lesson, sleep, training, tomorrow — composed into ONE message that
+   goes through the Ask-Claude path (inbox/ask/<id>.md → Worker → the KevinOS Ask routine, on his
+   Claude plan, no per-token cost). The routine's "[check-in form]" section (ops/routines/ask-claude.md)
+   does what /checkin does: closes items at their source, stamps stuck:, writes the journal, logs
+   Peak via peak-log.js, and writes tomorrow through ops/day-plan.js — the same validator. */
+let ciState=null;
+async function openCheckinForm(){
+  fx('play','tap');
+  if(!$('ai-ov').hidden)aiClose();
+  $('ci-ov').hidden=false;$('ci-status').textContent='';$('ci-send').disabled=false;
+  const body=$('ci-body');body.innerHTML='<div class="loading">Loading…</div>';
+  // before 4 AM "today" is still the day being recapped (same rule as /checkin) — plan = the new day
+  const late=new Date().getHours()<4;
+  const t=late?plusDays(-1):todayStr(),tm=late?todayStr():plusDays(1);
+  const [ctx,note]=await Promise.all([aiGetDayContext({date:tm}).catch(()=>null),getFile(`daily/${t}.md`).catch(()=>null)]);
+  // what was on the day: open Top 3 + due follow-ups (their ref: names the source) + open timed blocks
+  const items=[],seen=new Set();
+  const add=(title,ref,kind)=>{const k=ref||title.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,40);if(!title||seen.has(k))return;seen.add(k); // same source line once, even when Top 3 and follow-ups word it differently
+  items.push({title,ref,kind,state:'',why:''});};
+  if(note){
+    const ns=noteSections(note.text);
+    for(const re of [/^top 3/i,/^due follow/i]){const sec=secByName(ns.secs,re);if(sec)for(const i of checkboxLines(sec.lines))if(!i.checked)add(stripMeta(i.body).replace(/\*\*/g,'').trim(),meta(i.body,'ref')||'','');}
+    for(const b of dpParse(note.text))if(b.end&&!b.status&&!['break','buffer','drive'].includes(b.kind))add(b.title.replace(/^📌\s*/,''),'',b.start+'–'+b.end);
+  }
+  ciState={t,tm,items};
+  const h=[];
+  h.push('<div class="ci-h">Today — what got done?</div>');
+  if(!items.length)h.push('<div class="ci-fx">Nothing open on today\'s plan — use the box below.</div>');
+  items.forEach((it,i)=>h.push(`<div class="ci-it fld" style="margin-top:0" data-i="${i}"><div class="ci-t">${esc(it.title)}${it.kind?`<small>${esc(it.kind)}</small>`:''}</div>`
+    +`<div class="ci-seg"><button type="button" data-s="done">✓ Done</button><button type="button" data-s="slip">Slipped</button></div>`
+    +`<input type="text" class="ci-why" placeholder="Why? (what's blocking it)" hidden autocomplete="off"></div>`));
+  h.push('<div class="fld"><label>Anything else you got done</label><textarea id="ci-other" placeholder="e.g. Yonkers inspection passed, called Ray about the permit"></textarea></div>');
+  h.push('<div class="ci-h">Journal</div>');
+  h.push('<div class="fld" style="margin-top:0"><label>One win</label><input id="ci-win" type="text" autocomplete="off" placeholder="the thing that went right"></div>');
+  h.push('<div class="fld"><label>One lesson</label><input id="ci-lesson" type="text" autocomplete="off" placeholder="what you would do differently"></div>');
+  h.push('<div class="ci-h">Body</div>');
+  h.push('<div class="frow"><div class="fld" style="margin-top:0"><label>Sleep last night (h)</label><input id="ci-sleep" type="text" inputmode="decimal" autocomplete="off" placeholder="7"></div>'
+    +'<div class="fld" style="margin-top:0"><label>Training today</label><input id="ci-train" type="text" autocomplete="off" placeholder="run 3 mi 30 min / none"></div></div>');
+  h.push(`<div class="ci-h">Tomorrow — ${esc(ctx?ctx.weekday:'')} ${esc(tm.slice(5))}</div>`);
+  if(ctx&&ctx.already_planned)h.push('<div class="ci-fx">Tomorrow is already planned. Write below only what should change.</div>');
+  const fixed=ctx?ctx.fixed_appointments||[]:[];
+  h.push('<div class="ci-fx">'+(fixed.length?fixed.map(f=>`<b>${esc(f.time)}</b> ${esc(f.title)}${f.where?' · '+esc(f.where):''}`).join('<br>'):'No fixed appointments.')+'</div>');
+  if(ctx&&ctx.untimed_events&&ctx.untimed_events.length)h.push('<div class="ci-fx">Also that day: '+ctx.untimed_events.map(esc).join(' · ')+'</div>');
+  h.push('<div class="fld" style="margin-top:4px"><label>What is the plan?</label><textarea id="ci-plan" placeholder="e.g. office till 2, preapprovals first, Pelham check at 3, calls from the truck. Skipping one of the above? say why."></textarea></div>');
+  body.innerHTML=h.join('');
+  body.querySelectorAll('.ci-it').forEach(el=>{
+    const it=items[+el.dataset.i];
+    el.querySelectorAll('.ci-seg button').forEach(b=>b.onclick=()=>{
+      it.state=it.state===b.dataset.s?'':b.dataset.s;
+      el.querySelectorAll('.ci-seg button').forEach(x=>x.classList.toggle('on',x.dataset.s===it.state));
+      const w=el.querySelector('.ci-why');w.hidden=it.state!=='slip';if(!w.hidden)w.focus();fx('haptic');
+    });
+    el.querySelector('.ci-why').oninput=e=>{it.why=e.target.value;};
+  });
+}
+function ciCompose(){
+  const v=id=>($(id)&&$(id).value||'').trim().replace(/\s*\n\s*/g,' / ');
+  const {t,tm,items}=ciState;
+  const L=[`[check-in form] recap ${t} → plan ${tm}`,''];
+  const ln=it=>`${it.title}${it.ref?` | ref: ${it.ref}`:''}`;
+  for(const it of items.filter(x=>x.state==='done'))L.push('DONE: '+ln(it));
+  for(const it of items.filter(x=>x.state==='slip'))L.push(`SLIPPED: ${it.title} | reason: ${(it.why.trim()||'no reason given').replace(/\|/g,'/')}${it.ref?` | ref: ${it.ref}`:''}`);
+  for(const it of items.filter(x=>!x.state))L.push('NOT MARKED (leave as is): '+ln(it));
+  if(v('ci-other'))L.push('ALSO DONE: '+v('ci-other'));
+  if(v('ci-win'))L.push('WIN: '+v('ci-win'));
+  if(v('ci-lesson'))L.push('LESSON: '+v('ci-lesson'));
+  if(v('ci-sleep'))L.push('SLEEP: '+v('ci-sleep'));
+  if(v('ci-train'))L.push('TRAINING: '+v('ci-train'));
+  L.push('TOMORROW: '+(v('ci-plan')||'(nothing typed: fixed items only)'));
+  return L.join('\n');
+}
+let ciWarned=0;
+$('ci-close').onclick=()=>{$('ci-ov').hidden=true;};
+$('ci-ov').onclick=e=>{if(e.target.id==='ci-ov')$('ci-ov').hidden=true;};
+$('ci-send').onclick=()=>{
+  if(!ciState)return;
+  // an empty plan box is allowed (fixed items only) — but only on a second tap
+  if(!$('ci-plan').value.trim()&&Date.now()-ciWarned>15000){ciWarned=Date.now();$('ci-status').textContent='Tomorrow\'s plan is empty. Type it, or tap Send again to plan only the fixed items.';return;}
+  if(!aiProxyUrl()||!localStorage.getItem('ai_proxy_token')){$('ci-status').textContent='Claude is not set up on this device: Dump tab → reset AI, then try again.';return;}
+  const msg=ciCompose(),n=ciState.items.filter(x=>x.state==='done').length;
+  $('ci-ov').hidden=true;
+  try{localStorage.setItem('ask_mode','claude');}catch(e){}
+  $('ai-open').click();
+  askClaude(msg,`Evening check-in · ${n} done · plan ${dpWeekday(ciState.tm)}`);
+};
 /* Trading signal card (2026-10-04, spec ops/specs/trading-signals.md): a watch-only alert tapped on
    the phone lands on ?signal=<id>. One card above Today, two taps — "Would take" / "Skip" — posted to
    the Worker's /signal/ack. The evening digest (ops/trading/signal-digest.js) turns the day's signals
@@ -5810,12 +5926,14 @@ try{
   if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',e=>{
     if(e.data&&e.data.block){blockFocus=e.data.block;if(!$('ai-ov').hidden)aiClose();goView('today');}
     if(e.data&&e.data.signal){if(!$('ai-ov').hidden)aiClose();goView('today');sigCard(String(e.data.signal));}
+    if(e.data&&e.data.checkin){if(!$('ai-ov').hidden)aiClose();goView('today');openCheckinForm();}
   });
-  // the 8pm banner lands here: show Today (where the check-in card sits) — it never
-  // starts the paid in-app check-in on its own
+  // the 8pm banner lands here and opens the check-in form (2026-10-13) — never the paid
+  // in-app check-in
   if(/[?&]checkin=1\b/.test(location.search)){
     history.replaceState(null,'',location.pathname);
-    sessionStorage.setItem('ai_launched','1'); // don't auto-open the assistant over the card
+    sessionStorage.setItem('ai_launched','1'); // don't auto-open the assistant over the form
+    if(token())setTimeout(()=>openCheckinForm(),400);
   }
 }catch(e){}
 $('ai-x').onclick=aiClose;

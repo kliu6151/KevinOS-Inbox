@@ -151,7 +151,7 @@ self.addEventListener('push', (e) => {
         shown++;
       }
       if (h === 20 && now.getMinutes() < 15) {
-        await note('Plan tomorrow', '2 minutes in Claude: type /checkin in your KevinOS session.', 'kevinos-checkin', { url: APP + '?checkin=1', checkin: true });
+        await note('Plan tomorrow', 'One screen: what got done, win, lesson, tomorrow. Claude builds the plan.', 'kevinos-checkin', { url: APP + '?checkin=1', checkin: true });
         shown++;
       }
       if (h === 9 && now.getMinutes() < 15) {
@@ -186,6 +186,7 @@ self.addEventListener('notificationclick', (e) => {
       const bm = (d.url || '').match(/[?&]block=(\d{2}:\d{2})/);
       if (bm) c.postMessage({ block: bm[1] });
       if (d.signal) c.postMessage({ signal: d.signal });
+      if (d.checkin) c.postMessage({ checkin: 1 }); // 8pm push → the check-in form (2026-10-13)
       return c.focus();
     }
     return self.clients.openWindow(d.url || APP);
