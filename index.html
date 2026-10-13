@@ -2708,7 +2708,7 @@ async function renderMoney(){
   // remember which folds the user opened/closed so a check-off re-render doesn't collapse them
   const prevFolds=new Map([...body.querySelectorAll('.fold')].map(h=>[h.querySelector('.ft').textContent,h.classList.contains('open')]));
   if(!keepView)body.innerHTML=skel();
-  const [f,ops,sbf,sec]=await Promise.all([getFile('data/money.md'),getFile('data/ops-status.md'),getFile('data/scoreboard.json').catch(()=>null),getFile('data/security-status.md').catch(()=>null)]);body.innerHTML='';
+  const [f,ops,sbf,sec,slv]=await Promise.all([getFile('data/money.md'),getFile('data/ops-status.md'),getFile('data/scoreboard.json').catch(()=>null),getFile('data/security-status.md').catch(()=>null),getFile('data/slavko-pay.md').catch(()=>null)]);body.innerHTML='';
   let sb=null;try{sb=sbf?JSON.parse(sbf.text):null;}catch(e){}
   if(sb)moneyHero(body,sb);
   if(f)moneyNeedsYou(body,f.text);
@@ -2728,6 +2728,29 @@ async function renderMoney(){
       of.card.appendChild(moneyLineEl(l));
     }
     body.appendChild(of.head);body.appendChild(of.card);
+  }
+  // 🧾 Slavko audits — the running pay list (data/slavko-pay.md, KevinOS-written; Kevin 2026-10-12:
+  // "where do I see the rows and columns?"). Read-only here: each markdown table row becomes a two-line
+  // item (who · date / address · status · estimate), 🟢 when the Paid column is filled. Marking paid or
+  // not-eligible happens by telling KevinOS, which rewrites the file.
+  if(slv){
+    const L=slv.text.split('\n').map(l=>l.replace(/\r$/,''));
+    const isTotal=l=>/^\*\*\d+ audits/.test(l);
+    const total=(L.find(isTotal)||'').replace(/\*/g,'');
+    const open=prevFolds.has('🧾 Slavko audits')?prevFolds.get('🧾 Slavko audits'):false;
+    const sv=fold('🧾 Slavko audits',total,open,0);
+    for(const l of L){
+      if(l.startsWith('## ')||isTotal(l)){const h=document.createElement('div');h.className='note';h.style.padding=isTotal(l)?'4px 14px 8px':'8px 14px 2px';h.innerHTML='<b>'+esc(l.replace(/^## /,'').replace(/\*/g,''))+'</b>';sv.card.appendChild(h);continue;}
+      if(!/^\| /.test(l)||/^\| *(Applicant|---)/.test(l))continue;
+      const c=l.split('|').slice(1,-1).map(x=>x.trim());
+      const who=c[0]||'',addr=c[1]||'',status=c[2]||'',date=c[3]||'',est=c[4]||'',last=c[5]||'';
+      const paid=/paid|🟢/i.test(last)&&!/not/i.test(last);
+      const row=document.createElement('div');row.style.cssText='padding:7px 14px;border-top:1px solid var(--border)';
+      row.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px"><b>'+(paid?'🟢 ':'')+esc(who)+'</b><span class="note">'+esc(date)+'</span></div>'
+        +'<div class="note">'+esc(addr)+' · '+esc(status.replace(/_/g,' '))+' · '+esc(est)+(last&&!paid?'<br>'+esc(last):'')+'</div>';
+      sv.card.appendChild(row);
+    }
+    body.appendChild(sv.head);body.appendChild(sv.card);
   }
   // 🛡 Security — the daily machine check (ops/security-posture.js, one '## HOST' per machine). Read-only;
   // 🚨 lines are alarms, ⚠ are drift, ✅ unchanged. Spec docs/security/PROTECTION-PLAN.md §3 (2026-10-03).
