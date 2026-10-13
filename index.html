@@ -169,6 +169,34 @@
   .fold .fw{font-family:var(--mono);color:var(--red);font-weight:600;font-size:11.5px}
   .foldcard{margin-top:6px}
   /* nested sub-dropdowns (### subsections inside a money section fold) */
+  /* status rows (Ops / Security folds): a dot for severity, two clamped lines, tap to read the rest;
+     ✅ lines hide behind one "N fine" row (Kevin 2026-10-12: Money read as a wall of text) */
+  .st-h{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:14px 14px 6px}
+  .st-row{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;padding:9px 14px;border:0;border-top:1px solid var(--border);border-radius:0;margin:0;box-shadow:none;font:inherit;font-size:13.5px;line-height:1.4;color:var(--text);background:none}
+  .st-row .d{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none;background:var(--faint)}
+  .st-row.r .d{background:var(--red);box-shadow:0 0 8px rgba(255,93,81,.6)} .st-row.a .d{background:var(--amber)} .st-row.g .d{background:var(--green)}
+  .st-row .t{flex:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+  .st-row .t span{color:var(--muted)}
+  .st-row.x .t{display:block}
+  .st-ok{color:var(--green);font-family:var(--mono);font-size:12px;font-weight:600}
+  /* Slavko pay list: owed headline + one tidy row per audit */
+  .sp-sum{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:16px 14px 10px}
+  .sp-sum .k{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .sp-sum .v{font-family:var(--mono);font-size:28px;font-weight:800;color:var(--amber);line-height:1.1;margin-top:4px}
+  .sp-sum .s{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right}
+  .sp-bar{height:6px;border-radius:3px;background:var(--border);margin:0 14px 6px;overflow:hidden}
+  .sp-bar i{display:block;height:100%;background:var(--green);border-radius:3px}
+  .sp-row{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;padding:9px 14px;border-top:1px solid var(--border);border-left:3px solid transparent}
+  .sp-row.paid{border-left-color:var(--green)}
+  .sp-row.dim{opacity:.55}
+  .sp-date{font-family:var(--mono);text-align:center;line-height:1.05;color:var(--muted)}
+  .sp-date b{display:block;font-size:17px;color:var(--text)}
+  .sp-date small{font-size:9.5px;letter-spacing:.08em}
+  .sp-who{min-width:0}
+  .sp-who b{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sp-who span{display:block;font-size:12px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sp-pill{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 8px;border-radius:999px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;
+    color:var(--pc,var(--muted));background:color-mix(in srgb,var(--pc,var(--muted)) 14%,transparent);border:1px solid color-mix(in srgb,var(--pc,var(--muted)) 35%,transparent)}
   .fold.subfold{margin:10px 10px 0;width:calc(100% - 20px);background:var(--bg);border-radius:8px;font-size:14px;padding:11px 12px}
   .foldcard.subfoldcard{margin:6px 10px 10px;width:calc(100% - 20px);background:var(--bg);border-radius:8px}
   .foldcard.subfoldcard:last-child{margin-bottom:12px}
@@ -2573,6 +2601,28 @@ function ledgerRow(line){
   }
   return div;
 }
+/* status rows for the Ops / Security feeds: problems first, ✅ lines folded into one "N fine" row */
+function statusList(cardEl,lines){
+  const sev=l=>/🚨|🔴/.test(l)?'r':/⚠/.test(l)?'a':/✅|🟢/.test(l)?'g':'n';
+  const clean=l=>l.replace(/^(- )+/,'').replace(/^[•\-]\s*/,'').replace(/[✅⚠🚨🔴🟢]️?\s*/gu,'').trim();
+  const row=l=>{const t=clean(l),i=t.indexOf(' — '),b=document.createElement('button');b.className='st-row '+sev(l);
+    b.innerHTML='<i class="d"></i><span class="t">'+(i>0&&i<70?'<b>'+esc(t.slice(0,i))+'</b> <span>'+esc(t.slice(i+3))+'</span>':esc(t))+'</span>';
+    b.onclick=()=>b.classList.toggle('x');return b;};
+  const flush=(grp)=>{
+    const order={r:0,a:1,n:2};
+    grp.filter(l=>sev(l)!=='g').sort((x,y)=>order[sev(x)]-order[sev(y)]).forEach(l=>cardEl.appendChild(row(l)));
+    const ok=grp.filter(l=>sev(l)==='g');
+    if(ok.length){const b=document.createElement('button');b.className='st-row g';b.innerHTML='<i class="d"></i><span class="t st-ok">'+ok.length+' check'+(ok.length===1?'':'s')+' fine ▸</span>';
+      b.onclick=()=>{ok.forEach(l=>cardEl.insertBefore(row(l),b));b.remove();};cardEl.appendChild(b);}
+  };
+  let grp=[];
+  for(const l of lines){
+    if(l.startsWith('- updated:'))continue;
+    if(/^#{2,3} /.test(l)){flush(grp);grp=[];const h=document.createElement('div');h.className='st-h';h.textContent=l.replace(/^#+ /,'');cardEl.appendChild(h);continue;}
+    if(l.trim())grp.push(l);
+  }
+  flush(grp);
+}
 function moneyLineEl(line){
   if(line.startsWith('- ')&&line.includes(' | '))return ledgerRow(line); // top-level structured → ledger row
   const m=line.match(/^- \[( |x)\] (.*)$/);
@@ -2717,17 +2767,15 @@ async function renderMoney(){
   // ⚙ Ops status — script-written watch feed for the local money routines
   // (ops/ops-status.js, refreshed by the daily 8:30 ACH check). Read-only;
   // buttons stay on the desktop console.
+  // Ops + Security render as status rows (statusList), closed by default — the fold header carries the
+  // warning count and turns red on an alarm; the detail is one tap away, not a 5,000px wall (2026-10-12).
   if(ops){
     const lines=ops.text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.startsWith('- ')||l.startsWith('## '));
     const warn=lines.filter(l=>/⚠|🔴|🚨/.test(l)).length;
     const upd=((lines.find(l=>l.startsWith('- updated:'))||'').split('updated:')[1]||'').trim();
-    const open=prevFolds.has('⚙ Ops status')?prevFolds.get('⚙ Ops status'):warn>0;
+    const open=prevFolds.has('⚙ Ops status')?prevFolds.get('⚙ Ops status'):false;
     const of=fold('⚙ Ops status',upd,open,warn);
-    for(const l of lines){
-      if(l.startsWith('- updated:'))continue;
-      if(l.startsWith('## ')){const h=document.createElement('div');h.className='note';h.style.padding='6px 14px 2px';h.innerHTML='<b>'+esc(l.slice(3))+'</b>';of.card.appendChild(h);continue;}
-      of.card.appendChild(moneyLineEl(l));
-    }
+    statusList(of.card,lines);
     body.appendChild(of.head);body.appendChild(of.card);
   }
   // 🧾 Slavko audits — the running pay list (data/slavko-pay.md, KevinOS-written; Kevin 2026-10-12:
@@ -2739,16 +2787,33 @@ async function renderMoney(){
     const isTotal=l=>/^\*\*\d+ audits/.test(l);
     const total=(L.find(isTotal)||'').replace(/\*/g,'');
     const open=prevFolds.has('🧾 Slavko audits')?prevFolds.get('🧾 Slavko audits'):false;
-    const sv=fold('🧾 Slavko audits',total,open,0);
+    // header + summary show the file's own total line (KevinOS computes it, the app never adds money up)
+    const owed=(total.match(/=\s*(\$[\d,.]+)/)||[])[1]||'';
+    const sv=fold('🧾 Slavko audits',owed?owed+' owed':total,open,0);
+    const rows=[];let secName='',kind='due';
     for(const l of L){
-      if(l.startsWith('## ')||isTotal(l)){const h=document.createElement('div');h.className='note';h.style.padding=isTotal(l)?'4px 14px 8px':'8px 14px 2px';h.innerHTML='<b>'+esc(l.replace(/^## /,'').replace(/\*/g,''))+'</b>';sv.card.appendChild(h);continue;}
+      if(l.startsWith('## ')){secName=l.slice(3).replace(/\s*\(.*\)\s*$/,'');kind=/sales/i.test(l)?'sales':/not eligible/i.test(l)?'ne':'due';rows.push({h:secName});continue;}
       if(!/^\| /.test(l)||/^\| *(Applicant|---)/.test(l))continue;
       const c=l.split('|').slice(1,-1).map(x=>x.trim());
-      const who=c[0]||'',addr=c[1]||'',status=c[2]||'',date=c[3]||'',est=c[4]||'',last=c[5]||'';
-      const paid=/paid|🟢/i.test(last)&&!/not/i.test(last);
-      const row=document.createElement('div');row.style.cssText='padding:7px 14px;border-top:1px solid var(--border)';
-      row.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px"><b>'+(paid?'🟢 ':'')+esc(who)+'</b><span class="note">'+esc(date)+'</span></div>'
-        +'<div class="note">'+esc(addr)+' · '+esc(status.replace(/_/g,' '))+' · '+esc(est)+(last&&!paid?'<br>'+esc(last):'')+'</div>';
+      rows.push({kind,who:c[0]||'',addr:c[1]||'',status:c[2]||'',date:c[3]||'',est:c[4]||'',last:c[5]||''});
+    }
+    const due=rows.filter(r=>r.kind==='due'),nPaid=due.filter(r=>/paid|🟢/i.test(r.last)&&!/not/i.test(r.last)).length;
+    const sum=document.createElement('div');
+    sum.innerHTML=`<div class="sp-sum"><div><div class="k">Owed to Slavko</div><div class="v">${esc(owed||'—')}</div></div>`
+      +`<div class="s">${due.length} audits<br>${nPaid} paid</div></div><div class="sp-bar"><i style="width:${due.length?nPaid/due.length*100:0}%"></i></div>`;
+    sv.card.appendChild(sum);
+    const PILL={submitted:['submitted','#3ecf8e'],ready_for_review:['ready','#6aa9ff'],draft:['draft','#9aa5b5'],not_scheduled:['not started','#ffb020']};
+    for(const r of rows){
+      if(r.h!==undefined){const h=document.createElement('div');h.className='st-h';h.textContent=r.h.replace(/ — requested by Slavko, not yet paid/i,' · requested').replace(/\b(\d{4})-(\d\d)-(\d\d)\b/,(m,y,mo,d)=>new Date(+y,mo-1,+d).toLocaleDateString(undefined,{month:'short',day:'numeric'}));sv.card.appendChild(h);continue;}
+      const paid=r.kind==='due'&&/paid|🟢/i.test(r.last)&&!/not/i.test(r.last);
+      const d=/^\d{4}-\d\d-\d\d$/.test(r.date)?new Date(r.date+'T12:00'):null;
+      const town=r.addr.includes(',')?r.addr.split(',').pop().trim():r.addr;
+      const [pl,pc]=paid?['paid','#3ecf8e']:r.kind!=='due'?[r.last.replace(/\s*\(.*\)\s*$/,'')||'not paid','#727d8e']:(PILL[r.status]||[r.status.replace(/_/g,' '),'#9aa5b5']);
+      const row=document.createElement('div');row.className='sp-row'+(paid?' paid':'')+(r.kind!=='due'?' dim':'');
+      row.title=r.addr+(r.last?' — '+r.last:'');
+      row.innerHTML=`<div class="sp-date">${d?`<small>${esc(d.toLocaleDateString(undefined,{month:'short'}).toUpperCase())}</small><b>${d.getDate()}</b>`:esc(r.date)}</div>`
+        +`<div class="sp-who"><b>${esc(r.who)}</b><span>${esc(town)} · ${esc(r.est)}</span></div>`
+        +`<span class="sp-pill" style="--pc:${pc}">${esc(pl)}</span>`;
       sv.card.appendChild(row);
     }
     body.appendChild(sv.head);body.appendChild(sv.card);
@@ -2759,14 +2824,10 @@ async function renderMoney(){
     const lines=sec.text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.startsWith('- ')||l.startsWith('## ')||l.startsWith('### '));
     const alarms=lines.filter(l=>/🚨/.test(l)).length, warn=lines.filter(l=>/⚠/.test(l)).length;
     const upd=((lines.find(l=>l.startsWith('- updated:'))||'').split('updated:')[1]||'').trim();
-    const open=prevFolds.has('🛡 Security')?prevFolds.get('🛡 Security'):alarms>0;
-    const sf=fold('🛡 Security',(alarms?alarms+' alarm'+(alarms===1?'':'s')+' · ':'')+upd,open,alarms+warn);
+    const open=prevFolds.has('🛡 Security')?prevFolds.get('🛡 Security'):false;
+    const sf=fold('🛡 Security',(alarms?alarms+' alarm'+(alarms===1?'':'s'):'')||upd,open,alarms+warn);
     if(alarms)sf.head.style.borderColor='var(--red)';
-    for(const l of lines){
-      if(l.startsWith('- updated:'))continue;
-      if(l.startsWith('## ')||l.startsWith('### ')){const h=document.createElement('div');h.className='note';h.style.padding='6px 14px 2px';h.innerHTML='<b>'+esc(l.replace(/^#+ /,''))+'</b>';sf.card.appendChild(h);continue;}
-      sf.card.appendChild(moneyLineEl(l));
-    }
+    statusList(sf.card,lines);
     body.appendChild(sf.head);body.appendChild(sf.card);
   }
   if(!f){const c=card();body.appendChild(c);empty(c,'No money.md yet — the weekend pipeline builds it.');return;}
