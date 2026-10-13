@@ -1967,10 +1967,10 @@ async function renderToday(){
   const prevFolds=new Map([...body.querySelectorAll('.fold')].map(h=>[h.querySelector('.ft').textContent,h.classList.contains('open')]));
   if(!keepView)body.innerHTML=skel();
   const t=todayStr(),horizon=plusDays(3),dailyPath=`daily/${t}.md`;
-  const [cal,loops,tasks,daily,habits,sbf,edu,mny]=await Promise.all([
+  const [cal,loops,tasks,daily,habits,sbf,edu,mny,wcf]=await Promise.all([
     getFile('data/calendar.md'),getFile('data/loops.md'),getFile('data/tasks.md'),
     getFile(dailyPath),getFile('data/habits.md'),getFile('data/scoreboard.json').catch(()=>null),
-    getFile('learning/insulation.md').catch(()=>null),getFile('data/money.md').catch(()=>null)]);
+    getFile('learning/insulation.md').catch(()=>null),getFile('data/money.md').catch(()=>null),getFile('data/wechat-photos.md').catch(()=>null)]);
   try{SB=sbf?JSON.parse(sbf.text):null;}catch(e){SB=null;}
   body.innerHTML='';
 
@@ -2235,6 +2235,18 @@ async function renderToday(){
       const lead=over>0?`<b class="pri1">$${tot[3]} overdue</b> (${tot[4]})`:week>0?`<b>$${tot[1]} out this week</b> (${tot[2]})`:'Nothing owed this week';
       sigRow('💸',lead,andrea?'Andrea '+new Date(andrea+'T12:00').toLocaleDateString(undefined,{weekday:'short'})+' ›':'›',()=>goView('money'));
     }
+  }
+
+  // 📷 WeChat job photos (2026-10-13): pulled on demand on KevinLoo by a Claude click-through (WeChat's
+  // cache is encrypted; scheduled runs cannot get app control). The run writes data/wechat-photos.md;
+  // this row shows the last pull and turns red after 3 days. Tap on the laptop hands off to Claude.
+  if(wcf&&(bizFilter==='all'||bizFilter==='airsync')){
+    const last=(wcf.text.match(/- last pull: (\d{4}-\d{2}-\d{2})/)||[])[1];
+    const today=(wcf.text.match(/- today: ([^\n]+)/)||[])[1]||'';
+    const days=last?Math.round((new Date(t+'T12:00')-new Date(last+'T12:00'))/864e5):null;
+    const warn=/⚠/.test(wcf.text);
+    const lead=days===null?'WeChat photos: no pull yet':days>3||warn?`<b class="pri1">WeChat photos: ${days>3?days+' days since last pull':'last pull had a problem'}</b>`:`WeChat photos pulled ${days===0?'today':days===1?'yesterday':days+' days ago'}`;
+    sigRow('📷',lead,(days===0&&today?esc(today.split('·')[0].trim())+' ':'')+'›',wechatPull);
   }
 
   // habit streaks
@@ -5860,6 +5872,16 @@ $('ci-send').onclick=()=>{
   $('ai-open').click();
   askClaude(msg,`Evening check-in · ${n} done · plan ${dpWeekday(ciState.tm)}`);
 };
+/* WeChat pull hand-off (2026-10-13): a web page cannot start programs, and the job needs Kevin to
+   approve Claude's app access each time — so the button copies the skill command and opens the Claude
+   desktop app on KevinLoo (same copy + open pattern as /checkin). On the phone it only says where. */
+async function wechatPull(){
+  fx('play','tap');
+  if(!matchMedia('(pointer:fine)').matches){fx('banner','Run it on KevinLoo<small>import the chats on your phone first, then tap this on the laptop</small>','calm',2600);return;}
+  try{await navigator.clipboard.writeText('/wechat-job-photos');}catch(e){}
+  fx('banner','Copied /wechat-job-photos<small>paste it in Claude · approve WeChat · hands off for 5–10 min</small>','calm',2600);
+  setTimeout(()=>{window.location.href='claude://';},700);
+}
 /* Trading signal card (2026-10-04, spec ops/specs/trading-signals.md): a watch-only alert tapped on
    the phone lands on ?signal=<id>. One card above Today, two taps — "Would take" / "Skip" — posted to
    the Worker's /signal/ack. The evening digest (ops/trading/signal-digest.js) turns the day's signals
