@@ -139,6 +139,19 @@ self.addEventListener('push', (e) => {
         }
       }
     } catch (_) { /* a signal problem must never hide the reminders below */ }
+    // live status (2026-10-14): a system went red or came back — the Worker holds the text
+    try {
+      const [url, tok] = await Promise.all([idbGet('proxy_url'), idbGet('proxy_token')]);
+      if (url && tok) {
+        const r = await fetch(String(url).replace(/\/$/, '') + '/status/alert', { headers: { 'Authorization': 'Bearer ' + tok }, cache: 'no-store' });
+        const a = r.ok ? (await r.json().catch(() => ({}))).alert : null;
+        if (a && a.id && Date.now() - Date.parse(a.at) < 20 * 60 * 1000 && !(await idbGet('st_shown:' + a.id))) {
+          await note(a.title, a.body, 'kevinos-status-' + a.id, { url: APP }, /🔴/.test(a.title) ? { requireInteraction: true } : {});
+          await idbPut('st_shown:' + a.id, Date.now());
+          shown++;
+        }
+      }
+    } catch (_) { /* a status problem must never hide the reminders below */ }
     try {
       const t = await tokenFromIdb();
       if (!t) throw new Error('no token on phone — open KevinOS once');

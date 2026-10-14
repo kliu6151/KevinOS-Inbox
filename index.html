@@ -2118,6 +2118,9 @@ async function renderToday(){
   // SIGNALS (Kevin 2026-10-03: "I rarely scroll down this far"): the three one-line cues live here, above Top 3
   const sig=document.createElement('div');sig.className='signals';body.appendChild(sig);
   const sigRow=(icon,text,metaTxt,onTap)=>{const b=document.createElement('button');b.className='sigrow';b.innerHTML=`<span class="sl">${icon}</span><span class="st">${text}</span><span class="sm">${metaTxt||''}</span>`;b.onclick=onTap;sig.appendChild(b);};
+  // 🟢 SYSTEMS (2026-10-14): live status from the Worker's heartbeats — first row, so a red is the
+  // first thing Kevin sees (he reads the top of the screen only). Async: Today never waits on it.
+  if(aiProxyUrl()&&localStorage.getItem('ai_proxy_token')){const h=document.createElement('div');sig.prepend(h);systemsRow(h);}
   // TOP 3 — bold title + one action line; the coach's why: sits behind a tap (detail sheet)
   if(top3.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Top 3</div>');
@@ -5872,6 +5875,26 @@ $('ci-send').onclick=()=>{
   $('ai-open').click();
   askClaude(msg,`Evening check-in · ${n} done · plan ${dpWeekday(ciState.tm)}`);
 };
+/* Systems row (2026-10-14, spec ops/specs/live-status.md). One line: "All N systems OK" or the
+   worst problem first; tap opens the list (dot · name · what it last said · how long ago). The
+   Worker decides red/yellow/green — the app only draws it. */
+const sysAgo=m=>m<1?'just now':m<90?m+' min ago':m<48*60?Math.round(m/60)+' h ago':Math.round(m/1440)+' d ago';
+async function systemsRow(holder){
+  let j;try{j=await pushGet('/status');}catch(e){return;}
+  const L=(j.systems||[]).slice().sort((a,b)=>({red:0,yellow:1,green:2}[a.state]-{red:0,yellow:1,green:2}[b.state])||a.label.localeCompare(b.label));
+  if(!L.length)return;
+  const red=L.filter(x=>x.state==='red'),yel=L.filter(x=>x.state==='yellow');
+  const why=x=>x.status==='down'?(x.note||'reported down'):x.state==='red'?'silent '+sysAgo(x.ageMin).replace(' ago',''):(x.note||'ok');
+  const worst=red[0]||yel[0];
+  const b=document.createElement('button');b.className='sigrow';
+  b.innerHTML=`<span class="sl">${red.length?'🔴':yel.length?'🟡':'🟢'}</span><span class="st">${worst?`<b class="${red.length?'pri1':''}">${esc(worst.label)}</b> · ${esc(why(worst))}`:`All ${L.length} systems OK`}</span><span class="sm">${red.length+yel.length>1?'+'+(red.length+yel.length-1)+' ':''}›</span>`;
+  const list=document.createElement('div');list.className='card';list.hidden=true;list.style.margin='0';
+  list.innerHTML=L.map(x=>`<div class="st-row ${x.state==='red'?'r':x.state==='yellow'?'a':'g'}" style="cursor:default"><i class="d"></i><span class="t"><b>${esc(x.label)}</b> <span>${esc(why(x))}${x.state==='red'&&x.status!=='down'?'':' · '+esc(sysAgo(x.ageMin))}</span></span></div>`).join('');
+  b.onclick=()=>{list.hidden=!list.hidden;fx('play','tap');};
+  holder.replaceChildren(b,list);
+  // a red jumps to the top of Today (Kevin reads the top only); green stays quiet among the signals
+  if(red.length){const top=$('today-body');if(top&&holder.parentNode!==top){holder.style.margin='0 0 12px';top.prepend(holder);}}
+}
 /* WeChat pull hand-off (2026-10-13): a web page cannot start programs, and the job needs Kevin to
    approve Claude's app access each time — so the button copies the skill command and opens the Claude
    desktop app on KevinLoo (same copy + open pattern as /checkin). On the phone it only says where. */
