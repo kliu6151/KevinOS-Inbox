@@ -54,6 +54,7 @@ header h1 b{color:var(--ink);font-weight:800}
 .hub-text{fill:var(--ink);font-size:11px;font-weight:800;text-anchor:middle}
 .hub-sub{fill:var(--dim);font-size:8.5px;text-anchor:middle}
 @media(prefers-reduced-motion:reduce){.sweep,.node.down circle.halo{animation:none}}
+@media(max-width:480px){.node text{display:none}.node.down text,.node.watch text,.node.sel text{display:block}}
 
 /* ---- numbers ---- */
 .nums{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
