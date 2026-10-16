@@ -130,7 +130,7 @@ header h1 b{color:var(--ink);font-weight:800}
 <div class="wrap">
   <header>
     <h1><b>Command center</b> — every agent working for Kevin</h1>
-    <div class="stamp" id="stamp"><span class="live-dot"></span>loading</div>
+    <div style="display:flex;gap:14px;align-items:baseline;flex-wrap:wrap"><a id="pc-link" href="#" style="font-size:13px;font-weight:700;color:var(--live);text-decoration:none">Paperclip</a><div class="stamp" id="stamp"><span class="live-dot"></span>loading</div></div>
   </header>
   <div id="gate" class="gate" hidden>No login on this browser yet. Open the <a href="./">KevinOS app</a> once and paste the token on the Dump tab; this page uses the same one.</div>
   <div class="grid" id="grid" hidden>
@@ -333,6 +333,9 @@ async function loadActivity(){
     if(!rows.length)el.innerHTML='<div class="empty">No activity yet.</div>';
   }catch(e){el.innerHTML='<div class="empty">Could not load activity: '+esc(e.message||e)+'</div>';}
 }
+(()=>{const l=$('pc-link');let u='';try{u=localStorage.getItem('paperclip_url')||'';}catch(e){}
+  if(u){l.href=u;l.target='_blank';l.rel='noopener';l.title='Opens Paperclip (needs Tailscale on this device)';}
+  else{l.textContent='Paperclip: set up after the mini PC';l.style.color='var(--dim)';l.onclick=e=>{e.preventDefault();const v=(prompt('Paperclip address (Tailscale URL from the mini PC):')||'').trim();if(/^https?:\/\/\S+$/.test(v)){try{localStorage.setItem('paperclip_url',v);}catch(_){}location.reload();}};}})();
 main();
 </script>
 </body>

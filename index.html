@@ -5983,6 +5983,14 @@ async function renderAgents(){
   const nA=L.filter(l=>l.startsWith('- ')&&/🚨/.test(l)).length,nW=L.filter(l=>l.startsWith('- ')&&/⚠/.test(l)).length;
   $('agents-date').textContent=board?`${nA?nA+' need you · ':''}${nW?nW+' to check · ':''}${upd.split(' ')[1]||upd}`:'no board yet';
   body.insertAdjacentHTML('beforeend','<a href="command.html" class="checkin" style="display:flex;text-decoration:none;margin-top:0"><span class="ci-i">🛰️</span><span><b>Open the command center</b><small>orbit map, send work, queue, activity — full screen</small></span><span class="ci-go">Open ›</span></a>');
+  // Paperclip (OD-0030): the plant manager for the mini PC's local agents. Its address is a Tailscale
+  // URL, so it lives in this device's storage only (never the public repo) and works only with Tailscale on.
+  {const pcu=(()=>{try{return localStorage.getItem('paperclip_url')||'';}catch(e){return '';}})();
+   const pb=document.createElement('button');pb.className='checkin';pb.style.marginTop='8px';
+   pb.innerHTML=pcu?'<span class="ci-i">📎</span><span><b>Open Paperclip</b><small>the floor agents — tasks, approvals, budgets, live runs (needs Tailscale on)</small></span><span class="ci-go">Open ›</span>'
+     :'<span class="ci-i">📎</span><span><b>Paperclip</b><small>not set up on this device — tap to paste its Tailscale address (after the mini PC)</small></span><span class="ci-go">Set ›</span>';
+   pb.onclick=()=>{if(pcu){window.open(pcu,'_blank','noopener');return;}const u=(prompt('Paperclip address (from the mini PC, e.g. http://minipc.tailnet-name.ts.net:3100):')||'').trim();if(/^https?:\/\/[^\s]+$/.test(u)){try{localStorage.setItem('paperclip_url',u);}catch(e){}runRender('agents');}};
+   body.appendChild(pb);}
   body.insertAdjacentHTML('beforeend','<div class="sec">Board</div>');
   const bc=card();body.appendChild(bc);
   if(!board){empty(bc,'No data/agents.md yet — the board task writes it every 30 minutes.');}
