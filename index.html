@@ -5942,7 +5942,7 @@ async function wechatPull(){
    + recently delivered), and the REGISTRY (data/agents/REGISTRY.md — what each agent is for). Tap any
    board row to see its purpose, account and kill switch. No new secrets: the same PAT the app uses. */
 const AG_TARGETS=[['fp','FieldPacket (KOS lane)'],['growth','Marketing / growth agent'],['quant','Quant (Trading OS)'],['wechat','WeChat photos (KevinLoo)'],['briefing','Morning briefing']];
-const agStrip=s=>String(s||'').replace(/\*\*/g,'').replace(/`[^`]*`/g,'').replace(/\s+/g,' ').trim();
+const agStrip=s=>String(s||'').replace(/\*\*/g,'').replace(/`[^`]*`/g,'').replace(/\(\s*\)/g,'').replace(/\s+/g,' ').trim();
 const agKey=s=>agStrip(s).toLowerCase().replace(/\s*[(·].*$/,'').trim();
 /* REGISTRY.md tables → [{name, cells:{header:value}, section}] */
 function agRegistry(text){
