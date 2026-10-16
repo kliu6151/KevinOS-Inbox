@@ -5982,6 +5982,7 @@ async function renderAgents(){
   const upd=((L.find(l=>l.startsWith('- updated:'))||'').match(/updated: (\S+ \d{2}:\d{2})/)||[])[1]||'';
   const nA=L.filter(l=>l.startsWith('- ')&&/🚨/.test(l)).length,nW=L.filter(l=>l.startsWith('- ')&&/⚠/.test(l)).length;
   $('agents-date').textContent=board?`${nA?nA+' need you · ':''}${nW?nW+' to check · ':''}${upd.split(' ')[1]||upd}`:'no board yet';
+  body.insertAdjacentHTML('beforeend','<a href="command.html" class="checkin" style="display:flex;text-decoration:none;margin-top:0"><span class="ci-i">🛰️</span><span><b>Open the command center</b><small>orbit map, send work, queue, activity — full screen</small></span><span class="ci-go">Open ›</span></a>');
   body.insertAdjacentHTML('beforeend','<div class="sec">Board</div>');
   const bc=card();body.appendChild(bc);
   if(!board){empty(bc,'No data/agents.md yet — the board task writes it every 30 minutes.');}
