@@ -178,6 +178,7 @@
   .st-row .t{flex:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
   .st-row .t span{color:var(--muted)}
   .st-row.x .t{display:block}
+  .st-row.n .d{background:var(--border2)}
   .st-ok{color:var(--green);font-family:var(--mono);font-size:12px;font-weight:600}
   /* Slavko pay list: owed headline + one tidy row per audit */
   .sp-sum{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:16px 14px 10px}
@@ -877,6 +878,12 @@
     <div id="brief-body" class="loading">Loading…</div>
   </div>
 
+  <!-- AGENTS: board + send work + queue + registry (2026-10-16) -->
+  <div class="view" id="v-agents">
+    <div class="top"><h1>Agents</h1><div class="sub" id="agents-date"></div></div>
+    <div id="agents-body" class="loading">Loading…</div>
+  </div>
+
   <!-- LEARN / EDUCATION -->
   <div class="view" id="v-edu">
     <div class="top"><h1>Learn</h1><div class="sub">training &amp; certifications</div></div>
@@ -982,6 +989,10 @@
         <svg viewBox="0 0 24 24"><path d="M12 4L2 9l10 5 10-5-10-5zM5 11.5V16c0 1.4 3.1 3 7 3s7-1.6 7-3v-4.5"/></svg>
         <span>Learn<span class="sub">Insulation curriculum</span></span>
       </button>
+      <button data-go="agents">
+        <svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M12 7V4M8 4h8M9 12h.01M15 12h.01M9 15h6"/></svg>
+        <span>Agents<span class="sub">Board, send work, queue</span></span>
+      </button>
     </div>
   </div>
 </div>
@@ -1032,6 +1043,9 @@
   </button>
   <button data-v="edu" class="secondary">
     <svg viewBox="0 0 24 24"><path d="M12 4L2 9l10 5 10-5-10-5zM5 11.5V16c0 1.4 3.1 3 7 3s7-1.6 7-3v-4.5"/></svg><span>Learn</span>
+  </button>
+  <button data-v="agents" class="secondary">
+    <svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M12 7V4M8 4h8M9 12h.01M15 12h.01M9 15h6"/></svg><span>Agents</span>
   </button>
 </nav>
 
@@ -2264,6 +2278,7 @@ async function renderToday(){
     const af=fold('🤖 Agents',(nA?nA+' need you · ':'')+rows.filter(l=>l.startsWith('- ')).length+' agents'+(upd?' · '+upd:''),nA>0,nA+nW);
     if(nA)af.head.style.borderColor='var(--red)';
     statusList(af.card,rows);
+    const open=document.createElement('button');open.className='more';open.textContent='open Agents ›';open.onclick=()=>goView('agents');af.card.appendChild(open);
     body.appendChild(af.head);body.appendChild(af.card);
   }
 
@@ -5920,6 +5935,136 @@ async function wechatPull(){
   fx('banner','Copied /wechat-job-photos<small>paste it in Claude · approve WeChat · hands off for 5–10 min</small>','calm',2600);
   setTimeout(()=>{window.location.href='claude://';},700);
 }
+/* ==================== AGENTS VIEW (2026-10-16) ====================
+   Kevin: "I definitely want a frontend for this." One screen for every agent acting for him:
+   the BOARD (data/agents.md — what each is doing, built by ops/agents-board.js), SEND WORK (writes a
+   queue/<agent>/<id>.md item exactly like ops/dispatch.js; the relay delivers it), the QUEUE (waiting
+   + recently delivered), and the REGISTRY (data/agents/REGISTRY.md — what each agent is for). Tap any
+   board row to see its purpose, account and kill switch. No new secrets: the same PAT the app uses. */
+const AG_TARGETS=[['fp','FieldPacket (KOS lane)'],['growth','Marketing / growth agent'],['quant','Quant (Trading OS)'],['wechat','WeChat photos (KevinLoo)'],['briefing','Morning briefing']];
+const agStrip=s=>String(s||'').replace(/\*\*/g,'').replace(/`[^`]*`/g,'').replace(/\s+/g,' ').trim();
+const agKey=s=>agStrip(s).toLowerCase().replace(/\s*[(·].*$/,'').trim();
+/* REGISTRY.md tables → [{name, cells:{header:value}, section}] */
+function agRegistry(text){
+  const out=[];let section='',head=null;
+  for(const raw of String(text||'').split('\n')){
+    const l=raw.replace(/\r$/,'');
+    if(l.startsWith('## ')){section=l.slice(3).trim();head=null;continue;}
+    if(!l.startsWith('|'))continue;
+    const cells=l.split('|').slice(1,-1).map(c=>c.trim());
+    if(/^-+$/.test(cells[0]||''))continue;
+    if(!head){head=cells;continue;}
+    const o={};head.forEach((h,i)=>o[agStrip(h)]=cells[i]||'');
+    out.push({name:agStrip(cells[0]),section,cells:o});
+  }
+  return out;
+}
+function agFind(reg,name){const k=agKey(name);return reg.find(r=>agKey(r.name)===k)||reg.find(r=>k.startsWith(agKey(r.name))||agKey(r.name).startsWith(k))||null;}
+function agDetail(entry,rowText){
+  $('sheet-title').textContent=entry?entry.name:agStrip(rowText).split(' — ')[0];
+  const rows=$('sheet-rows');rows.innerHTML='';
+  const add=(k,v)=>{if(!v)return;const d=document.createElement('div');d.className='note';d.style.padding='6px 0';d.innerHTML='<span style="font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--muted)">'+esc(k.toUpperCase())+'</span><br>'+inline(v);rows.appendChild(d);};
+  add('Now',agStrip(rowText).replace(/^[✅⚠🚨]\s*/,''));
+  if(entry){for(const [k,v] of Object.entries(entry.cells)){if(/^(agent|job)$/i.test(k))continue;add(k,agStrip(v));}add('Section',entry.section);}
+  else add('Registry','No entry yet — add it to data/agents/REGISTRY.md');
+  ['sheet-done','sheet-edit','sheet-cancel','sheet-stuck'].forEach(id=>{const b=$(id);if(b)b.hidden=true;});
+  $('sheet-ov').hidden=false;
+}
+async function agList(dir){try{const j=await api('contents/'+dir);return Array.isArray(j)?j.filter(f=>f.type==='file'&&/\.md$/.test(f.name)).map(f=>f.name):[];}catch(e){return [];}}
+async function renderAgents(){
+  const body=$('agents-body');
+  if(!keepView)body.innerHTML=skel();
+  const [board,regf]=await Promise.all([getFile('data/agents.md').catch(()=>null),getFile('data/agents/REGISTRY.md').catch(()=>null)]);
+  const reg=regf?agRegistry(regf.text):[];
+  body.innerHTML='';
+  // ---- board ----
+  const L=board?board.text.split('\n').map(l=>l.replace(/\r$/,'')):[];
+  const upd=((L.find(l=>l.startsWith('- updated:'))||'').match(/updated: (\S+ \d{2}:\d{2})/)||[])[1]||'';
+  const nA=L.filter(l=>l.startsWith('- ')&&/🚨/.test(l)).length,nW=L.filter(l=>l.startsWith('- ')&&/⚠/.test(l)).length;
+  $('agents-date').textContent=board?`${nA?nA+' need you · ':''}${nW?nW+' to check · ':''}${upd.split(' ')[1]||upd}`:'no board yet';
+  body.insertAdjacentHTML('beforeend','<div class="sec">Board</div>');
+  const bc=card();body.appendChild(bc);
+  if(!board){empty(bc,'No data/agents.md yet — the board task writes it every 30 minutes.');}
+  else{
+    for(const l of L){
+      if(l.startsWith('## ')){const h=document.createElement('div');h.className='st-h';h.textContent=l.slice(3);bc.appendChild(h);continue;}
+      if(!l.startsWith('- ')||/^- (updated:|purpose of)/.test(l))continue;
+      const sev=/🚨/.test(l)?'r':/⚠/.test(l)?'a':'g';
+      const t=l.replace(/^- /,'').replace(/[✅⚠🚨]️?\s*/gu,'');
+      const i=t.indexOf(' — ');
+      const b=document.createElement('button');b.className='st-row '+sev;
+      b.innerHTML='<i class="d"></i><span class="t">'+(i>0?'<b>'+inline(t.slice(0,i))+'</b> <span>'+esc(t.slice(i+3))+'</span>':esc(t))+'</span>';
+      b.onclick=()=>{fx('play','tap');agDetail(agFind(reg,t.slice(0,i>0?i:undefined)),t);};
+      bc.appendChild(b);
+    }
+  }
+  // ---- send work ----
+  body.insertAdjacentHTML('beforeend','<div class="sec">Send work</div>');
+  const sc=card();body.appendChild(sc);
+  sc.innerHTML=`<div style="padding:4px 14px 14px">
+    <div class="fld"><label>To</label><select id="ag-to" style="width:100%;padding:12px;border-radius:12px;background:var(--bg);color:var(--text);border:1px solid var(--border2);font-size:15px">${AG_TARGETS.map(([v,n])=>`<option value="${v}">${esc(n)}</option>`).join('')}</select></div>
+    <div class="fld" id="ag-needs-w"><label>Needs</label><div class="ci-seg"><button type="button" data-n="KOS" class="on">KOS builds it</button><button type="button" data-n="FP">FP reviews / answers</button></div></div>
+    <div class="fld"><label>Subject</label><input id="ag-subj" type="text" maxlength="120" autocomplete="off" placeholder="short, e.g. Add O&amp;R incentive tables"></div>
+    <div class="fld"><label>What to do</label><textarea id="ag-body" placeholder="Your words. No customer names or addresses, no secrets, no money actions — the agent keeps its own limits."></textarea></div>
+    <div id="ag-status" class="note" style="padding:6px 0;min-height:1.4em"></div>
+    <button class="btn" id="ag-send">Queue it</button>
+    <div class="note" style="padding:8px 0 0;font-size:12.5px">Delivered by the relay within ~15 min while the ops machine is on; the growth agent reads its inbox at 10 AM. Kept in queue/…/done afterwards.</div>
+  </div>`;
+  let needs='KOS';
+  const needsW=sc.querySelector('#ag-needs-w'),toSel=sc.querySelector('#ag-to');
+  needsW.querySelectorAll('button').forEach(b=>b.onclick=()=>{needs=b.dataset.n;needsW.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));fx('haptic');});
+  const paintNeeds=()=>{needsW.style.display=toSel.value==='fp'?'':'none';};toSel.onchange=paintNeeds;paintNeeds();
+  sc.querySelector('#ag-send').onclick=async()=>{
+    const to=toSel.value,subject=sc.querySelector('#ag-subj').value.trim().replace(/\s+/g,' ').slice(0,120),text=sc.querySelector('#ag-body').value.trim(),st=sc.querySelector('#ag-status');
+    if(!subject||!text){st.textContent='Subject and body both needed.';return;}
+    if(/\b\d{1,5} [A-Z][a-z]+ (Street|St|Avenue|Ave|Road|Rd|Blvd|Lane|Ln|Drive|Dr)\b/.test(text)||/sk-ant-|ghp_|password\s*[:=]/i.test(text)){st.textContent='That looks like an address or a secret — the queue carries neither.';return;}
+    const d=new Date(),p=n=>String(n).padStart(2,'0');
+    const at=`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    const id=`q-${at.replace(/[^0-9]/g,'')}-${Math.random().toString(36).slice(2,6)}`;
+    const content=`---\nid: ${id}\nto: ${to}\nfrom: app\nat: ${at} NY\nsubject: ${subject}\n${to==='fp'?`needs: ${needs}\n`:''}---\n\n${text}\n`;
+    const btn=sc.querySelector('#ag-send');btn.disabled=true;st.textContent='Queueing…';
+    try{
+      await api(`contents/queue/${to}/${id}.md`,{method:'PUT',body:JSON.stringify({message:`queue: ${to} ${id} (app)`,content:enc(content)})});
+      st.innerHTML='<b style="color:var(--green)">Queued '+esc(id)+'</b> — '+esc(AG_TARGETS.find(x=>x[0]===to)[1]);
+      sc.querySelector('#ag-subj').value='';sc.querySelector('#ag-body').value='';fx('play','check');fx('haptic');
+      setTimeout(()=>runRender('agents'),1200);
+    }catch(e){st.textContent='Could not write the queue: '+(e&&e.message||e);}
+    btn.disabled=false;
+  };
+  // ---- queue ----
+  body.insertAdjacentHTML('beforeend','<div class="sec">Queue</div>');
+  const qc=card();body.appendChild(qc);
+  const qh=document.createElement('div');qh.className='note';qh.textContent='Loading…';qc.appendChild(qh);
+  (async()=>{
+    const rows=[];
+    for(const [a,n] of AG_TARGETS){
+      const [pend,done]=await Promise.all([agList('queue/'+a),agList('queue/'+a+'/done')]);
+      rows.push({a,n,pend,done:done.sort().slice(-3).reverse()});
+    }
+    qh.remove();
+    const any=rows.some(r=>r.pend.length||r.done.length);
+    if(!any){empty(qc,'Nothing queued yet. Send work above, or tell the Ask box "tell FieldPacket to …".');return;}
+    for(const r of rows){
+      if(!r.pend.length&&!r.done.length)continue;
+      const h=document.createElement('div');h.className='st-h';h.textContent=r.n;qc.appendChild(h);
+      for(const f of r.pend){const b=document.createElement('button');b.className='st-row a';b.innerHTML='<i class="d"></i><span class="t"><b>waiting</b> <span>'+esc(f.replace(/\.md$/,''))+'</span></span>';b.onclick=async()=>{const file=await getFile(`queue/${r.a}/${f}`).catch(()=>null);agDetail(null,file?(file.text.match(/subject: ([^\n]+)/)||[])[1]+' — '+file.text.replace(/^---[\s\S]*?---\n?/,'').trim().slice(0,400):f);};qc.appendChild(b);}
+      for(const f of r.done){const b=document.createElement('button');b.className='st-row g';b.innerHTML='<i class="d"></i><span class="t"><b>delivered</b> <span>'+esc(f.replace(/\.md$/,''))+'</span></span>';b.onclick=async()=>{const file=await getFile(`queue/${r.a}/done/${f}`).catch(()=>null);agDetail(null,file?(file.text.match(/subject: ([^\n]+)/)||[])[1]+' — '+file.text.replace(/^---[\s\S]*?---\n?/,'').trim().slice(0,400):f);};qc.appendChild(b);}
+    }
+  })();
+  // ---- registry ----
+  body.insertAdjacentHTML('beforeend','<div class="sec">Registry — what each one is for</div>');
+  const rc=card();body.appendChild(rc);
+  if(!reg.length)empty(rc,'No data/agents/REGISTRY.md yet.');
+  let lastSec='';
+  for(const e of reg){
+    if(e.section!==lastSec){lastSec=e.section;const h=document.createElement('div');h.className='st-h';h.textContent=e.section.replace(/\s*\(.*$/,'');rc.appendChild(h);}
+    const purpose=agStrip(e.cells['Purpose (one line)']||e.cells['Purpose']||'');
+    const b=document.createElement('button');b.className='st-row n';
+    b.innerHTML='<i class="d"></i><span class="t"><b>'+esc(e.name)+'</b> <span>'+esc(purpose)+'</span></span>';
+    b.onclick=()=>{fx('play','tap');agDetail(e,e.name+' — '+purpose);};
+    rc.appendChild(b);
+  }
+}
 /* Trading signal card (2026-10-04, spec ops/specs/trading-signals.md): a watch-only alert tapped on
    the phone lands on ?signal=<id>. One card above Today, two taps — "Would take" / "Skip" — posted to
    the Worker's /signal/ack. The evening digest (ops/trading/signal-digest.js) turns the day's signals
@@ -6017,8 +6162,8 @@ $('ai-reset').onclick=e=>{
 
 /* ---- nav + render orchestration ---- */
 let currentView='today',lastRender=0;
-const renderers={today:renderToday,cal:renderCal,money:renderMoney,peak:renderPeak,brief:renderBrief,edu:renderEdu};
-const viewBody={today:'today-body',cal:'cal-body',money:'money-body',peak:'peak-body',brief:'brief-body',edu:'edu-body'};
+const renderers={today:renderToday,cal:renderCal,money:renderMoney,peak:renderPeak,brief:renderBrief,edu:renderEdu,agents:renderAgents};
+const viewBody={today:'today-body',cal:'cal-body',money:'money-body',peak:'peak-body',brief:'brief-body',edu:'edu-body',agents:'agents-body'};
 
 /* two-pass render: paint cached data instantly, then refresh from network.
    offline → banner over cached view, or an error card with retry if nothing cached. */
@@ -6126,7 +6271,7 @@ function goView(v){
     paint();
   }
 }
-const TAB_ORDER=['dump','dev','today','cal','money','peak','brief','edu'];
+const TAB_ORDER=['dump','dev','today','cal','money','peak','brief','edu','agents'];
 document.body.dataset.tab=currentView;
 /* sound toggle (Dump tab) — per phone, remembered */
 {
