@@ -1967,10 +1967,10 @@ async function renderToday(){
   const prevFolds=new Map([...body.querySelectorAll('.fold')].map(h=>[h.querySelector('.ft').textContent,h.classList.contains('open')]));
   if(!keepView)body.innerHTML=skel();
   const t=todayStr(),horizon=plusDays(3),dailyPath=`daily/${t}.md`;
-  const [cal,loops,tasks,daily,habits,sbf,edu,mny,wcf]=await Promise.all([
+  const [cal,loops,tasks,daily,habits,sbf,edu,mny,wcf,agb]=await Promise.all([
     getFile('data/calendar.md'),getFile('data/loops.md'),getFile('data/tasks.md'),
     getFile(dailyPath),getFile('data/habits.md'),getFile('data/scoreboard.json').catch(()=>null),
-    getFile('learning/insulation.md').catch(()=>null),getFile('data/money.md').catch(()=>null),getFile('data/wechat-photos.md').catch(()=>null)]);
+    getFile('learning/insulation.md').catch(()=>null),getFile('data/money.md').catch(()=>null),getFile('data/wechat-photos.md').catch(()=>null),getFile('data/agents.md').catch(()=>null)]);
   try{SB=sbf?JSON.parse(sbf.text):null;}catch(e){SB=null;}
   body.innerHTML='';
 
@@ -2250,6 +2250,21 @@ async function renderToday(){
     const warn=/⚠/.test(wcf.text);
     const lead=days===null?'WeChat photos: no pull yet':days>3||warn?`<b class="pri1">WeChat photos: ${days>3?days+' days since last pull':'last pull had a problem'}</b>`:`WeChat photos pulled ${days===0?'today':days===1?'yesterday':days+' days ago'}`;
     sigRow('📷',lead,(days===0&&today?esc(today.split('·')[0].trim())+' ':'')+'›',wechatPull);
+  }
+
+  // 🤖 AGENTS (2026-10-15): the live board of every agent/routine/job (data/agents.md, script-owned
+  // by ops/agents-board.js every 30 min). Kevin: "with so many agents I might forget what the purpose
+  // of each one was or what they are up to". One fold: header = counts + updated; rows = statusList;
+  // red (🚨) opens it by default. Purpose of each agent lives in data/agents/REGISTRY.md.
+  if(agb){
+    const L=agb.text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.startsWith('- ')||l.startsWith('## '));
+    const nA=L.filter(l=>/🚨/.test(l)).length,nW=L.filter(l=>/⚠/.test(l)).length;
+    const upd=((L.find(l=>l.startsWith('- updated:'))||'').match(/updated: \S+ (\d{2}:\d{2})/)||[])[1]||'';
+    const rows=L.filter(l=>!/^- (updated:|purpose of)/.test(l));
+    const af=fold('🤖 Agents',(nA?nA+' need you · ':'')+rows.filter(l=>l.startsWith('- ')).length+' agents'+(upd?' · '+upd:''),nA>0,nA+nW);
+    if(nA)af.head.style.borderColor='var(--red)';
+    statusList(af.card,rows);
+    body.appendChild(af.head);body.appendChild(af.card);
   }
 
   // habit streaks
