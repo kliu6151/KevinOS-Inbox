@@ -76,10 +76,10 @@ async function toggle(tok) {
     const s = await load(tok);
     let msg, out;
     if (s.running) {
-      const start = new Date(s.running), h = Math.max(0.1, Math.round((Date.now() - start) / 3.6e5) / 10), day = ymd(start);
-      s.days.set(day, Math.round(((s.days.get(day) || 0) + h) * 10) / 10);
+      const start = new Date(s.running), h = Math.round((Date.now() - start) / 3.6e5) / 10, day = ymd(start); // nearest 6 min; under 3 min counts as 0
+      if (h > 0) s.days.set(day, Math.round(((s.days.get(day) || 0) + h) * 10) / 10);
       msg = `hours via widget: ${day} +${h} h`;
-      out = `Stopped: +${h} h · today ${s.days.get(ymd(new Date())) || 0} h · week ${week(s.days)}/15`;
+      out = h > 0 ? `Stopped: +${h} h · ` : `Stopped: under 3 min, not counted · `; out += `today ${s.days.get(ymd(new Date())) || 0} h · week ${week(s.days)}/15`;
       s.running = null;
     } else {
       s.running = new Date().toISOString();

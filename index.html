@@ -5957,8 +5957,8 @@ async function hoursRow(holder){
       try{
         const g=await getFile(HOURS_PATH),s2=hoursParse(g&&g.text);
         if(!s2.running){hoursRow(holder);return;}
-        const start=new Date(s2.running),h=Math.max(0.1,Math.round((Date.now()-start)/3.6e5)/10),day=ymdOf(start);
-        s2.days.set(day,Math.round(((s2.days.get(day)||0)+h)*10)/10);
+        const start=new Date(s2.running),h=Math.round((Date.now()-start)/3.6e5)/10,day=ymdOf(start); // nearest 6 min; under 3 min counts as 0 (Kevin 2026-10-17: a start-stop test added 0.1)
+        if(h>0)s2.days.set(day,Math.round(((s2.days.get(day)||0)+h)*10)/10);
         await pkSave(HOURS_PATH,hoursText(s2.days,null),`hours via app: ${day} +${h} h`);
         fx('play','check');hoursRow(holder);
       }catch(e){b.disabled=false;b.querySelector('.sm').textContent='retry ›';}
