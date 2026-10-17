@@ -200,7 +200,16 @@
     color:var(--pc,var(--muted));background:color-mix(in srgb,var(--pc,var(--muted)) 14%,transparent);border:1px solid color-mix(in srgb,var(--pc,var(--muted)) 35%,transparent)}
   /* evening check-in FORM (2026-10-13): the whole check-in on one screen, sent once to the
      Claude routine — no account switch, no back-and-forth */
-  #ci-ov#ci-ov{z-index:61} /* above the Ask sheet and the nav */
+  #ci-ov#ci-ov,#ns-ov#ns-ov{z-index:61}
+  .ns-it{padding:12px 0;border-bottom:1px solid var(--border)}
+  .ns-it.warn{color:var(--red);font-size:14px}
+  .ns-hd{font-size:15px;font-weight:600;line-height:1.4}
+  .ns-k{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border:1px solid var(--border2);border-radius:6px;padding:1px 6px;margin-right:6px;vertical-align:1px}
+  .ns-dr{white-space:pre-wrap;font-size:14px;color:var(--text);background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:9px 11px;margin-top:8px;line-height:1.45}
+  .ns-acts{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+  .ns-b{font:inherit;font-size:14px;font-weight:600;padding:8px 14px;border-radius:10px;border:1px solid var(--border2);background:var(--panel);color:var(--text);text-decoration:none}
+  .ns-b.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+  .ns-b.ghost{color:var(--muted)} /* above the Ask sheet and the nav */
   #ci-sheet{max-height:90vh}
   .ci-h{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
   .ci-h:first-of-type{margin-top:6px}
@@ -244,12 +253,12 @@
   .day-title{margin:18px 2px 8px;font-size:14px;font-weight:700}
 
   /* detail sheet */
-  #sheet-ov,#ev-ov,#pk-ov,#ci-ov{
+  #sheet-ov,#ev-ov,#pk-ov,#ci-ov,#ns-ov{
     position:fixed;inset:0;background:rgba(4,6,10,.68);z-index:50;
     display:flex;align-items:flex-end;backdrop-filter:blur(4px);
   }
-  #sheet-ov[hidden],#ev-ov[hidden],#pk-ov[hidden],#ci-ov[hidden]{display:none}
-  #sheet,#ev-sheet,#pk-sheet,#ci-sheet{
+  #sheet-ov[hidden],#ev-ov[hidden],#pk-ov[hidden],#ci-ov[hidden],#ns-ov[hidden]{display:none}
+  #sheet,#ev-sheet,#pk-sheet,#ci-sheet,#ns-sheet{
     width:100%;background:linear-gradient(180deg,var(--panel),var(--panel2));
     border-radius:22px 22px 0 0;border-top:1px solid var(--border2);
     padding:20px 18px calc(20px + env(safe-area-inset-bottom));
@@ -923,6 +932,17 @@
     <div id="pk-sheet-body"></div>
     <button class="pk-btn" id="pk-primary">Generate workout</button>
     <button class="btn2" id="pk-close">Close</button>
+  </div>
+</div>
+
+<!-- NIGHT SHIFT sheet (2026-10-17): work the night desk's drafts, calls and stuck rebates -->
+<div id="ns-ov" hidden>
+  <div id="ns-sheet">
+    <div class="grab"></div>
+    <div class="sh-title">🌙 Night shift</div>
+    <div id="ns-body"></div>
+    <div id="ns-status" style="color:var(--red);font-size:13px;margin-top:8px"></div>
+    <button class="btn2" id="ns-close">Close</button>
   </div>
 </div>
 
@@ -2138,6 +2158,8 @@ async function renderToday(){
   if(aiProxyUrl()&&localStorage.getItem('ai_proxy_token')){const h=document.createElement('div');sig.prepend(h);systemsRow(h);}
   // ⏱ Airsync clock (Q4 KR2) — right under Systems; async, Today never waits on it
   {const h=document.createElement('div');sig.appendChild(h);hoursRow(h);}
+  // 🌙 Night shift (2026-10-17): the night desk's drafts + calls, only when today's file has open lines
+  {const h=document.createElement('div');sig.appendChild(h);nightShiftRow(h);}
   // TOP 3 — bold title + one action line; the coach's why: sits behind a tap (detail sheet)
   if(top3.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Top 3</div>');
@@ -5901,6 +5923,8 @@ function ciCompose(){
 }
 let ciWarned=0;
 $('ci-close').onclick=()=>{$('ci-ov').hidden=true;};
+$('ns-close').onclick=()=>{$('ns-ov').hidden=true;};
+$('ns-ov').onclick=e=>{if(e.target.id==='ns-ov')$('ns-ov').hidden=true;};
 $('ci-ov').onclick=e=>{if(e.target.id==='ci-ov')$('ci-ov').hidden=true;};
 $('ci-send').onclick=()=>{
   if(!ciState)return;
@@ -5975,6 +5999,76 @@ async function hoursRow(holder){
     };
   }
   holder.replaceChildren(b);
+}
+/* 🌙 NIGHT SHIFT (2026-10-17, docs/plans/NIGHT-SHIFT.md). The 2 AM night desk writes
+   data/morning-desk.md: Calls (HCP estimates waiting on a yes), Stuck rebates (from money.md),
+   and Prep (ready-to-send drafts). Kevin's morning pass happens here: Text / Email / Call opens
+   the phone's own app with the draft filled in (nothing is ever sent by KevinOS), Done stamps
+   `- [x] … | done:<date>`, Skip stamps `- [x] … | skipped:<date>` (two skips and the script drops
+   an estimate for good). The row only shows when the file is today's and has open lines. */
+const NS_PATH='data/morning-desk.md';
+function nsParse(text){
+  const out={date:'',summary:'',sections:[]};let sec=null;
+  for(const raw of String(text||'').split('\n')){
+    const l=raw.replace(/\r$/,'');
+    const d=l.match(/^# Morning desk — (\d{4}-\d{2}-\d{2})/);if(d){out.date=d[1];continue;}
+    const s=l.match(/^- summary: (.+)/);if(s){out.summary=s[1];continue;}
+    if(l.startsWith('## ')){sec={title:l.slice(3).replace(/\s*\((script-owned|agent-written)\)\s*$/,'').replace(/ — .*$/,''),items:[]};out.sections.push(sec);continue;}
+    if(!sec)continue;
+    const m=l.match(/^- \[( |x)\] (.+)$/);
+    if(m){
+      const body=m[2],seg=body.split(' | '),kv={},head=seg.filter((x,i)=>i===0||!/^(to|tel|est|skips|draft|ref|done|skipped):/.test(x)).join(' · ');
+      for(const x of seg.slice(1)){const i=x.indexOf(':');if(i>0)kv[x.slice(0,i).trim()]=x.slice(i+1).trim();}
+      const kind=(head.match(/^(text|email|call|doc) · /)||[])[1]||(/^Call /.test(head)?'call':'');
+      sec.items.push({line:l,open:m[1]===' ',head:head.replace(/^(text|email|call|doc) · /,''),kind,kv});
+    }else if(/^- ⚠/.test(l))sec.items.push({line:l,open:false,warn:true,head:l.slice(2),kind:'',kv:{}});
+  }
+  return out;
+}
+async function nightShiftRow(holder){
+  let f=null;try{f=await getFile(NS_PATH);}catch(e){return;}
+  if(!f)return;
+  const ns=nsParse(f.text),open=ns.sections.flatMap(s=>s.items.filter(i=>i.open));
+  const warn=ns.sections.some(s=>s.items.some(i=>i.warn));
+  if(ns.date!==todayStr()||(!open.length&&!warn))return;
+  const cnt=t=>(ns.sections.find(s=>s.title.startsWith(t))||{items:[]}).items.filter(i=>i.open).length;
+  const b=document.createElement('button');b.className='sigrow';
+  b.innerHTML=`<span class="sl">🌙</span><span class="st"><b>Night shift</b> · ${cnt('Prep')} drafts · ${cnt('Calls')} calls · ${cnt('Stuck')} rebates${warn?' · ⚠':''}</span><span class="sm">${open.length} ›</span>`;
+  b.onclick=()=>{fx('play','tap');openNightShift();};
+  holder.replaceChildren(b);
+}
+const nsTel=t=>String(t||'').replace(/^tel:/,'').replace(/[^\d+]/g,'');
+async function openNightShift(){
+  $('ns-ov').hidden=false;const body=$('ns-body');body.innerHTML='<div class="loading">Loading…</div>';
+  let f;try{f=await getFile(NS_PATH);}catch(e){body.innerHTML='<div class="loading">Could not load the night desk.</div>';return;}
+  const ns=nsParse(f&&f.text);
+  const h=[];
+  ns.sections.forEach((s,si)=>{
+    const items=s.items.filter(i=>i.open||i.warn);if(!items.length)return;
+    h.push(`<div class="ci-h">${esc(s.title)}</div>`);
+    items.forEach((it,ii)=>{
+      if(it.warn){h.push(`<div class="ns-it warn">${esc(it.head)}</div>`);return;}
+      const to=it.kv.to||it.kv.tel||'',tel=nsTel(to),draft=it.kv.draft||'';
+      const acts=[];
+      if(it.kind==='text'&&draft)acts.push(`<a class="ns-b pri" href="sms:${esc(tel)}${/iPhone|iPad/.test(navigator.userAgent)?'&':'?'}body=${encodeURIComponent(draft)}">Text</a>`);
+      if(it.kind==='email'&&draft)acts.push(`<a class="ns-b pri" href="mailto:${esc(/@/.test(to)?to:'')}?body=${encodeURIComponent(draft)}">Email</a>`);
+      if(it.kind==='call'&&tel)acts.push(`<a class="ns-b pri" href="tel:${esc(tel)}">Call</a>`);
+      if(draft&&it.kind!=='call')acts.push(`<button class="ns-b" data-copy="${si}:${ii}">Copy</button>`);
+      acts.push(`<button class="ns-b" data-act="done" data-k="${si}:${ii}">Done</button><button class="ns-b ghost" data-act="skip" data-k="${si}:${ii}">Skip</button>`);
+      h.push(`<div class="ns-it" id="ns-${si}-${ii}"><div class="ns-hd">${it.kind?`<span class="ns-k">${esc(it.kind)}</span>`:''}${esc(it.head)}</div>${draft?`<div class="ns-dr">${esc(it.kind==='call'?draft.split(' / ').map(x=>'• '+x).join('\n'):draft)}</div>`:''}<div class="ns-acts">${acts.join('')}</div></div>`);
+    });
+  });
+  body.innerHTML=h.join('')||'<div class="loading">All clear. Nothing left from the night shift.</div>';
+  const pick=k=>{const [si,ii]=k.split(':').map(Number);return ns.sections[si].items.filter(i=>i.open||i.warn)[ii];};
+  body.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async()=>{const it=pick(b.dataset.copy);try{await navigator.clipboard.writeText(it.kv.draft);b.textContent='Copied';fx('haptic');}catch(e){b.textContent='Copy failed';}});
+  body.querySelectorAll('[data-act]').forEach(b=>b.onclick=async()=>{
+    const it=pick(b.dataset.k),skip=b.dataset.act==='skip',row=$('ns-'+b.dataset.k.replace(':','-'));
+    row.style.opacity=.45;b.disabled=true;
+    try{
+      await editLine(NS_PATH,it.line,(lines,i)=>lines[i].replace('- [ ]','- [x]')+` | ${skip?'skipped':'done'}:${todayStr()}`,`night shift: ${skip?'skip':'done'} ${it.head.slice(0,50)}`);
+      fx('play',skip?'snooze':'check');row.remove();
+    }catch(e){row.style.opacity=1;b.disabled=false;$('ns-status').textContent=e.message||String(e);}
+  });
 }
 async function systemsRow(holder){
   let j;try{j=await pushGet('/status');}catch(e){return;}
