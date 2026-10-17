@@ -50,6 +50,7 @@ a{color:inherit}
 .tabs::-webkit-scrollbar{display:none}
 .tab{padding:9px 14px;border-radius:999px;border:1px solid var(--line);color:var(--muted);font-size:13.5px;font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:7px;position:relative}
 .tab.on{color:var(--night);background:var(--ink);border-color:var(--ink)}
+.tab .badge[hidden]{display:none}
 .tab .badge{min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:11px;font-weight:800;display:grid;place-items:center;background:var(--down);color:#fff}
 .tab svg{width:16px;height:16px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
 @media(max-width:860px){.tabs{position:fixed;bottom:0;left:0;right:0;margin:0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(6,10,18,.97);border-top:1px solid var(--line);z-index:9;justify-content:space-between}
@@ -208,6 +209,102 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
 .boot{position:fixed;inset:0;background:var(--night);z-index:50;display:grid;place-items:center;transition:opacity .45s}
 .boot.gone{opacity:0;pointer-events:none}
 .boot pre{font-family:var(--mono);font-size:12.5px;color:var(--live);line-height:1.8;min-width:260px}
+/* v3 (2026-10-16): crew characters, streaks, season, trophies. Kevin: "something more visual that'll
+   help me focus to make sure that it keeps working". History: data/agents-history.json (ops/agents-history.js). */
+:root{--known:#E58A5C;--gold:#FFD36E;--silver:#C9D3E6;--bronze:#D99A6C}
+.node.known .core{fill:var(--known)}.node.known .halo{stroke:var(--known)}
+.card.known::before{background:var(--known)}.card.known .lamp{background:var(--known)}
+
+.hud{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.hud button{border:1px solid var(--line);border-radius:16px;padding:12px;text-align:left;background:linear-gradient(160deg,rgba(18,28,51,.85),rgba(10,17,32,.85));position:relative;overflow:hidden}
+.hud b{display:block;font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.05}
+.hud span{display:block;font-size:11.5px;color:var(--muted);margin-top:5px}
+.hud .flame b{color:var(--watch)}.hud .grade b{color:var(--live)}.hud .troph b{color:var(--gold)}
+.hud .flame::after{content:"";position:absolute;right:-20px;top:-20px;width:80px;height:80px;border-radius:50%;background:radial-gradient(rgba(255,180,84,.22),transparent 70%);animation:glow 2.6s ease-in-out infinite}
+@keyframes glow{50%{opacity:.35;transform:scale(.85)}}
+
+.crew{display:grid;gap:10px;grid-template-columns:1fr}
+@media(min-width:640px){.crew{grid-template-columns:1fr 1fr}}
+@media(min-width:1100px){.crew{grid-template-columns:repeat(3,1fr)}}
+.mate{display:grid;grid-template-columns:64px 1fr;gap:4px 12px;text-align:left;padding:12px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(160deg,var(--panel-2),var(--panel));position:relative;overflow:hidden}
+.mate.down{border-color:rgba(255,92,108,.5);box-shadow:0 0 0 1px rgba(255,92,108,.15),0 8px 30px rgba(255,92,108,.12)}
+.mate.watch{border-color:rgba(255,180,84,.35)}
+.mate .av{grid-row:span 3;width:64px;height:64px}
+.mate .top{display:flex;align-items:center;gap:8px;min-width:0}
+.mate .top b{font-size:14.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lv{flex:none;font-family:var(--mono);font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted)}
+.say{position:relative;font-size:12.5px;color:var(--ink);background:rgba(232,238,248,.06);border:1px solid var(--line);border-radius:4px 12px 12px 12px;padding:7px 9px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mate.down .say{background:rgba(255,92,108,.1);border-color:rgba(255,92,108,.3)}
+.foot{display:flex;align-items:center;gap:10px;min-width:0}
+.strip{display:flex;gap:2px;flex:1;min-width:0}
+.strip i{flex:1;max-width:14px;height:8px;border-radius:2px;background:rgba(138,151,176,.12)}
+.strip i.g{background:var(--live)}.strip i.y{background:var(--watch)}.strip i.r{background:var(--down)}.strip i.k{background:var(--known);opacity:.6}
+.fire{flex:none;font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
+.fire.hot{color:var(--watch)}
+.xp{grid-column:2;height:3px;border-radius:2px;background:var(--line);overflow:hidden}
+.xp i{display:block;height:100%;background:linear-gradient(90deg,var(--cloud),var(--live))}
+
+.av .hd{stroke-width:2}
+.av .vis{fill:#04070D}
+.av .eye{transform-box:fill-box;transform-origin:center}
+.av.live .eye{fill:var(--live);filter:drop-shadow(0 0 3px var(--live));animation:blinkeye 4.5s infinite}
+.av.watch .eye{fill:var(--watch);animation:look 3.2s ease-in-out infinite}
+.av.down .x{stroke:var(--down);stroke-width:2.6;stroke-linecap:round}
+.av.idle .eye,.av.known .eye{fill:var(--dim)}
+.av.known .eye{fill:var(--known)}
+.av .mouth{fill:none;stroke-width:2;stroke-linecap:round}
+.av.live .mouth{stroke:var(--live)}.av.watch .mouth{stroke:var(--watch)}.av.down .mouth{stroke:var(--down)}.av.idle .mouth,.av.known .mouth{stroke:var(--dim)}
+.av .bob{animation:bob 3.4s ease-in-out infinite}
+.av.down .bob{animation:shake 3s infinite}
+.av.idle .bob{animation:none}
+.av .ant{stroke-width:2;stroke-linecap:round}
+.av.live .tip{fill:var(--live);animation:blink 1.6s steps(2) infinite}.av.watch .tip{fill:var(--watch)}.av.down .tip{fill:var(--down);animation:blink .7s steps(2) infinite}.av.idle .tip,.av.known .tip{fill:var(--dim)}
+.av .zz{fill:var(--dim);font:700 9px var(--mono);animation:zz 3s ease-in-out infinite}
+@keyframes blinkeye{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+@keyframes look{0%,100%{transform:translateX(0)}30%,55%{transform:translateX(3px)}}
+@keyframes bob{50%{transform:translateY(-2px)}}
+@keyframes shake{0%,84%,100%{transform:translateX(0)}87%{transform:translateX(-2px)}90%{transform:translateX(2px)}93%{transform:translateX(-2px)}96%{transform:translateX(1px)}}
+@keyframes zz{0%{opacity:0;transform:translate(0,0)}40%{opacity:1}100%{opacity:0;transform:translate(5px,-9px)}}
+
+.season-top{display:grid;gap:14px;grid-template-columns:1fr}
+@media(min-width:900px){.season-top{grid-template-columns:300px 1fr}}
+.score{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.score svg{width:190px;height:190px}
+.score .g{font:800 54px var(--font);fill:var(--ink);text-anchor:middle}
+.score .p{font:600 12px var(--mono);fill:var(--muted);text-anchor:middle}
+.score .msg{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.5;max-width:30ch}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal .dw{font-size:10.5px;color:var(--dim);text-align:center;font-weight:700}
+.cal .d{aspect-ratio:1;border-radius:8px;background:rgba(138,151,176,.08);display:grid;place-items:center;font:600 11px var(--mono);color:var(--dim);position:relative}
+.cal .d.g{background:rgba(46,230,214,.22);color:var(--live)}.cal .d.y{background:rgba(255,180,84,.2);color:var(--watch)}.cal .d.r{background:rgba(255,92,108,.25);color:var(--down)}
+.cal .d.fut{background:none;border:1px dashed var(--line)}.cal .d.pre{opacity:.35}
+.cal .d.today{outline:2px solid var(--ink);outline-offset:1px}
+.cal-key{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:10px}
+.cal-key i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.trophies{display:grid;gap:10px;grid-template-columns:repeat(2,1fr)}
+@media(min-width:640px){.trophies{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1100px){.trophies{grid-template-columns:repeat(4,1fr)}}
+.tr{border:1px solid var(--line);border-radius:18px;padding:14px 12px;text-align:center;background:linear-gradient(160deg,rgba(18,28,51,.8),rgba(10,17,32,.8))}
+.tr .medal{width:54px;height:54px;margin:0 auto 8px;border-radius:50%;display:grid;place-items:center;font-size:26px;background:rgba(138,151,176,.08);border:2px solid var(--line-2);filter:grayscale(1);opacity:.45}
+.tr b{display:block;font-size:13.5px}
+.tr span{display:block;font-size:11.5px;color:var(--dim);margin-top:3px;line-height:1.4}
+.tr .pb{height:4px;border-radius:2px;background:var(--line);margin-top:9px;overflow:hidden}
+.tr .pb i{display:block;height:100%;background:var(--muted)}
+.tr .pn{font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:4px}
+.tr.got{border-color:rgba(255,211,110,.35)}
+.tr.got .medal{filter:none;opacity:1;border-color:var(--gold);background:radial-gradient(rgba(255,211,110,.25),rgba(255,211,110,.04));box-shadow:0 0 22px rgba(255,211,110,.25)}
+.tr.got b{color:var(--gold)}
+.sec-h{font-size:13px;font-weight:700;color:var(--muted);margin:22px 2px 10px;display:flex;justify-content:space-between}
+.sec-h small{color:var(--dim);font-weight:400}
+
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translate(-50%,30px);opacity:0;z-index:60;display:flex;gap:12px;align-items:center;padding:12px 16px 12px 12px;border-radius:18px;background:linear-gradient(135deg,#2A2310,#151B2C);border:1px solid rgba(255,211,110,.5);box-shadow:0 18px 50px rgba(0,0,0,.5),0 0 30px rgba(255,211,110,.2);transition:all .45s cubic-bezier(.2,1.4,.4,1);max-width:calc(100vw - 32px)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast .medal{font-size:28px}
+.toast small{display:block;font-size:11px;color:var(--gold);font-weight:800;letter-spacing:.08em}
+.toast b{display:block;font-size:15px}
+.confetti{position:fixed;top:-12px;width:8px;height:12px;border-radius:2px;z-index:61;pointer-events:none;animation:fall linear forwards}
+@keyframes fall{to{transform:translate(var(--dx),105vh) rotate(var(--rot));opacity:.9}}
+@media(prefers-reduced-motion:reduce){.av *,.hud .flame::after{animation:none!important}.confetti{display:none}}
 @media(prefers-reduced-motion:reduce){.sweep,.node.down .halo,.cond.down i,.cursor{animation:none}.boot{display:none}}
 </style>
 </head>
@@ -223,10 +320,10 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
 
 <nav class="tabs" id="tabs">
   <button class="tab on" data-t="overview"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>Overview</button>
-  <button class="tab" data-t="agents"><svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M12 7V4M9 12h.01M15 12h.01"/></svg>Agents<span class="badge" id="badge" hidden>0</span></button>
+  <button class="tab" data-t="agents"><svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M12 7V4M9 12h.01M15 12h.01"/></svg>Crew<span class="badge" id="badge" hidden>0</span></button>
   <button class="tab" data-t="send"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-7-8-1z"/></svg>Send</button>
   <button class="tab" data-t="feed"><svg viewBox="0 0 24 24"><path d="M5 7l4 4-4 4M11 16h8"/></svg>Feed</button>
-  <button class="tab" data-t="missions"><svg viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>Missions</button>
+  <button class="tab" data-t="season"><svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></svg>Season</button>
 </nav>
 
 <div id="gate" class="gate" hidden>No login on this browser yet. Open the <a href="./">KevinOS app</a> once and paste the token on the Dump tab; this page uses the same one.</div>
@@ -234,6 +331,11 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
 <main class="page" id="page" hidden>
   <section class="view on" id="v-overview">
     <button class="alert ok" id="alert"><span class="icon">✓</span><span><b id="alert-b">Nothing needs you</b><span id="alert-s">Every agent reported on time.</span></span></button>
+    <div class="hud" id="hud">
+      <button class="flame" data-go="season"><b id="h-streak">–</b><span>days in a row, nothing broke</span></button>
+      <button class="grade" data-go="season"><b id="h-grade">–</b><span id="h-grade-s">season grade</span></button>
+      <button class="troph" data-go="season"><b id="h-troph">–</b><span>trophies</span></button>
+    </div>
     <div class="ov">
       <div>
         <div class="panel orbit"><svg id="map" viewBox="-28 0 456 400" role="img" aria-label="Agents by ring and state"></svg></div>
@@ -256,7 +358,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
 
   <section class="view" id="v-agents">
     <div class="filters" id="filters"></div>
-    <div class="cards" id="cards"></div>
+    <div class="crew" id="cards"></div>
   </section>
 
   <section class="view" id="v-send">
@@ -278,17 +380,27 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
     <div class="term"><div class="term-top"><i></i><i></i><i></i><span>kevinos@hq — activity</span></div><div class="term-body" id="term"><div class="empty">connecting…</div></div></div>
   </section>
 
-  <section class="view" id="v-missions"><div class="mis" id="mis"></div></section>
+  <section class="view" id="v-season">
+    <div class="season-top">
+      <div class="panel score"><svg viewBox="0 0 190 190" id="ring"></svg><div class="msg" id="score-msg"></div></div>
+      <div class="panel"><h2><span id="cal-t">This month</span><small id="cal-s"></small></h2><div class="cal" id="cal"></div>
+        <div class="cal-key"><span><i style="background:rgba(46,230,214,.5)"></i>all good</span><span><i style="background:rgba(255,180,84,.5)"></i>something late</span><span><i style="background:rgba(255,92,108,.6)"></i>something broke</span><span><i style="background:rgba(138,151,176,.15)"></i>no board run</span></div></div>
+    </div>
+    <div class="sec-h"><span>Trophies</span><small id="tr-s"></small></div>
+    <div class="trophies" id="trophies"></div>
+    <div class="sec-h"><span>Missions</span><small>dated objectives</small></div>
+    <div class="mis" id="mis"></div>
+  </section>
 </main>
 
 <div class="ov-layer" id="menu-l" hidden>
   <div id="menu">
     <h3>Command center</h3>
     <button data-go="overview">Overview<span class="sub">map, alerts, next runs</span></button>
-    <button data-go="agents">Agents<span class="sub">every agent, filterable</span></button>
+    <button data-go="agents">Crew<span class="sub">every agent, how it's doing, its streak</span></button>
     <button data-go="send">Send work<span class="sub">queue a task for an agent</span></button>
     <button data-go="feed">Activity feed<span class="sub">everything that just happened</span></button>
-    <button data-go="missions">Missions<span class="sub">dated objectives</span></button>
+    <button data-go="season">Season<span class="sub">this month's grade, trophies, missions</span></button>
     <h3>Elsewhere</h3>
     <a id="m-paperclip" href="#" target="_blank" rel="noopener">Paperclip<span class="sub" id="m-pc-sub">the mini PC's floor agents</span></a>
     <a href="./">Back to KevinOS<span class="sub">Today, Money, Cal</span></a>
@@ -336,7 +448,7 @@ function parseBoard(text){
     const l=raw.replace(/\r$/,'');
     if(l.startsWith('## ')){sec={title:l.slice(3).replace(/\s*\(.*$/,'').replace(/ — from the handoff file/,''),rows:[]};out.push(sec);continue;}
     if(!sec||!l.startsWith('- ')||/^- (updated:|purpose of)/.test(l))continue;
-    const state=/🚨/.test(l)?'down':/⚠/.test(l)?'watch':/✅/.test(l)?'live':'idle';
+    const state=/🚨/.test(l)?(/known issue|retired key/i.test(l)?'known':'down'):/⚠/.test(l)?'watch':/✅/.test(l)?'live':'idle';
     const t=l.replace(/^- /,'').replace(/[✅⚠🚨]️?\s*/gu,'');
     const i=t.indexOf(' — ');const name=strip(i>0?t.slice(0,i):t),rest=i>0?t.slice(i+3):'';
     const parts=rest.split(' · ');const when=parts.length>1?parts.pop():'';
@@ -438,6 +550,8 @@ function openDrawer(row){
   $('d-name').textContent=row.name;$('d-now').textContent=(row.what||'')+(row.when?' — '+row.when:'');
   const dl=$('d-dl');dl.innerHTML='';
   const add=(k,v)=>{if(v)dl.insertAdjacentHTML('beforeend',`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`);};
+  if(row.group){const st=agentStats(row.name);add('Record',`Level ${st.level} · ${st.clean} clean day${st.clean===1?'':'s'} · ${st.streak?'🔥 '+st.streak+' in a row':'no current run'}`);}
+  if(row.state==='known')add('Known issue','Already owned and parked, so it doesn\'t break streaks. It still shows here until it\'s fixed.');
   if(entry){for(const [k,v] of Object.entries(entry.cells)){if(/^(agent|job)$/i.test(k))continue;add(k.replace(/ \(one line\)/,''),v);}}
   else if(row.group)add('Registry','No entry yet. It belongs in data/agents/REGISTRY.md.');
   const tgt=AGENT_TO_TARGET[key(row.name)];
@@ -454,14 +568,118 @@ function drawCards(){
   const chips=[['all','All'],['down','Needs you'],['watch','To check'],...groups.map(g=>[g,grpName(g)])];
   $('filters').innerHTML=chips.map(([v,n])=>`<button class="chip ${FILTER===v?'on':''}" data-f="${esc(v)}">${esc(n)}</button>`).join('');
   $('filters').onclick=e=>{const b=e.target.closest('.chip');if(b){FILTER=b.dataset.f;drawCards();}};
-  const rank={down:0,watch:1,live:2,idle:3};
+  const rank={down:0,watch:1,known:2,live:3,idle:4};
   const rows=ALL.filter(r=>FILTER==='all'||r.state===FILTER||r.group===FILTER).sort((a,b)=>rank[a.state]-rank[b.state]);
   $('cards').innerHTML='';
   if(!rows.length){$('cards').innerHTML='<div class="empty">Nothing here.</div>';return;}
-  for(const row of rows){const b=document.createElement('button');b.className='card '+row.state;
-    b.innerHTML=`<span class="lamp"></span><span><span class="name">${esc(row.name)}</span> <span class="grp">${esc(grpName(row.group).toLowerCase())}</span></span><span class="what">${esc(row.what)}</span><span class="when">${esc(row.when)}</span>`;
+  for(const row of rows){const b=document.createElement('button');b.className='mate '+row.state;
+    const st=agentStats(row.name),fire=st.streak;
+    b.innerHTML=`${avatar(row.name,row.state)}<span class="top"><b>${esc(row.name)}</b><span class="lv">Lv ${st.level}</span></span><span class="say">${esc(row.what||'…')}${row.when?` <span style="color:var(--dim)">· ${esc(row.when)}</span>`:''}</span><span class="foot"><span class="strip">${st.strip.map(s=>`<i class="${s}"></i>`).join('')}</span><span class="fire ${fire>=3?'hot':''}">${fire?'🔥 '+fire+'d':'—'}</span></span>`;
     b.onclick=()=>openDrawer(row);$('cards').appendChild(b);}
 }
+
+/* ---- crew characters: one robot per agent, its look fixed by its name, its face by its state ---- */
+const hash=s=>{let h=2166136261;for(const c of String(s))h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0;};
+function avatar(name,state){
+  const h=hash(name),hue=h%360,kind=(h>>9)%3,wide=(h>>13)%2;
+  const body=`hsl(${hue} 32% 20%)`,edge=`hsl(${hue} 55% 58%)`;
+  const ant=kind===0?`<line class="ant" x1="32" y1="16" x2="32" y2="7" stroke="${edge}"/><circle class="tip" cx="32" cy="6" r="3"/>`
+    :kind===1?`<line class="ant" x1="21" y1="17" x2="16" y2="8" stroke="${edge}"/><line class="ant" x1="43" y1="17" x2="48" y2="8" stroke="${edge}"/><circle class="tip" cx="16" cy="7" r="2.4"/><circle class="tip" cx="48" cy="7" r="2.4"/>`
+    :`<path class="ant" d="M24 16 Q32 4 40 16" fill="none" stroke="${edge}"/><circle class="tip" cx="32" cy="9" r="2.6"/>`;
+  const ex=wide?[23,41]:[25,39];
+  const eyes=state==='down'?ex.map(x=>`<path class="x" d="M${x-3} 30l6 6M${x+3} 30l-6 6"/>`).join('')
+    :state==='idle'?ex.map(x=>`<rect class="eye" x="${x-4}" y="32" width="8" height="2" rx="1"/>`).join('')
+    :state==='watch'?`<circle class="eye" cx="${ex[0]}" cy="33" r="3.2"/><circle class="eye" cx="${ex[1]}" cy="33" r="3.2"/>`
+    :state==='known'?`<rect class="eye" x="${ex[0]-4}" y="32" width="8" height="2" rx="1"/><circle class="eye" cx="${ex[1]}" cy="33" r="3"/>`
+    :ex.map(x=>`<circle class="eye" cx="${x}" cy="33" r="3.4"/>`).join('');
+  const mouth=state==='live'?'M26 46 Q32 50 38 46':state==='down'?'M25 48 l3.5-3 3.5 3 3.5-3 3.5 3':state==='watch'?'M27 47 L37 46':'M28 47 L36 47';
+  const zz=state==='idle'?'<text class="zz" x="46" y="18">z</text>':'';
+  return `<svg class="av ${state}" viewBox="0 0 64 64" aria-hidden="true"><g class="bob">${ant}<rect class="hd" x="9" y="16" width="46" height="40" rx="13" fill="${body}" stroke="${edge}"/><rect x="5" y="30" width="5" height="10" rx="2" fill="${edge}" opacity=".6"/><rect x="54" y="30" width="5" height="10" rx="2" fill="${edge}" opacity=".6"/><rect class="vis" x="15" y="25" width="34" height="16" rx="8"/>${eyes}<path class="mouth" d="${mouth}"/></g>${zz}</svg>`;
+}
+
+/* ---- history → streaks, levels, season, trophies (data/agents-history.json, written by ops/agents-history.js) ---- */
+let HIST={days:{}},DELIVERED=0,MISSIONS=[];
+const RANKS={g:0,y:1,k:-1,r:2};
+const todayYmd=()=>{const p=nyParts();return `${p.year}-${p.month}-${p.day}`;};
+const addDays=(ymd,n)=>{const d=new Date(ymd+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);};
+/* the crew's day: the worst any agent got to (a known issue never counts), or null when the board never ran */
+function crewDay(ymd){const d=HIST.days[ymd];if(!d)return null;let w='g';for(const s of Object.values(d.a)){const x=s[0];if(RANKS[x]>RANKS[w])w=x;}return w;}
+function runStreak(test,from){let n=0,d=from;while(test(d)){n++;d=addDays(d,-1);}return n;}
+function crewStreak(){const t=todayYmd(),ok=d=>{const c=crewDay(d);return !!c&&c!=='r';};if(HIST.days[t]&&!ok(t))return 0;return runStreak(ok,HIST.days[t]?t:addDays(t,-1));}
+function bestRun(test){const ds=Object.keys(HIST.days).sort();if(!ds.length)return 0;let best=0,cur=0;for(let d=ds[0];d<=ds[ds.length-1];d=addDays(d,1)){cur=test(d)?cur+1:0;best=Math.max(best,cur);}return best;}
+function agentStats(name){
+  const t=todayYmd(),day=d=>{const x=HIST.days[d];return x&&x.a[name]?x.a[name]:'';};
+  const strip=[];for(let i=13;i>=0;i--){const s=day(addDays(t,-i));strip.push(s?s[0]:'');}
+  const clean=Object.keys(HIST.days).filter(d=>{const s=day(d);return s&&s[0]!=='r';}).length;
+  const start=day(t)?t:addDays(t,-1);
+  const streak=runStreak(d=>{const s=day(d);return !!s&&s[0]!=='r';},start);
+  return {strip,clean,streak,level:1+Math.floor(clean/5),xp:(clean%5)/5};
+}
+function season(){
+  const t=todayYmd(),m=t.slice(0,7),first=Object.keys(HIST.days).sort()[0]||t;
+  const start=first>m+'-01'?first:m+'-01';
+  let days=0,clean=0,green=0;
+  for(let d=start;d<=t;d=addDays(d,1)){days++;const c=crewDay(d);if(c&&c!=='r')clean++;if(c==='g')green++;}
+  const pct=days?Math.round(clean/days*100):0;
+  const grade=pct>=95?'S':pct>=85?'A':pct>=70?'B':pct>=50?'C':'D';
+  return {m,start,days,clean,green,pct,grade};
+}
+function trophies(){
+  const ds=Object.keys(HIST.days).sort(),cd=d=>crewDay(d);
+  const best=bestRun(d=>{const c=cd(d);return c&&c!=='r';});
+  const anyDay=f=>ds.some(f);
+  const T=[];
+  const add=(id,icon,name,desc,got,a,b)=>T.push({id,icon,name,desc,got:!!got,a:Math.min(a??(got?1:0),b??1),b:b??1});
+  add('first','🌅','First light','A whole day where nothing broke',anyDay(d=>cd(d)&&cd(d)!=='r'));
+  add('spotless','✨','Spotless','A day with every agent green, nothing even late',anyDay(d=>cd(d)==='g'));
+  add('finish','🏁','Clean finish','End a day with every agent green',anyDay(d=>Object.values(HIST.days[d].a).every(s=>s[1]==='g'||s[1]==='k')));
+  add('fix','🔧','Fast fixer','Something broke and was fixed the same day',anyDay(d=>Object.values(HIST.days[d].a).some(s=>s[0]==='r'&&s[1]==='g')));
+  add('s3','🔥','On a roll','3 days in a row, nothing broke',best>=3,best,3);
+  add('s7','🛡','Clean week','7 days in a row, nothing broke',best>=7,best,7);
+  add('s30','🏰','Iron month','30 days in a row, nothing broke',best>=30,best,30);
+  const on=bestRun(d=>(HIST.days[d]?.n||0)>=36);
+  add('on','⚡','Always on','The ops machine ran the board 18+ hours a day, 7 days straight',on>=7,on,7);
+  add('q5','📨','Dispatcher','5 pieces of work delivered to agents',DELIVERED>=5,DELIVERED,5);
+  add('q25','🛰','Air traffic control','25 pieces of work delivered',DELIVERED>=25,DELIVERED,25);
+  const md=MISSIONS.filter(x=>x.done).length;
+  add('mission','🎯','Mission accomplished','Close a mission in data/missions.md',md>=1,md,1);
+  const months=[...new Set(ds.map(d=>d.slice(0,7)))].filter(m=>m<todayYmd().slice(0,7));
+  const perfect=months.some(m=>{const inM=ds.filter(d=>d.startsWith(m));return inM.length>=25&&inM.filter(d=>cd(d)!=='r').length/inM.length>=.9;});
+  add('season','🏆','Perfect season','Finish a month with 90%+ days where nothing broke',perfect);
+  return T;
+}
+function drawSeason(){
+  const s=season(),T=trophies(),got=T.filter(x=>x.got).length,streak=crewStreak();
+  $('h-streak').textContent=(streak?'🔥 ':'')+streak;$('h-grade').textContent=s.grade;$('h-grade-s').textContent=`season · ${s.pct}% clean`;$('h-troph').textContent=`🏆 ${got}/${T.length}`;
+  const mName=new Date(s.m+'-15T12:00:00Z').toLocaleString('en-US',{month:'long',timeZone:'UTC'});
+  const C=2*Math.PI*78,off=C*(1-s.pct/100),col=s.pct>=85?'var(--live)':s.pct>=70?'var(--watch)':'var(--down)';
+  $('ring').innerHTML=`<circle cx="95" cy="95" r="78" fill="none" stroke="rgba(138,151,176,.13)" stroke-width="12"/><circle cx="95" cy="95" r="78" fill="none" stroke="${col}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 95 95)" style="filter:drop-shadow(0 0 8px ${col});transition:stroke-dashoffset 1s"/><text class="g" x="95" y="108">${s.grade}</text><text class="p" x="95" y="132">${s.clean}/${s.days} days clean</text>`;
+  $('score-msg').innerHTML=`<b style="color:var(--ink)">${esc(mName)} season.</b> A day counts when nothing broke and the board ran. ${streak?`Current run: ${streak} day${streak===1?'':'s'}.`:'Start a run today.'}${s.start>s.m+'-01'?` Tracking began ${esc(s.start.slice(5))}.`:''}`;
+  const t=todayYmd(),first=s.m+'-01',dow=new Date(first+'T12:00:00Z').getUTCDay(),dim=new Date(Date.UTC(+s.m.slice(0,4),+s.m.slice(5,7),0)).getUTCDate();
+  let h=['S','M','T','W','T','F','S'].map(x=>`<div class="dw">${x}</div>`).join('')+'<div></div>'.repeat(dow);
+  for(let i=1;i<=dim;i++){const d=`${s.m}-${String(i).padStart(2,'0')}`,c=crewDay(d);
+    const cls=d>t?'fut':d<s.start?'pre':c||'';h+=`<div class="d ${cls} ${d===t?'today':''}" title="${d}">${i}</div>`;}
+  $('cal').innerHTML=h;$('cal-t').textContent=mName;$('cal-s').textContent=`${s.green} perfect · ${s.clean-s.green} with something late`;
+  $('tr-s').textContent=`${got} of ${T.length} unlocked`;
+  $('trophies').innerHTML=T.map(x=>`<div class="tr ${x.got?'got':''}"><div class="medal">${x.icon}</div><b>${esc(x.name)}</b><span>${esc(x.desc)}</span>${!x.got&&x.b>1?`<div class="pb"><i style="width:${x.a/x.b*100}%"></i></div><div class="pn">${x.a}/${x.b}</div>`:''}</div>`).join('');
+  celebrate(T.filter(x=>x.got));
+}
+/* new trophy since this phone last looked → a toast + confetti (the seen-list is a per-device convenience only) */
+function celebrate(got){
+  let seen=[];try{seen=JSON.parse(localStorage.getItem('cc_trophies')||'[]');}catch(e){}
+  const fresh=got.filter(x=>!seen.includes(x.id));
+  try{localStorage.setItem('cc_trophies',JSON.stringify(got.map(x=>x.id)));}catch(e){}
+  fresh.slice(0,3).forEach((x,i)=>setTimeout(()=>toast(x),900+i*2600));
+}
+function toast(x){
+  const el=document.createElement('div');el.className='toast';el.innerHTML=`<span class="medal">${x.icon}</span><span><small>TROPHY UNLOCKED</small><b>${esc(x.name)}</b></span>`;
+  document.body.appendChild(el);requestAnimationFrame(()=>el.classList.add('on'));
+  if(!matchMedia('(prefers-reduced-motion:reduce)').matches){const cols=['#FFD36E','#2EE6D6','#C792EA','#FF5C6C','#7C9CFF'];
+    for(let i=0;i<46;i++){const c=document.createElement('i');c.className='confetti';c.style.left=Math.random()*100+'vw';c.style.background=cols[i%cols.length];c.style.setProperty('--dx',(Math.random()*160-80)+'px');c.style.setProperty('--rot',(Math.random()*900-450)+'deg');c.style.animationDuration=(1.8+Math.random()*1.6)+'s';c.style.animationDelay=Math.random()*.4+'s';document.body.appendChild(c);setTimeout(()=>c.remove(),4200);}}
+  if(navigator.vibrate)try{navigator.vibrate([30,40,30]);}catch(e){}
+  setTimeout(()=>{el.classList.remove('on');setTimeout(()=>el.remove(),500);},2300);
+}
+$('hud').onclick=e=>{const b=e.target.closest('[data-go]');if(b)show(b.dataset.go);};
 document.querySelectorAll('.num').forEach(n=>n.onclick=()=>{FILTER=n.dataset.f;drawCards();show('agents');});
 
 let NEEDS='KOS';
@@ -509,7 +727,10 @@ async function loadLive(){
 
 let timer=null;
 async function load(){
-  const [board,regText,schedText,misText,live]=await Promise.all([file('data/agents.md').catch(()=>''),file('data/agents/REGISTRY.md').catch(()=>''),file('data/agents/schedule.json').catch(()=>''),file('data/missions.md').catch(()=>''),loadLive()]);
+  const [board,regText,schedText,misText,live,histText,doneN]=await Promise.all([file('data/agents.md').catch(()=>''),file('data/agents/REGISTRY.md').catch(()=>''),file('data/agents/schedule.json').catch(()=>''),file('data/missions.md').catch(()=>''),loadLive(),file('data/agents-history.json').catch(()=>''),
+    Promise.all(TARGETS.map(([a])=>list('queue/'+a+'/done'))).then(x=>x.flat().length).catch(()=>0)]);
+  try{HIST=JSON.parse(histText||'{"days":{}}');if(!HIST.days)HIST.days={};}catch(e){HIST={days:{}};}
+  DELIVERED=doneN;
   REG=parseRegistry(regText);
   const sections=parseBoard(board);
   if(live&&live.length)sections.push({title:'Live status',rows:live.map(s=>({name:s.label||s.system,what:s.note||s.status,when:s.ageMin!=null?s.ageMin+' min ago':'',state:s.state==='red'?'down':s.state==='yellow'?'watch':'live',group:'Live status'}))});
@@ -522,11 +743,12 @@ async function load(){
   $('sub').textContent=`${ALL.length} agents · board ${upd||'—'}${live?' · live lights on':''}`;$('m-ref-sub').textContent='board refreshed '+(upd||'—');
   const downRows=ALL.filter(r=>r.state==='down'),al=$('alert');
   if(downRows.length){al.className='alert';al.querySelector('.icon').textContent='!';$('alert-b').textContent=downRows.length===1?downRows[0].name+' needs you':`${downRows.length} things need you`;$('alert-s').textContent=downRows.map(r=>r.name+(r.what?': '+r.what.replace(/`/g,''):'')).join(' · ').slice(0,180);al.onclick=()=>{if(downRows.length===1)openDrawer(downRows[0]);else{FILTER='down';drawCards();show('agents');}};}
-  else{al.className='alert ok';al.querySelector('.icon').textContent='✓';$('alert-b').textContent='Nothing needs you';$('alert-s').textContent='Every agent reported on time.';al.onclick=null;}
+  else{const nK=c('known');al.className='alert ok';al.querySelector('.icon').textContent='✓';$('alert-b').textContent='Nothing needs you';$('alert-s').textContent='Every agent reported on time.'+(nK?` ${nK} known issue${nK===1?'':'s'} parked.`:'');al.onclick=null;}
   drawMap(sections,openDrawer);drawCards();
   let sched={runs:[]};try{sched=JSON.parse(schedText||'{"runs":[]}');}catch(e){}
   drawTimeline(sched);clearInterval(timer);timer=setInterval(()=>drawTimeline(sched),60000);
   const ms=parseMissions(misText).sort((a,b)=>a.date.localeCompare(b.date));
+  MISSIONS=ms;drawCards();drawSeason();
   $('mis').innerHTML=ms.map(missionCard).join('')||'<div class="empty">No missions yet. They live in data/missions.md.</div>';
   $('mis-ov').innerHTML=ms.filter(m=>!m.done).slice(0,2).map(missionCard).join('');
   loadQueue();loadFeed();
