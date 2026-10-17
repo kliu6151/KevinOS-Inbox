@@ -59,7 +59,14 @@ function week(days) { let t = 0; for (let i = 0; i < 7; i++) { const d = new Dat
 
 async function load(tok) {
   const { status, j } = await api(tok, 'GET');
-  if (status === 404) return { sha: null, ...parse('') };
+  if (status === 404) {
+    // GitHub answers 404 both for "no such file yet" and for "this token can't see the repo" — tell them apart
+    const r = new Request(`https://api.github.com/repos/${OWNER}/${REPO}`);
+    r.headers = { Authorization: `Bearer ${tok}`, Accept: 'application/vnd.github+json' };
+    await r.loadJSON();
+    if (r.response.statusCode !== 200) throw new Error('this token cannot see the KevinOS repo (GitHub 404) — paste the token the KevinOS app uses');
+    return { sha: null, ...parse('') };
+  }
   if (status !== 200) throw new Error(`GitHub ${status}: ${(j && j.message) || ''}`);
   return { sha: j.sha, ...parse(unb64(j.content)) };
 }
@@ -115,9 +122,16 @@ if (config.runsInWidget) {
   Script.setShortcutOutput('No token saved — open the Airsync Clock script in Scriptable once.');
 } else if (config.runsInApp) {
   // opened in Scriptable itself (setup, or a manual run): ask, so the first run doesn't start a session by surprise
-  let s = null; try { s = await load(tok); } catch (e) {}
+  let s = null, err = '';
+  try { s = await load(tok); } catch (e) { err = e.message; }
+  if (!s) {
+    // a bad saved token is the usual cause: offer to replace it (it is shared with the calendar widget)
+    const a = new Alert(); a.title = '⏱ Airsync clock'; a.message = 'Could not read the clock: ' + err;
+    a.addAction('Paste a new token'); a.addCancelAction('Close');
+    if ((await a.present()) === 0) { Keychain.remove(KEY); const t2 = await token(); if (t2) { try { s = await load(t2); } catch (e) { const b = new Alert(); b.title = 'Still failing'; b.message = e.message; b.addAction('OK'); await b.present(); } } }
+  }
   const a = new Alert(); a.title = '⏱ Airsync clock';
-  a.message = s ? (s.running ? `Running since ${new Date(s.running).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : `Off. Week so far ${week(s.days)}/15 h.`) : 'Could not read the clock (token or network).';
+  a.message = s ? (s.running ? `Running since ${new Date(s.running).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : `Off. Week so far ${week(s.days)}/15 h.`) : '';
   a.addAction(s && s.running ? 'Stop' : 'Start'); a.addCancelAction('Close');
   if (s && (await a.present()) === 0) { let out; try { out = await toggle(tok); } catch (e) { out = 'Failed: ' + e.message; } const b = new Alert(); b.title = 'Airsync clock'; b.message = out; b.addAction('OK'); await b.present(); }
 } else {
