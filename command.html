@@ -224,6 +224,46 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
 #drawer .act{display:flex;gap:8px;margin-top:16px}
 #drawer .act button{flex:1;padding:12px;border-radius:12px;border:1px solid var(--line);color:var(--muted);font-weight:700}
 #drawer .act .pri{color:#05221E;background:var(--live);border-color:var(--live)}
+/* goals (2026-10-16): Kevin "we still need to make sure our goals are being done … a bigger picture kind of thing" */
+.gstrip{display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:rgba(13,20,36,.6);margin-bottom:12px;text-align:left;overflow:hidden}
+.gstrip b{font-size:12.5px;color:var(--muted);font-weight:700;flex:none}
+.gstrip span{display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;padding:4px 9px;border-radius:999px;background:rgba(138,151,176,.1);white-space:nowrap}
+.gstrip span i{width:8px;height:8px;border-radius:50%}
+.g-on i{background:var(--live)}.g-risk i{background:var(--watch)}.g-off i{background:var(--down)}.g-nd i{background:var(--idle)}
+.goal-chain{display:grid;gap:0}
+.gc{position:relative;padding:12px 14px 12px 46px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(160deg,rgba(18,28,51,.85),rgba(10,17,32,.85))}
+.gc+.gc{margin-top:18px}
+.gc+.gc::before{content:"";position:absolute;left:26px;top:-19px;width:2px;height:18px;background:repeating-linear-gradient(to bottom,var(--cloud) 0 3px,transparent 3px 6px)}
+.gc .ic{position:absolute;left:12px;top:12px;width:24px;height:24px;border-radius:8px;display:grid;place-items:center;font-size:13px;background:rgba(124,156,255,.15)}
+.gc small{display:block;font-size:11px;color:var(--dim);font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.gc b{display:block;font-size:16px;font-weight:800;margin-top:2px;line-height:1.3}
+.gc span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+.gc.top{border-color:rgba(255,211,110,.35);background:radial-gradient(400px 140px at 10% 0,rgba(255,211,110,.12),transparent 70%),linear-gradient(160deg,rgba(18,28,51,.85),rgba(10,17,32,.85))}
+.gc.top .ic{background:rgba(255,211,110,.18)}
+.runway{height:6px;border-radius:3px;background:var(--line);margin-top:10px;overflow:hidden}.runway i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--watch))}
+.krs{display:grid;gap:10px}
+@media(min-width:900px){.krs{grid-template-columns:repeat(3,1fr)}}
+.kr{border:1px solid var(--line);border-radius:18px;padding:14px;background:linear-gradient(160deg,var(--panel-2),var(--panel));position:relative;overflow:hidden}
+.kr::before{content:"";position:absolute;left:0;top:0;right:0;height:3px;background:var(--idle)}
+.kr.on_track::before{background:var(--live)}.kr.at_risk::before{background:var(--watch)}.kr.off_track::before{background:var(--down)}
+.kr .hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.kr .area{font-size:11.5px;font-weight:800;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.kr .pill{margin-top:0}
+.kr.on_track .pill{background:rgba(46,230,214,.13);color:var(--live)}.kr.at_risk .pill{background:rgba(255,180,84,.14);color:var(--watch)}.kr.off_track .pill{background:rgba(255,92,108,.16);color:var(--down)}
+.kr h3{font-size:15.5px;font-weight:800;line-height:1.35;margin-top:10px}
+.kr .big{font-family:var(--mono);font-size:26px;font-weight:600;margin-top:10px;letter-spacing:-.02em}
+.kr .big small{font-size:12px;color:var(--dim);font-weight:400;margin-left:4px}
+.kr .pbar{height:8px;border-radius:4px;background:var(--line);margin-top:8px;overflow:hidden}
+.kr .pbar i{display:block;height:100%;border-radius:4px;background:var(--idle);transition:width 1s}
+.kr.on_track .pbar i{background:linear-gradient(90deg,var(--live),#5CF2B8)}.kr.at_risk .pbar i{background:var(--watch)}.kr.off_track .pbar i{background:var(--down)}
+.kr .note{font-size:12.5px;color:var(--muted);margin-top:9px;line-height:1.45}
+.kr .ft{display:flex;justify-content:space-between;align-items:center;margin-top:11px;font-size:11.5px;color:var(--dim)}
+.kr .wk{display:flex;gap:4px}.kr .wk i{width:10px;height:10px;border-radius:3px;background:rgba(138,151,176,.15)}
+.kr .wk i.on_track{background:var(--live)}.kr .wk i.at_risk{background:var(--watch)}.kr .wk i.off_track{background:var(--down)}
+.kr .dec{margin-top:10px;padding:8px 10px;border-radius:10px;background:rgba(255,92,108,.12);color:var(--down);font-size:12.5px;font-weight:700}
+.kr .kms{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);display:grid;gap:4px}
+.gl-how{font-size:13px;color:var(--muted);line-height:1.6}
+.gl-how b{color:var(--ink)}
 /* profile sheet v3 */
 #drawer-l{background:rgba(3,6,12,.8)}
 #drawer-l:not([hidden]) #drawer{animation:sheet .32s cubic-bezier(.2,.9,.3,1)}
@@ -436,8 +476,8 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
 <nav class="tabs" id="tabs">
   <button class="tab on" data-t="overview"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>Overview</button>
   <button class="tab" data-t="agents"><svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M12 7V4M9 12h.01M15 12h.01"/></svg>Crew<span class="badge" id="badge" hidden>0</span></button>
+  <button class="tab" data-t="goals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 12l7-7M16 5h3v3"/></svg>Goals<span class="badge" id="gbadge" hidden>0</span></button>
   <button class="tab" data-t="send"><svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-7-8-1z"/></svg>Send<span class="badge" id="sbadge" hidden>0</span></button>
-  <button class="tab" data-t="feed"><svg viewBox="0 0 24 24"><path d="M5 7l4 4-4 4M11 16h8"/></svg>Feed</button>
   <button class="tab" data-t="season"><svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></svg>Season</button>
 </nav>
 
@@ -446,6 +486,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
 <main class="page" id="page" hidden>
   <section class="view on" id="v-overview">
     <button class="alert ok" id="alert"><span class="icon">✓</span><span><b id="alert-b">Nothing needs you</b><span id="alert-s">Every agent reported on time.</span></span></button>
+    <button class="gstrip" id="gstrip" data-go="goals" hidden></button>
     <div class="hud" id="hud">
       <button class="flame" data-go="season"><b id="h-streak">–</b><span>days in a row, nothing broke</span></button>
       <button class="grade" data-go="season"><b id="h-grade">–</b><span id="h-grade-s">season grade</span></button>
@@ -475,6 +516,14 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
     <div class="seg crew-mode" id="crew-mode"><button type="button" data-m="org">Org chart</button><button type="button" data-m="cards">Cards</button></div>
     <div id="org-w" class="panel org-w"><svg id="org" role="img" aria-label="Who reports to whom"></svg><div id="org-list" class="ol" hidden></div><div class="org-hint" id="org-hint">Tap a box to fold it · tap a robot for details · lines carry status up to HQ</div></div>
     <div id="cards-w"><div class="filters" id="filters"></div><div class="crew" id="cards"></div></div>
+  </section>
+
+  <section class="view" id="v-goals">
+    <div class="goal-chain" id="goal-chain"></div>
+    <div class="sec-h"><span id="kr-h">This quarter</span><small id="kr-s"></small></div>
+    <div class="krs" id="krs"></div>
+    <div class="sec-h"><span>How it's measured</span><small>scripts, not opinions</small></div>
+    <div class="panel gl-how" id="gl-how"></div>
   </section>
 
   <section class="view" id="v-send">
@@ -514,6 +563,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
     <h3>Command center</h3>
     <button data-go="overview">Overview<span class="sub">map, alerts, next runs</span></button>
     <button data-go="agents">Crew<span class="sub">every agent, how it's doing, its streak</span></button>
+    <button data-go="goals">Goals<span class="sub">the finish line, this quarter's key results</span></button>
     <button data-go="send">Send work<span class="sub">queue a task for an agent</span></button>
     <button data-go="feed">Activity feed<span class="sub">everything that just happened</span></button>
     <button data-go="season">Season<span class="sub">this month's grade, trophies, missions</span></button>
@@ -814,6 +864,38 @@ function toast(x){
   if(navigator.vibrate)try{navigator.vibrate([30,40,30]);}catch(e){}
   setTimeout(()=>{el.classList.remove('on');setTimeout(()=>el.remove(),500);},2300);
 }
+/* ---- goals: data/goals-status.json (ops/goals-score.js, refreshed by the morning briefing; graded Sundays) ---- */
+let GOALS=null;
+const GLAB={on_track:'On track',at_risk:'At risk',off_track:'Off track',no_data:'No data'},GCLS={on_track:'g-on',at_risk:'g-risk',off_track:'g-off',no_data:'g-nd'};
+const fmtVal=k=>k.value==null||k.status==='no_data'?'—':k.unit==='$/month'?'$'+Math.round(k.value/1000)+'k':String(k.value);
+const fmtTgt=k=>k.unit==='$/month'?'$'+Math.round(k.target/1000)+'k/mo':k.unit==='h/week'?'≤'+k.target+' h/wk':k.target+' '+(k.unit||'');
+function drawGoals(){
+  const g=GOALS;
+  if(!g||!g.krs){$('krs').innerHTML='<div class="empty">No goals scored yet. The morning briefing writes data/goals-status.json.</div>';$('gstrip').hidden=true;return;}
+  const off=g.krs.filter(k=>k.status==='off_track').length,b=$('gbadge');b.hidden=!off;b.textContent=off;
+  $('gstrip').hidden=false;$('gstrip').innerHTML='<b>Q4 goals</b>'+g.krs.map(k=>`<span class="${GCLS[k.status]}"><i></i>${esc(k.area)}</span>`).join('');
+  const p=nyParts(),today=Date.UTC(+p.year,+p.month-1,+p.day);
+  const end=Date.UTC(2031,11,31),start=Date.UTC(2026,0,1),yrs=((end-today)/(365.25*864e5)).toFixed(1),used=(today-start)/(end-start)*100;
+  const q=Math.floor((+p.month-1)/3),qEnd=Date.UTC(+p.year,q*3+3,0),qDays=Math.round((qEnd-today)/864e5);
+  $('goal-chain').innerHTML=`<div class="gc top"><span class="ic">🏁</span><small>Finish line</small><b>$100k a month that doesn't need you to show up</b><span>By 2031 · ${yrs} years of runway left · every quarter that ends without the scalable layer moving is 5% of it gone</span><div class="runway"><i style="width:${used.toFixed(1)}%"></i></div></div>
+    <div class="gc"><span class="ic">📅</span><small>This year</small><b>Prove the scalable layer</b><span>Airsync funds the run; FieldPacket and systems that run without you close the gap</span></div>
+    <div class="gc"><span class="ic">🎯</span><small>${esc(g.quarter||'This quarter')} · ${qDays} days left</small><b>${g.krs.length} key results</b><span>${g.krs.filter(k=>k.status==='on_track').length} on track · ${g.krs.filter(k=>k.status==='at_risk').length} at risk · ${off} off track${g.krs.some(k=>k.status==='no_data')?' · '+g.krs.filter(k=>k.status==='no_data').length+' with no data yet':''}</span></div>`;
+  $('kr-h').textContent=g.quarter||'This quarter';$('kr-s').textContent='scored '+(g.today||'');
+  const grades=(g.grades||[]).slice(-6),two=id=>grades.length>=2&&grades.slice(-2).every(w=>w.krs[id]==='off_track');
+  $('krs').innerHTML=g.krs.map(k=>{
+    const ms=MISSIONS.filter(m=>!m.done&&m.date<'2028'&&m.biz&&m.biz.toLowerCase()===String(k.area).toLowerCase()).slice(0,2);
+    const due=k.due?Math.round((Date.parse(k.due+'T00:00:00Z')-today)/864e5):null;
+    return `<div class="kr ${k.status}"><div class="hd"><span class="area">${esc(k.id)} · ${esc(k.area)}</span><span class="pill">${GLAB[k.status]||k.status}</span></div>
+      <h3>${esc(k.title)}</h3>
+      <div class="big">${esc(fmtVal(k))}<small>of ${esc(fmtTgt(k))}</small></div>
+      <div class="pbar"><i style="width:${Math.round((k.progress||0)*100)}%"></i></div>
+      <div class="note">${esc(k.note||'')}</div>
+      ${two(k.id)?'<div class="dec">Off track two Sundays running: decide. Change the plan, drop it, or delegate it.</div>':''}
+      ${ms.length?`<div class="kms">${ms.map(m=>`<span>🚩 ${esc(m.what)} · ${esc(m.date)}</span>`).join('')}</div>`:''}
+      <div class="ft"><span class="wk" title="last Sundays">${grades.map(w=>`<i class="${w.krs[k.id]||''}"></i>`).join('')||'<span>first grade Sunday</span>'}</span><span>${due!=null?(due>=0?due+' days left':-due+' days late'):''}</span></div></div>`;}).join('');
+  $('gl-how').innerHTML=`<b>Every morning</b> the briefing re-scores each key result and puts one move toward one of them in your Top 3. <b>Every Sunday</b> the review grades them, one colored square per week above. <b>Two red Sundays in a row</b> forces a decision, never "try harder". Your hours come from the check-in's "Airsync hours today" box, revenue from Housecall Pro, paying contractors from the missions list.`;
+}
+$('gstrip').onclick=()=>show('goals');
 $('hud').onclick=e=>{const b=e.target.closest('[data-go]');if(b)show(b.dataset.go);};
 
 /* ---- org chart: data/agents/org.json says who reports to whom; every board row hangs somewhere ---- */
@@ -978,7 +1060,7 @@ async function loadLive(){
 
 let timer=null;
 async function load(){
-  const [board,regText,schedText,misText,live,histText,,doneN]=await Promise.all([file('data/agents.md').catch(()=>''),file('data/agents/REGISTRY.md').catch(()=>''),file('data/agents/schedule.json').catch(()=>''),file('data/missions.md').catch(()=>''),loadLive(),file('data/agents-history.json').catch(()=>''),file('data/agents/org.json').then(t=>{try{ORG=JSON.parse(t);}catch(e){}}).catch(()=>{}),
+  const [board,regText,schedText,misText,live,histText,,,doneN]=await Promise.all([file('data/agents.md').catch(()=>''),file('data/agents/REGISTRY.md').catch(()=>''),file('data/agents/schedule.json').catch(()=>''),file('data/missions.md').catch(()=>''),loadLive(),file('data/agents-history.json').catch(()=>''),file('data/agents/org.json').then(t=>{try{ORG=JSON.parse(t);}catch(e){}}).catch(()=>{}),file('data/goals-status.json').then(t=>{try{GOALS=JSON.parse(t);}catch(e){}}).catch(()=>{}),
     Promise.all(TARGETS.map(([a])=>list('queue/'+a+'/done'))).then(x=>x.flat().length).catch(()=>0)]);
   try{HIST=JSON.parse(histText||'{"days":{}}');if(!HIST.days)HIST.days={};}catch(e){HIST={days:{}};}
   DELIVERED=doneN;
@@ -999,7 +1081,7 @@ async function load(){
   let sched={runs:[]};try{sched=JSON.parse(schedText||'{"runs":[]}');}catch(e){}SCHED=sched;
   drawTimeline(sched);clearInterval(timer);timer=setInterval(()=>drawTimeline(sched),60000);
   const ms=parseMissions(misText).sort((a,b)=>a.date.localeCompare(b.date));
-  MISSIONS=ms;drawCards();drawSeason();drawOrg();
+  MISSIONS=ms;drawCards();drawSeason();drawOrg();drawGoals();
   $('mis').innerHTML=ms.map(missionCard).join('')||'<div class="empty">No missions yet. They live in data/missions.md.</div>';
   $('mis-ov').innerHTML=ms.filter(m=>!m.done).slice(0,2).map(missionCard).join('');
   loadQueue();loadFeed();

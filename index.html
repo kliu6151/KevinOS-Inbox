@@ -5855,6 +5855,8 @@ async function openCheckinForm(){
   h.push('<div class="ci-h">Journal</div>');
   h.push('<div class="fld" style="margin-top:0"><label>One win</label><input id="ci-win" type="text" autocomplete="off" placeholder="the thing that went right"></div>');
   h.push('<div class="fld"><label>One lesson</label><input id="ci-lesson" type="text" autocomplete="off" placeholder="what you would do differently"></div>');
+  // Q4 KR2 (2026-10-16): "≤15 Airsync hours a week by December" — this box is the only measure of it
+  h.push('<div class="fld"><label>Airsync hours today</label><input id="ci-hours" type="text" inputmode="decimal" autocomplete="off" placeholder="4 (0 if none)"></div>');
   h.push('<div class="ci-h">Body</div>');
   h.push('<div class="frow"><div class="fld" style="margin-top:0"><label>Sleep last night (h)</label><input id="ci-sleep" type="text" inputmode="decimal" autocomplete="off" placeholder="7"></div>'
     +'<div class="fld" style="margin-top:0"><label>Training today</label><input id="ci-train" type="text" autocomplete="off" placeholder="run 3 mi 30 min / none"></div></div>');
@@ -5886,6 +5888,7 @@ function ciCompose(){
   if(v('ci-other'))L.push('ALSO DONE: '+v('ci-other'));
   if(v('ci-win'))L.push('WIN: '+v('ci-win'));
   if(v('ci-lesson'))L.push('LESSON: '+v('ci-lesson'));
+  if(v('ci-hours'))L.push('AIRSYNC HOURS: '+v('ci-hours'));
   if(v('ci-sleep'))L.push('SLEEP: '+v('ci-sleep'));
   if(v('ci-train'))L.push('TRAINING: '+v('ci-train'));
   L.push('TOMORROW: '+(v('ci-plan')||'(nothing typed: fixed items only)'));
