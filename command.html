@@ -304,7 +304,33 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
 .toast b{display:block;font-size:15px}
 .confetti{position:fixed;top:-12px;width:8px;height:12px;border-radius:2px;z-index:61;pointer-events:none;animation:fall linear forwards}
 @keyframes fall{to{transform:translate(var(--dx),105vh) rotate(var(--rot));opacity:.9}}
+/* org chart (2026-10-16): Kevin "I want it more organized like which agents falls under what … one head agent and I see a line connecting it to another one" */
+.crew-mode{max-width:320px;margin-bottom:12px}
+.org-w{padding:10px 12px 12px;overflow:hidden}
+.org-w svg{display:block;width:100%;height:auto}
+.org-hint{font-size:11.5px;color:var(--dim);margin:6px 4px 0}
+.edge{fill:none;stroke-width:1.6;stroke:rgba(138,151,176,.3)}
+.edge.live{stroke:rgba(46,230,214,.6);stroke-dasharray:3 7;animation:flow 1.6s linear infinite}
+.edge.watch{stroke:rgba(255,180,84,.75);stroke-dasharray:3 7;animation:flow 2.4s linear infinite}
+.edge.down{stroke:var(--down);stroke-width:2.4;stroke-dasharray:7 4;animation:flow .7s linear infinite;filter:drop-shadow(0 0 4px rgba(255,92,108,.7))}
+.edge.known{stroke:rgba(229,138,92,.5)}
+.edge.planned{stroke-dasharray:2 5}
+@keyframes flow{to{stroke-dashoffset:20}}
+.on-hq polygon{fill:var(--panel-2);stroke-width:2}
+.on-hq text{fill:var(--ink);font:800 11px var(--font);text-anchor:middle}
+.ogrp rect{fill:var(--panel-2);stroke-width:1.6}
+.ogrp.planned rect{stroke-dasharray:3 3;fill:none}
+.ogrp text.g{font:700 11px var(--font);text-anchor:middle}
+.st-live{stroke:var(--live);fill:var(--live)}.st-watch{stroke:var(--watch);fill:var(--watch)}.st-down{stroke:var(--down);fill:var(--down)}.st-known{stroke:var(--known);fill:var(--known)}.st-idle{stroke:var(--idle);fill:var(--dim)}
+.olab{font:800 12.5px var(--font);fill:var(--ink)}
+.olab.down{fill:var(--down)}
+.osub{font:500 10.5px var(--font);fill:var(--muted)}
+.ocnt{font:600 10px var(--mono);fill:var(--dim)}
+.onode{cursor:pointer}
+.onode:hover .olab{text-decoration:underline}
+.ogrp.down rect,.on-hq.down polygon{filter:drop-shadow(0 0 6px rgba(255,92,108,.8))}
 @media(prefers-reduced-motion:reduce){.av *,.hud .flame::after{animation:none!important}.confetti{display:none}}
+@media(prefers-reduced-motion:reduce){.edge{animation:none!important}}
 @media(prefers-reduced-motion:reduce){.sweep,.node.down .halo,.cond.down i,.cursor{animation:none}.boot{display:none}}
 </style>
 </head>
@@ -357,8 +383,9 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
   </section>
 
   <section class="view" id="v-agents">
-    <div class="filters" id="filters"></div>
-    <div class="crew" id="cards"></div>
+    <div class="seg crew-mode" id="crew-mode"><button type="button" data-m="org">Org chart</button><button type="button" data-m="cards">Cards</button></div>
+    <div id="org-w" class="panel org-w"><svg id="org" role="img" aria-label="Who reports to whom"></svg><div class="org-hint">Tap a box to fold it · tap a robot for details · lines carry status up to HQ</div></div>
+    <div id="cards-w"><div class="filters" id="filters"></div><div class="crew" id="cards"></div></div>
   </section>
 
   <section class="view" id="v-send">
@@ -535,7 +562,7 @@ function drawMap(sections,onPick){
   svg.querySelectorAll('.node').forEach(g=>g.addEventListener('click',()=>onPick(nodes[+g.dataset.i])));
 }
 
-function show(v){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+v));document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.t===v));try{localStorage.setItem('cc_view',v);}catch(e){}window.scrollTo(0,0);}
+function show(v){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+v));document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.t===v));try{localStorage.setItem('cc_view',v);}catch(e){}window.scrollTo(0,0);if(v==='agents'&&typeof drawOrg==='function')drawOrg();}
 $('tabs').onclick=e=>{const b=e.target.closest('.tab');if(b)show(b.dataset.t);};
 $('burger').onclick=()=>{$('menu-l').hidden=false;};
 $('menu-l').onclick=e=>{if(e.target.id==='menu-l'){$('menu-l').hidden=true;return;}const b=e.target.closest('[data-go]');if(b){show(b.dataset.go);$('menu-l').hidden=true;}};
@@ -680,7 +707,64 @@ function toast(x){
   setTimeout(()=>{el.classList.remove('on');setTimeout(()=>el.remove(),500);},2300);
 }
 $('hud').onclick=e=>{const b=e.target.closest('[data-go]');if(b)show(b.dataset.go);};
-document.querySelectorAll('.num').forEach(n=>n.onclick=()=>{FILTER=n.dataset.f;drawCards();show('agents');});
+
+/* ---- org chart: data/agents/org.json says who reports to whom; every board row hangs somewhere ---- */
+let ORG=null,CREW_MODE=ls('cc_crew')||'org',COLL=new Set();try{COLL=new Set(JSON.parse(ls('cc_coll')||'[]'));}catch(e){}
+function crewMode(m){CREW_MODE=m;try{localStorage.setItem('cc_crew',m);}catch(e){}
+  $('crew-mode').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  $('org-w').hidden=m!=='org';$('cards-w').hidden=m!=='cards';if(m==='org')drawOrg();}
+$('crew-mode').onclick=e=>{const b=e.target.closest('[data-m]');if(b)crewMode(b.dataset.m);};
+function buildTree(){
+  const o=ORG||{root:{id:'hq',label:'KevinOS HQ'},groups:[],members:{},patterns:[]},rootId=o.root.id,nodes={};
+  const mk=(id,label,x)=>nodes[id]={id,label,kids:[],...x};
+  mk(rootId,o.root.label,{kind:'hq',note:o.root.note||''});
+  for(const g of o.groups||[])mk(g.id,g.label,{kind:'group',note:g.note||'',planned:!!g.planned});
+  for(const r of ALL)mk('a:'+r.name,r.name,{kind:'agent',row:r});
+  for(const g of o.groups||[])(nodes[g.parent]||nodes[rootId]).kids.push(nodes[g.id]);
+  const parentOf=r=>{let p=(o.members||{})[r.name];
+    if(!p){const m=(o.patterns||[]).find(x=>r.name.startsWith(x.prefix));p=m?m.parent:r.group==='Live status'?'ops':'';}
+    return nodes[p]?p:nodes['a:'+p]?'a:'+p:rootId;};
+  for(const r of ALL){const p=parentOf(r);nodes['a:'+r.name].unfiled=p===rootId;nodes[p].kids.push(nodes['a:'+r.name]);}
+  const RK={down:4,watch:3,known:2,live:1,idle:0};
+  const roll=n=>{let s=n.row?n.row.state:'idle',c=n.row?1:0;for(const k of n.kids){roll(k);if(RK[k.state]>RK[s])s=k.state;c+=k.count;}n.state=s;n.count=c;};
+  roll(nodes[rootId]);return nodes[rootId];
+}
+function drawOrg(){
+  const svg=$('org'),box=$('org-w');if(box.hidden||!box.offsetParent)return;
+  const root=buildTree(),W=Math.max(300,box.clientWidth-24),phone=W<600,rowH=phone?52:50,top=34;
+  let leaves=0,maxD=0;
+  const lay=(n,d)=>{n.d=d;maxD=Math.max(maxD,d);const open=n.kids.length&&!COLL.has(n.id);n.open=!!open;
+    if(!open){n.y=top+leaves++*rowH;return;}n.kids.forEach(k=>lay(k,d+1));n.y=(n.kids[0].y+n.kids[n.kids.length-1].y)/2;};
+  lay(root,0);
+  const labelW=phone?124:230,colW=Math.min(200,Math.max(54,(W-labelW-26)/Math.max(1,maxD))),X=d=>22+d*colW,H=top+leaves*rowH;
+  const cut=(s,n)=>{s=String(s||'');return s.length>n?s.slice(0,n-1)+'…':s;},chars=Math.floor((W-0)/7);
+  let edges='',nodes='';
+  const walk=n=>{const x=X(n.d),y=n.y;
+    if(n.open)for(const k of n.kids){const kx=X(k.d),r1=n.kind==='hq'?20:n.kind==='group'?15:14;
+      edges+=`<path class="edge ${k.planned&&!k.count?'planned':k.state}" d="M${x+r1} ${y} C${x+colW*.55} ${y},${kx-colW*.55} ${k.y},${kx-14} ${k.y}"/>`;walk(k);}
+    const lx=x+(n.kind==='hq'?26:20),room=Math.floor((W-lx)/6.6);
+    if(n.kind==='hq'){const pts=[0,1,2,3,4,5].map(i=>{const a=Math.PI/6+i*Math.PI/3;return `${x+Math.cos(a)*20},${y+Math.sin(a)*20}`;}).join(' ');
+      nodes+=`<g class="onode on-hq ${n.state}" data-id="${esc(n.id)}"><polygon points="${pts}" class="st-${n.state}" style="fill:var(--panel-2)"/><text x="${x}" y="${y+4}">HQ</text><text class="olab" x="${x-14}" y="${y-28}" style="text-anchor:start">${esc(n.label)}</text></g>`;}
+    else if(n.kind==='group'){const above=n.open;
+      nodes+=`<g class="onode ogrp ${n.state} ${n.planned?'planned':''}" data-id="${esc(n.id)}"><rect x="${x-14}" y="${y-14}" width="28" height="28" rx="8" class="st-${n.planned&&!n.count?'idle':n.state}" style="fill:var(--panel-2)"/><text class="g st-${n.planned&&!n.count?'idle':n.state}" x="${x}" y="${y+4}" style="stroke:none">${n.open?'−':'+'}</text>`+
+        (above?`<text class="olab ${n.state==='down'?'down':''}" x="${x-14}" y="${y-21}">${esc(cut(n.label,Math.floor((colW+labelW)/7.4)))}<tspan class="ocnt" dx="6">${n.count}</tspan></text>`
+              :`<text class="olab ${n.state==='down'?'down':''}" x="${lx}" y="${y-2}">${esc(cut(n.label,room))}</text><text class="osub" x="${lx}" y="${y+12}">${n.planned&&!n.count?'planned · '+esc(cut(n.note,room-10)):`${n.count} agent${n.count===1?'':'s'} folded`}</text>`)+`</g>`;}
+    else{const r=n.row,av=avatar(r.name,r.state).replace('<svg ',`<svg x="${x-15}" y="${y-15}" width="30" height="30" `);
+      const sub=(r.what||'')+(r.when?' · '+r.when:'');
+      if(n.open)nodes+=`<g class="onode" data-id="${esc(n.id)}">${av}<text class="olab ${r.state==='down'?'down':''}" x="${x-14}" y="${y-21}">${esc(cut(r.name,Math.floor((colW+labelW)/7.4)))}</text></g>`;
+      else nodes+=`<g class="onode" data-id="${esc(n.id)}">${av}<text class="olab ${r.state==='down'?'down':''}" x="${lx}" y="${y-2}">${esc(cut(r.name+(n.unfiled?' (unfiled)':''),room))}</text><text class="osub" x="${lx}" y="${y+12}">${esc(cut(sub,room))}</text></g>`;}
+  };
+  walk(root);
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML=edges+nodes;
+  const byId={};(function idx(n){byId[n.id]=n;n.kids.forEach(idx);})(root);
+  svg.querySelectorAll('.onode').forEach(g=>g.addEventListener('click',()=>{const n=byId[g.dataset.id];if(!n)return;
+    if(n.row){openDrawer(n.row);return;}
+    if(n.kind!=='group'||!n.kids.length){openDrawer({name:n.label,state:n.planned&&!n.count?'idle':n.state,what:n.note});return;}
+    COLL.has(n.id)?COLL.delete(n.id):COLL.add(n.id);
+    try{localStorage.setItem('cc_coll',JSON.stringify([...COLL]));}catch(e){}drawOrg();}));
+}
+let rsz=null;addEventListener('resize',()=>{clearTimeout(rsz);rsz=setTimeout(()=>{if(CREW_MODE==='org')drawOrg();},150);});
+document.querySelectorAll('.num').forEach(n=>n.onclick=()=>{FILTER=n.dataset.f;drawCards();crewMode('cards');show('agents');});
 
 let NEEDS='KOS';
 function pickTarget(v){SEL_TARGET=v;document.querySelectorAll('.tgt').forEach(x=>x.classList.toggle('on',x.dataset.v===v));$('needs-w').style.display=v==='fp'?'':'none';}
@@ -727,7 +811,7 @@ async function loadLive(){
 
 let timer=null;
 async function load(){
-  const [board,regText,schedText,misText,live,histText,doneN]=await Promise.all([file('data/agents.md').catch(()=>''),file('data/agents/REGISTRY.md').catch(()=>''),file('data/agents/schedule.json').catch(()=>''),file('data/missions.md').catch(()=>''),loadLive(),file('data/agents-history.json').catch(()=>''),
+  const [board,regText,schedText,misText,live,histText,,doneN]=await Promise.all([file('data/agents.md').catch(()=>''),file('data/agents/REGISTRY.md').catch(()=>''),file('data/agents/schedule.json').catch(()=>''),file('data/missions.md').catch(()=>''),loadLive(),file('data/agents-history.json').catch(()=>''),file('data/agents/org.json').then(t=>{try{ORG=JSON.parse(t);}catch(e){}}).catch(()=>{}),
     Promise.all(TARGETS.map(([a])=>list('queue/'+a+'/done'))).then(x=>x.flat().length).catch(()=>0)]);
   try{HIST=JSON.parse(histText||'{"days":{}}');if(!HIST.days)HIST.days={};}catch(e){HIST={days:{}};}
   DELIVERED=doneN;
@@ -748,7 +832,7 @@ async function load(){
   let sched={runs:[]};try{sched=JSON.parse(schedText||'{"runs":[]}');}catch(e){}
   drawTimeline(sched);clearInterval(timer);timer=setInterval(()=>drawTimeline(sched),60000);
   const ms=parseMissions(misText).sort((a,b)=>a.date.localeCompare(b.date));
-  MISSIONS=ms;drawCards();drawSeason();
+  MISSIONS=ms;drawCards();drawSeason();drawOrg();
   $('mis').innerHTML=ms.map(missionCard).join('')||'<div class="empty">No missions yet. They live in data/missions.md.</div>';
   $('mis-ov').innerHTML=ms.filter(m=>!m.done).slice(0,2).map(missionCard).join('');
   loadQueue();loadFeed();
@@ -756,6 +840,7 @@ async function load(){
 async function boot(){
   if(!token()){$('boot').classList.add('gone');$('gate').hidden=false;return;}
   $('page').hidden=false;
+  crewMode(CREW_MODE==='cards'?'cards':'org');
   const v=ls('cc_view');if(v&&$('v-'+v))show(v);
   const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
   const p=load();
