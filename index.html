@@ -687,7 +687,8 @@
     background:var(--bg);border-bottom:1px solid var(--border)}
   @media (min-width:880px){.biz-bar.fixed{left:232px}}
   .signals{display:flex;flex-direction:column;gap:6px;margin:0 0 14px}
-  .sigrow{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--border);
+  .clockrow.on{border-color:rgba(255,180,84,.45)!important}
+.sigrow{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--border);
     text-align:left;color:var(--text);font-size:13px;line-height:1.3;width:100%}
   .sigrow .sl{flex:0 0 auto;font-size:15px}
   .sigrow .st{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2135,6 +2136,8 @@ async function renderToday(){
   // 🟢 SYSTEMS (2026-10-14): live status from the Worker's heartbeats — first row, so a red is the
   // first thing Kevin sees (he reads the top of the screen only). Async: Today never waits on it.
   if(aiProxyUrl()&&localStorage.getItem('ai_proxy_token')){const h=document.createElement('div');sig.prepend(h);systemsRow(h);}
+  // ⏱ Airsync clock (Q4 KR2) — right under Systems; async, Today never waits on it
+  {const h=document.createElement('div');sig.appendChild(h);hoursRow(h);}
   // TOP 3 — bold title + one action line; the coach's why: sits behind a tap (detail sheet)
   if(top3.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Top 3</div>');
@@ -5867,6 +5870,8 @@ async function openCheckinForm(){
   if(ctx&&ctx.untimed_events&&ctx.untimed_events.length)h.push('<div class="ci-fx">Also that day: '+ctx.untimed_events.map(esc).join(' · ')+'</div>');
   h.push('<div class="fld" style="margin-top:4px"><label>What is the plan?</label><textarea id="ci-plan" placeholder="e.g. office till 2, preapprovals first, Pelham check at 3, calls from the truck. Skipping one of the above? say why."></textarea></div>');
   body.innerHTML=h.join('');
+  // the Airsync clock's total for the recap day pre-fills the hours box (Kevin edits it if the clock was off)
+  getFile(HOURS_PATH).then(f=>{const d=hoursParse(f&&f.text).days.get(t),el=$('ci-hours');if(d!=null&&el&&!el.value){el.value=d;const lb=el.previousElementSibling;if(lb)lb.textContent='Airsync hours today (from the clock)';}}).catch(()=>{});
   body.querySelectorAll('.ci-it').forEach(el=>{
     const it=items[+el.dataset.i];
     el.querySelectorAll('.ci-seg button').forEach(b=>b.onclick=()=>{
@@ -5912,6 +5917,65 @@ $('ci-send').onclick=()=>{
    worst problem first; tap opens the list (dot · name · what it last said · how long ago). The
    Worker decides red/yellow/green — the app only draws it. */
 const sysAgo=m=>m<1?'just now':m<90?m+' min ago':m<48*60?Math.round(m/60)+' h ago':Math.round(m/1440)+' d ago';
+/* ⏱ AIRSYNC CLOCK (2026-10-16, Q4 KR2 "≤15 Airsync hours a week by December"). Kevin: "for hour
+   tracking let's do that on the app too". One tap starts, one tap (twice, to avoid pocket taps)
+   stops. State lives in the repo, not the phone, so a timer started on the phone can be stopped on
+   the laptop: data/hours.md carries `- running: <ISO start>` while it runs and one
+   `- YYYY-MM-DD · H h` line per day (same format ops/hours-log.js writes — keep them in step).
+   A session is booked to the day it started. The evening check-in's hours box is prefilled with
+   the day's clock total; whatever is sent there replaces the day's number. */
+const HOURS_PATH='data/hours.md',HOURS_HEAD='# Airsync hours — script-owned (ops/hours-log.js, from the evening check-in; do not hand-edit)';
+function hoursParse(text){
+  const days=new Map();let running=null;
+  for(const l of String(text||'').split('\n')){
+    const r=l.match(/^- running: (\S+)/);if(r){running=r[1];continue;}
+    const m=l.match(/^- (\d{4}-\d{2}-\d{2}) · ([\d.]+) h/);if(m)days.set(m[1],+m[2]);
+  }
+  return {days,running};
+}
+function hoursText(days,running){
+  const body=[...days.keys()].sort().map(k=>`- ${k} · ${days.get(k)} h`).join('\n');
+  return HOURS_HEAD+'\n\n'+(running?`- running: ${running}\n\n`:'')+body+'\n';
+}
+const ymdOf=d=>{const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;};
+function hoursWeek(days){let t=0;for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);t+=days.get(ymdOf(d))||0;}return Math.round(t*10)/10;}
+const hms=ms=>{const s=Math.max(0,Math.floor(ms/1000));return `${Math.floor(s/3600)}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;};
+let hoursTick=null;
+async function hoursRow(holder){
+  let f=null;try{f=await getFile(HOURS_PATH);}catch(e){}
+  const st=hoursParse(f&&f.text),today=st.days.get(todayStr())||0,wk=hoursWeek(st.days);
+  const b=document.createElement('button');b.className='sigrow clockrow'+(st.running?' on':'');
+  const wkTxt=`week ${wk}/15 h`,over=wk>15;
+  clearInterval(hoursTick);
+  if(st.running){
+    const t0=Date.parse(st.running);
+    const paint=()=>{b.innerHTML=`<span class="sl">⏱</span><span class="st"><b>Working ${hms(Date.now()-t0)}</b> · ${today?today+' h earlier today · ':''}<span class="${over?'pri1':''}">${wkTxt}</span></span><span class="sm">${b.dataset.arm?'tap again':'Stop'} ›</span>`;};
+    paint();hoursTick=setInterval(()=>{if(!document.body.contains(b)){clearInterval(hoursTick);return;}paint();},1000);
+    b.onclick=async()=>{
+      if(!b.dataset.arm){b.dataset.arm='1';paint();setTimeout(()=>{delete b.dataset.arm;paint();},4000);return;}
+      clearInterval(hoursTick);b.disabled=true;
+      try{
+        const g=await getFile(HOURS_PATH),s2=hoursParse(g&&g.text);
+        if(!s2.running){hoursRow(holder);return;}
+        const start=new Date(s2.running),h=Math.max(0.1,Math.round((Date.now()-start)/3.6e5)/10),day=ymdOf(start);
+        s2.days.set(day,Math.round(((s2.days.get(day)||0)+h)*10)/10);
+        await pkSave(HOURS_PATH,hoursText(s2.days,null),`hours via app: ${day} +${h} h`);
+        fx('play','check');hoursRow(holder);
+      }catch(e){b.disabled=false;b.querySelector('.sm').textContent='retry ›';}
+    };
+  }else{
+    b.innerHTML=`<span class="sl">⏱</span><span class="st"><b>Airsync clock</b> · today ${today} h · <span class="${over?'pri1':''}">${wkTxt}</span></span><span class="sm">Start ›</span>`;
+    b.onclick=async()=>{
+      b.disabled=true;
+      try{
+        const g=await getFile(HOURS_PATH),s2=hoursParse(g&&g.text);
+        if(!s2.running)await pkSave(HOURS_PATH,hoursText(s2.days,new Date().toISOString()),'hours via app: clock started');
+        fx('play','tap');hoursRow(holder);
+      }catch(e){b.disabled=false;b.querySelector('.sm').textContent='retry ›';}
+    };
+  }
+  holder.replaceChildren(b);
+}
 async function systemsRow(holder){
   let j;try{j=await pushGet('/status');}catch(e){return;}
   const L=(j.systems||[]).slice().sort((a,b)=>({red:0,yellow:1,green:2}[a.state]-{red:0,yellow:1,green:2}[b.state])||a.label.localeCompare(b.label));
