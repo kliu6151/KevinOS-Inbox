@@ -413,53 +413,50 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
 .edge.known{stroke:rgba(229,138,92,.5)}
 .edge.planned{stroke-dasharray:2 5}
 @keyframes flow{to{stroke-dashoffset:20}}
-.on-hq polygon{fill:var(--panel-2);stroke-width:2}
-.on-hq text{fill:var(--ink);font:800 11px var(--font);text-anchor:middle}
-.ogrp rect{fill:var(--panel-2);stroke-width:1.6}
-.ogrp.planned rect{stroke-dasharray:3 3;fill:none}
-.ogrp text.g{font:700 11px var(--font);text-anchor:middle}
 .st-live{stroke:var(--live);fill:var(--live)}.st-watch{stroke:var(--watch);fill:var(--watch)}.st-down{stroke:var(--down);fill:var(--down)}.st-known{stroke:var(--known);fill:var(--known)}.st-idle{stroke:var(--idle);fill:var(--dim)}
-.olab{font:800 12.5px var(--font);fill:var(--ink)}
-.olab.down{fill:var(--down)}
-.osub{font:500 10.5px var(--font);fill:var(--muted)}
-.ocnt{font:600 10px var(--mono);fill:var(--dim)}
 .onode{cursor:pointer}
-.onode:hover .olab{text-decoration:underline}
-.ogrp.down rect,.on-hq.down polygon{filter:drop-shadow(0 0 6px rgba(255,92,108,.8))}
 @media(prefers-reduced-motion:reduce){.av *,.hud .flame::after{animation:none!important}.confetti{display:none}}
 @media(prefers-reduced-motion:reduce){.edge{animation:none!important}}
-/* phone org chart: an outline tree (Kevin: the side-by-side graph looked squished on the phone) */
-.ol{--c:var(--idle)}
-.ol .live{--c:var(--live)}.ol .watch{--c:var(--watch)}.ol .down{--c:var(--down)}.ol .known{--c:var(--known)}.ol .idle{--c:var(--idle)}
-.ol-hq{display:flex;align-items:center;gap:12px;padding:6px 4px 10px;width:100%;text-align:left}
-.ol-hq .hex{width:44px;height:44px;flex:none}
-.ol-hq b{display:block;font-size:16px;font-weight:800}.ol-hq span{display:block;font-size:12px;color:var(--muted)}
-.ol-kids{margin-left:21px;padding-left:16px;position:relative}
-.ol-item{position:relative}
-.ol-item::before{content:"";position:absolute;left:-16px;top:0;bottom:0;width:2px;background:repeating-linear-gradient(to bottom,var(--c) 0 4px,transparent 4px 9px);background-size:2px 9px;opacity:.7;animation:olflow 1.4s linear infinite}
-.ol-item:last-child::before{bottom:auto;height:25px}
-.ol-item::after{content:"";position:absolute;left:-16px;top:24px;width:13px;height:2px;background:var(--c);opacity:.8}
-.ol-item.down::before{opacity:1;animation-duration:.6s;width:2.5px}
-.ol-item.idle::before,.ol-item.planned::before{animation:none;opacity:.4}
-@keyframes olflow{to{background-position:0 -9px}}
-.ol-grp,.ol-ag{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:6px 8px 6px 4px;border-radius:14px;min-height:50px}
-.ol-grp:active,.ol-ag:active{background:rgba(232,238,248,.05)}
-.ol-grp .bx{width:34px;height:34px;border-radius:10px;border:2px solid var(--c);display:grid;place-items:center;flex:none;color:var(--c);font-weight:800;background:var(--panel-2)}
-.ol-grp.planned .bx{border-style:dashed;color:var(--dim);border-color:var(--idle)}
-.ol-grp .tx{flex:1;min-width:0}
-.ol-grp b{display:block;font-size:14.5px;font-weight:800}
-.ol-grp span{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ol-grp .ct{flex:none;font-family:var(--mono);font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:6px}
-.ol-grp .ct i{width:8px;height:8px;border-radius:50%;background:var(--c)}
-.ol-grp.down .ct i{box-shadow:0 0 10px var(--down);animation:blink 1.2s steps(2) infinite}
-.ol-grp .chev{transition:transform .2s;color:var(--dim);font-size:12px}
-.ol-grp.shut .chev{transform:rotate(-90deg)}
-.ol-ag .av{width:38px;height:38px;flex:none}
-.ol-ag .tx{flex:1;min-width:0}
-.ol-ag b{display:block;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ol-ag span{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ol-ag.down b{color:var(--down)}
-.ol-ag .fire{font-size:11px}
+/* org chart as a town (2026-10-17): HQ on top, blocks below, each agent a little building whose lights show its state */
+.bld .bd{stroke-width:1.4}
+.bld.live .wf{animation:wflick 6s steps(1) infinite}
+@keyframes wflick{0%,100%{opacity:1}42%{opacity:.3}48%{opacity:1}}
+.bld.watch .wb{animation:blink 1.4s steps(2) infinite}
+.bld .bcn{fill:var(--idle)}
+.bld.live .bcn{fill:var(--live);animation:blink 2.4s steps(2) infinite}
+.bld.watch .bcn{fill:var(--watch);animation:blink 1.1s steps(2) infinite}
+.bld.down .bcn{fill:var(--down);animation:blink .6s steps(2) infinite}
+.bld.known .bcn{fill:var(--known)}
+.bld.down .bd{stroke:var(--down)}
+.bld.down{filter:drop-shadow(0 0 5px rgba(255,92,108,.6))}
+.bld .smk{fill:rgba(200,210,225,.4);opacity:0;transform-box:fill-box;transform-origin:center}
+.bld.live .smk{animation:smoke 3.2s ease-out infinite}.bld.live .smk.s2{animation-delay:1.6s}
+@keyframes smoke{0%{opacity:0;transform:translate(0,4px) scale(.6)}30%{opacity:.8}100%{opacity:0;transform:translate(3px,-6px) scale(1.4)}}
+.bld .fan{transform-box:fill-box;transform-origin:center}
+.bld.live .fan{animation:spin 1.4s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.bld .zz{fill:var(--dim);font:700 9px var(--mono);animation:bzz 3s ease-in-out infinite}
+@keyframes bzz{0%,100%{opacity:.2;transform:translateY(2px)}50%{opacity:1;transform:none}}
+.bld .tk{fill:none;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;stroke:var(--dim)}
+.bld.live .tk{stroke:var(--live)}.bld.watch .tk{stroke:var(--watch)}.bld.down .tk{stroke:var(--down)}
+.bld .hqt{fill:var(--ink);font:800 8px var(--font);text-anchor:middle;letter-spacing:.06em}
+.hql{fill:var(--ink);font:800 13px var(--font);text-anchor:middle}
+.hqs{fill:var(--muted);font:600 11px var(--font);text-anchor:middle}.hqs.down{fill:var(--down)}.hqs.watch{fill:var(--watch)}
+.edge.street{stroke-width:2.4;stroke-linecap:round}
+.sign rect{stroke-width:1.6}
+.sign.down rect{filter:drop-shadow(0 0 6px rgba(255,92,108,.7))}
+.sign.empty rect{stroke-dasharray:3 3;stroke:var(--idle)}
+.sign text{font:800 10.5px var(--font);fill:var(--ink);text-anchor:middle}
+.sign .cnt-b{stroke:none}
+.sign .cnt{font:700 9px var(--mono);fill:#04070D}
+.sign .mini{stroke:none}
+.sign .gnd,.crane path,.crane rect{stroke:var(--dim);stroke-width:1.5;fill:none}
+.crane .fnd{stroke-dasharray:3 3}
+.crane .hook{transform-box:fill-box;transform-origin:50% 0;animation:sway 4s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+.bl{font:700 9.8px var(--font);fill:var(--ink);text-anchor:middle}.bl.down{fill:var(--down)}.bl.dim{fill:var(--dim)}
+.onode:hover .bl{text-decoration:underline}
+@media(prefers-reduced-motion:reduce){#org *{animation:none!important}}
 @media(prefers-reduced-motion:reduce){.sweep,.node.down .halo,.cond.down i,.cursor{animation:none}.boot{display:none}}
 </style>
 </head>
@@ -514,7 +511,7 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
 
   <section class="view" id="v-agents">
     <div class="seg crew-mode" id="crew-mode"><button type="button" data-m="org">Org chart</button><button type="button" data-m="cards">Cards</button></div>
-    <div id="org-w" class="panel org-w"><svg id="org" role="img" aria-label="Who reports to whom"></svg><div id="org-list" class="ol" hidden></div><div class="org-hint" id="org-hint">Tap a box to fold it · tap a robot for details · lines carry status up to HQ</div></div>
+    <div id="org-w" class="panel org-w"><svg id="org" role="img" aria-label="Who reports to whom"></svg><div class="org-hint" id="org-hint">Tap a building for details · tap a sign to fold its block</div></div>
     <div id="cards-w"><div class="filters" id="filters"></div><div class="crew" id="cards"></div></div>
   </section>
 
@@ -722,7 +719,7 @@ function openDrawer(row){
   const entry=row.group?findReg(REG,row.name):null,state=row.state||'idle',cells=entry?entry.cells:{};
   const pick=(...ks)=>{for(const k of ks){const hit=Object.keys(cells).find(c=>c.toLowerCase().startsWith(k));if(hit&&cells[hit])return cells[hit];}return '';};
   $('drawer').className='pf '+state;
-  $('d-av').innerHTML=row.group?avatar(row.name,state):`<svg viewBox="0 0 64 64"><rect x="10" y="10" width="44" height="44" rx="12" class="st-${state}" style="fill:var(--panel-2)" stroke-width="2.5"/></svg>`;
+  $('d-av').innerHTML=row.hq?`<svg viewBox="0 0 96 80"><g class="bld hq ${state}">${hqArt()}</g></svg>`:row.group?`<svg viewBox="0 0 64 64"><g class="bld ${state}">${bldArt(row.name,state,kindOf(row.name))}</g></svg>`:`<svg viewBox="0 0 64 64"><rect x="10" y="10" width="44" height="44" rx="12" class="st-${state}" style="fill:var(--panel-2)" stroke-width="2.5"/></svg>`;
   const path=row.group?pathOf(row.name):[];$('d-path').textContent=path.join('  ›  ');$('d-path').hidden=!path.length;
   $('d-name').textContent=row.name;$('d-pill').textContent=PILL[state]||'';
   const purpose=pick('purpose');$('d-purpose').textContent=purpose;$('d-purpose').hidden=!purpose;
@@ -919,61 +916,137 @@ function buildTree(){
   const roll=n=>{let s=n.row?n.row.state:'idle',c=n.row?1:0;for(const k of n.kids){roll(k);if(RK[k.state]>RK[s])s=k.state;c+=k.count;}n.state=s;n.count=c;};
   roll(nodes[rootId]);return nodes[rootId];
 }
+/* ---- org chart as a little town (2026-10-17). Kevin: "top down instead of left to right … have them as little buildings".
+   HQ on top, a street runs down to each group's block, every agent is a building on its block's street.
+   The building type follows the group; windows + the roof light follow the state. Lines still carry status up to HQ. ---- */
+const BLD_KIND={routines:'tower',airsync:'house',fp:'office',trading:'exchange',ops:'factory',paperclip:'factory'};
+const WINC={live:'#FFD98A',watch:'#FFB454',known:'#C9805A',down:'#2A1820',idle:'#18203A'};
+const SRANK={down:4,watch:3,known:2,live:1,idle:0},worst=a=>a.reduce((s,x)=>SRANK[x]>SRANK[s]?x:s,'idle');
+let KIND_OF={};
+function bldArt(name,state,kind){
+  const h=hash(name),hue=h%360,body=`hsl(${hue} 24% 19%)`,edge=`hsl(${hue} 40% 52%)`;
+  kind=kind||['tower','office','house','factory'][(h>>7)%4];
+  let n=0,s='';
+  const win=(x,y,w,ht)=>{const i=n++;let f=WINC[state]||WINC.idle,c='w';
+    if(state==='known'&&(h>>(i%20))&1)f=WINC.idle;
+    if(state==='watch'&&i%3===(h>>3)%3)c+=' wb';
+    if(state==='live'&&(h>>((i*3)%24))%7===0)c+=' wf';
+    return `<rect class="${c}" x="${x.toFixed(1)}" y="${y}" width="${w}" height="${ht}" rx=".8" fill="${f}"/>`;};
+  const bcn=(x,y)=>`<circle class="bcn" cx="${x}" cy="${y}" r="2.6"/>`;
+  if(kind==='tower'||kind==='exchange'){
+    const ex=kind==='exchange',ht=ex?46:36+(h>>4)%13,top=60-ht,x0=ex?17:19,w=ex?30:26;
+    s+=`<line x1="32" y1="${top}" x2="32" y2="${top-7}" stroke="${edge}" stroke-width="1.4"/>${bcn(32,top-8)}`;
+    s+=`<rect class="bd" x="${x0}" y="${top}" width="${w}" height="${ht}" rx="2" fill="${body}" stroke="${edge}"/>`;
+    let y=top+5;
+    if(ex){s+=`<rect x="${x0+3}" y="${top+4}" width="${w-6}" height="11" rx="1.5" fill="#05080F"/><polyline class="tk" points="${x0+5},${top+12} ${x0+10},${top+9} ${x0+14},${top+11} ${x0+19},${top+6} ${x0+25},${top+8}"/>`;y=top+19;}
+    const cols=ex?4:3,cw=ex?4.5:5,gap=(w-cols*cw)/(cols+1);
+    for(;y<=54;y+=7)for(let c=0;c<cols;c++)s+=win(x0+gap+c*(cw+gap),y,cw,4);
+  }else if(kind==='office'){
+    const ht=24+(h>>4)%9,top=60-ht;
+    s+=`<rect x="40" y="${top-6}" width="9" height="6" rx="1" fill="${body}" stroke="${edge}" stroke-width="1.2"/><line x1="20" y1="${top}" x2="20" y2="${top-2}" stroke="${edge}" stroke-width="1.4"/>${bcn(20,top-4)}`;
+    s+=`<rect class="bd" x="8" y="${top}" width="48" height="${ht}" rx="2" fill="${body}" stroke="${edge}"/><line x1="8" y1="${top+3}" x2="56" y2="${top+3}" stroke="${edge}" stroke-width="1" opacity=".6"/>`;
+    for(let y=top+7;y<=53;y+=8)for(let c=0;c<5;c++)s+=win(12+c*8.6,y,5.6,4.5);
+  }else if(kind==='house'){
+    s+=`<rect x="37" y="21" width="5" height="11" fill="${body}" stroke="${edge}" stroke-width="1.2"/><circle class="smk" cx="39.5" cy="17" r="2.6"/><circle class="smk s2" cx="40.5" cy="13" r="2.2"/>`;
+    s+=`<polygon class="bd" points="7,39 28,20 49,39" fill="${body}" stroke="${edge}" stroke-linejoin="round"/>${bcn(28,15)}`;
+    s+=`<rect class="bd" x="11" y="37" width="34" height="23" fill="${body}" stroke="${edge}"/>`+win(15,42,7,6)+win(34,42,7,6)+`<rect x="24" y="47" width="7" height="13" rx="1" fill="#05080F" stroke="${edge}" stroke-width="1"/>`;
+    /* the mini split outside: Airsync's trade; its fan spins while the agent works */
+    s+=`<rect class="bd" x="48" y="49" width="12" height="11" rx="1.5" fill="${body}" stroke="${edge}"/><g class="fan"><circle cx="54" cy="54.5" r="3.6" fill="#05080F"/><path d="M54 51.2v6.6M50.7 54.5h6.6" stroke="${edge}" stroke-width="1.2"/></g>`;
+  }else{
+    s+=`<rect class="bd" x="44" y="16" width="7" height="22" fill="${body}" stroke="${edge}"/>${bcn(47.5,13)}<circle class="smk" cx="48" cy="9" r="3"/><circle class="smk s2" cx="50" cy="5" r="2.4"/>`;
+    s+=`<path class="bd" d="M8 60V30l10 7v-7l10 7v-7l10 7h18v23z" fill="${body}" stroke="${edge}" stroke-linejoin="round"/>`;
+    for(let c=0;c<4;c++)s+=win(12+c*9,44,6,5);
+    s+=`<rect x="48" y="49" width="6" height="11" rx="1" fill="#05080F" stroke="${edge}" stroke-width="1"/>`;
+  }
+  if(state==='idle')s+='<text class="zz" x="52" y="12">z</text>';
+  return s;
+}
+function hqArt(){
+  const e='#7C9CFF',b='#121C33',w=(x,y)=>`<rect class="w" x="${x}" y="${y}" width="5" height="4" rx=".8" fill="${WINC.live}"/>`;
+  let s=`<line x1="48" y1="12" x2="48" y2="5" stroke="${e}" stroke-width="1.6"/><circle class="bcn" cx="48" cy="4" r="3.2"/>`;
+  s+=`<rect class="bd" x="10" y="36" width="76" height="42" rx="3" fill="${b}" stroke="${e}"/><rect class="bd" x="32" y="12" width="32" height="66" rx="3" fill="${b}" stroke="${e}"/>`;
+  s+=`<rect x="35" y="16" width="26" height="11" rx="2" fill="#05080F"/><text class="hqt" x="48" y="24.6">HQ</text>`;
+  for(let y=31;y<=62;y+=7)for(const x of [37,45.5,54])s+=w(x,y);
+  for(let y=42;y<=66;y+=8)for(const x of [15,23,68,76])s+=w(x,y);
+  return s+`<rect x="43" y="67" width="10" height="11" rx="1.5" fill="#05080F" stroke="${e}" stroke-width="1"/>`;
+}
+const craneArt=()=>`<g class="crane"><rect class="fnd" x="28" y="50" width="28" height="10" rx="1"/><path d="M18 60V14M23 60V14M18 20l5 6M23 26l-5 6M18 32l5 6M23 38l-5 6M18 44l5 6M23 50l-5 6M8 14h50M20 14l-6-7M20 7v7"/><g class="hook"><path d="M48 14v20M45 34h6l-3 4z"/></g></g>`;
+/* split a name into at most two lines of ~max chars (word-aware, ellipsis on overflow) */
+function wrap2(s,max){s=String(s||'');if(s.length<=max)return [s];
+  if(!s.includes(' '))return [s.length>max+3?s.slice(0,max+2)+'…':s]; /* one word: keep it whole, never split mid-word */
+  const words=s.split(' ');let a='';while(words.length&&(a+(a?' ':'')+words[0]).length<=max)a+=(a?' ':'')+words.shift();
+  if(!a){a=s.slice(0,max);words.splice(0,words.length,s.slice(max));}
+  let b=words.join(' ');if(b.length>max)b=b.slice(0,max-1)+'…';return b?[a,b]:[a];}
+/* the town's blocks: every top-level group, with every agent under it (agents under agents included) */
+function townGroups(root){
+  const flat=(n,acc)=>{for(const k of n.kids){if(k.row)acc.push(k.row);flat(k,acc);}return acc;};
+  const out=[],loose=[];
+  for(const k of root.kids){
+    if(k.kind==='group')out.push({id:k.id,label:k.label,note:k.note,planned:k.planned,state:k.planned&&!k.count?'idle':k.state,rows:flat(k,[])});
+    else{loose.push(k.row);flat(k,loose);}}
+  if(loose.length)out.push({id:'__unfiled',label:'Unfiled',note:'not placed in data/agents/org.json yet',rows:loose,state:worst(loose.map(r=>r.state))});
+  KIND_OF={};for(const g of out)for(const r of g.rows)KIND_OF[r.name]=BLD_KIND[g.id]||'';
+  return out;
+}
+function kindOf(name){if(!(name in KIND_OF))try{townGroups(buildTree());}catch(e){}return KIND_OF[name]||'';}
 function drawOrg(){
   const svg=$('org'),box=$('org-w');if(box.hidden||!box.offsetParent)return;
-  const root=buildTree(),W=Math.max(300,box.clientWidth-24),phone=W<600,rowH=phone?52:50,top=34;
-  svg.style.display=phone?'none':'';$('org-list').hidden=!phone;$('org-hint').textContent=phone?'Tap a group to fold it · tap a robot for its profile':'Tap a box to fold it · tap a robot for details · lines carry status up to HQ';
-  if(phone){drawOutline(root);return;}
-  let leaves=0,maxD=0;
-  const lay=(n,d)=>{n.d=d;maxD=Math.max(maxD,d);const open=n.kids.length&&!COLL.has(n.id);n.open=!!open;
-    if(!open){n.y=top+leaves++*rowH;return;}n.kids.forEach(k=>lay(k,d+1));n.y=(n.kids[0].y+n.kids[n.kids.length-1].y)/2;};
-  lay(root,0);
-  const labelW=phone?124:230,colW=Math.min(200,Math.max(54,(W-labelW-26)/Math.max(1,maxD))),X=d=>22+d*colW,H=top+leaves*rowH;
-  const cut=(s,n)=>{s=String(s||'');return s.length>n?s.slice(0,n-1)+'…':s;},chars=Math.floor((W-0)/7);
-  let edges='',nodes='';
-  const walk=n=>{const x=X(n.d),y=n.y;
-    if(n.open)for(const k of n.kids){const kx=X(k.d),r1=n.kind==='hq'?20:n.kind==='group'?15:14;
-      edges+=`<path class="edge ${k.planned&&!k.count?'planned':k.state}" d="M${x+r1} ${y} C${x+colW*.55} ${y},${kx-colW*.55} ${k.y},${kx-14} ${k.y}"/>`;walk(k);}
-    const lx=x+(n.kind==='hq'?26:20),room=Math.floor((W-lx)/6.6);
-    if(n.kind==='hq'){const pts=[0,1,2,3,4,5].map(i=>{const a=Math.PI/6+i*Math.PI/3;return `${x+Math.cos(a)*20},${y+Math.sin(a)*20}`;}).join(' ');
-      nodes+=`<g class="onode on-hq ${n.state}" data-id="${esc(n.id)}"><polygon points="${pts}" class="st-${n.state}" style="fill:var(--panel-2)"/><text x="${x}" y="${y+4}">HQ</text><text class="olab" x="${x-14}" y="${y-28}" style="text-anchor:start">${esc(n.label)}</text></g>`;}
-    else if(n.kind==='group'){const above=n.open;
-      nodes+=`<g class="onode ogrp ${n.state} ${n.planned?'planned':''}" data-id="${esc(n.id)}"><rect x="${x-14}" y="${y-14}" width="28" height="28" rx="8" class="st-${n.planned&&!n.count?'idle':n.state}" style="fill:var(--panel-2)"/><text class="g st-${n.planned&&!n.count?'idle':n.state}" x="${x}" y="${y+4}" style="stroke:none">${n.open?'−':'+'}</text>`+
-        (above?`<text class="olab ${n.state==='down'?'down':''}" x="${x-14}" y="${y-21}">${esc(cut(n.label,Math.floor((colW+labelW)/7.4)))}<tspan class="ocnt" dx="6">${n.count}</tspan></text>`
-              :`<text class="olab ${n.state==='down'?'down':''}" x="${lx}" y="${y-2}">${esc(cut(n.label,room))}</text><text class="osub" x="${lx}" y="${y+12}">${n.planned&&!n.count?'planned · '+esc(cut(n.note,room-10)):`${n.count} agent${n.count===1?'':'s'} folded`}</text>`)+`</g>`;}
-    else{const r=n.row,av=avatar(r.name,r.state).replace('<svg ',`<svg x="${x-15}" y="${y-15}" width="30" height="30" `);
-      const sub=(r.what||'')+(r.when?' · '+r.when:'');
-      if(n.open)nodes+=`<g class="onode" data-id="${esc(n.id)}">${av}<text class="olab ${r.state==='down'?'down':''}" x="${x-14}" y="${y-21}">${esc(cut(r.name,Math.floor((colW+labelW)/7.4)))}</text></g>`;
-      else nodes+=`<g class="onode" data-id="${esc(n.id)}">${av}<text class="olab ${r.state==='down'?'down':''}" x="${lx}" y="${y-2}">${esc(cut(r.name+(n.unfiled?' (unfiled)':''),room))}</text><text class="osub" x="${lx}" y="${y+12}">${esc(cut(sub,room))}</text></g>`;}
-  };
-  walk(root);
-  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML=edges+nodes;
-  const byId={};(function idx(n){byId[n.id]=n;n.kids.forEach(idx);})(root);
-  svg.querySelectorAll('.onode').forEach(g=>g.addEventListener('click',()=>{const n=byId[g.dataset.id];if(!n)return;
-    if(n.row){openDrawer(n.row);return;}
-    if(n.kind!=='group'||!n.kids.length){openDrawer({name:n.label,state:n.planned&&!n.count?'idle':n.state,what:n.note});return;}
-    COLL.has(n.id)?COLL.delete(n.id):COLL.add(n.id);
-    try{localStorage.setItem('cc_coll',JSON.stringify([...COLL]));}catch(e){}drawOrg();}));
-}
-function drawOutline(root){
-  const el=$('org-list'),down=ALL.filter(r=>r.state==='down').length,watch=ALL.filter(r=>r.state==='watch').length;
-  const hex=[0,1,2,3,4,5].map(i=>{const a=Math.PI/6+i*Math.PI/3;return (22+Math.cos(a)*19).toFixed(1)+','+(22+Math.sin(a)*19).toFixed(1);}).join(' ');
-  const item=n=>{
-    if(n.row){const r=n.row,st=agentStats(r.name);
-      return '<div class="ol-item '+r.state+'"><button class="ol-ag '+r.state+'" data-a="'+esc(r.name)+'">'+avatar(r.name,r.state)+'<span class="tx"><b>'+esc(r.name)+'</b><span>'+esc((r.what||'')+(r.when?' · '+r.when:''))+'</span></span>'+(st.streak?'<span class="fire '+(st.streak>=3?'hot':'')+'">🔥'+st.streak+'</span>':'')+'</button>'+
-        (n.kids.length?'<div class="ol-kids">'+n.kids.map(item).join('')+'</div>':'')+'</div>';}
-    const plannedEmpty=n.planned&&!n.count,shut=COLL.has(n.id),cls=plannedEmpty?'idle':n.state;
-    const sub=plannedEmpty?'planned · '+n.note:(n.note||'');
-    return '<div class="ol-item '+cls+(plannedEmpty?' planned':'')+'"><button class="ol-grp '+cls+(plannedEmpty?' planned':'')+(shut?' shut':'')+'" data-g="'+esc(n.id)+'"><span class="bx">'+esc(n.label.slice(0,1))+'</span><span class="tx"><b>'+esc(n.label)+'</b><span>'+esc(sub)+'</span></span><span class="ct">'+(n.count?n.count:'')+'<i></i>'+(n.kids.length?'<span class="chev">▾</span>':'')+'</span></button>'+
-      (n.kids.length&&!shut?'<div class="ol-kids">'+n.kids.map(item).join('')+'</div>':'')+'</div>';
-  };
-  el.innerHTML='<button class="ol-hq '+root.state+'" data-g="__hq"><svg class="hex" viewBox="0 0 44 44"><polygon points="'+hex+'" class="st-'+root.state+'" style="fill:var(--panel-2)" stroke-width="2"/><text x="22" y="26" style="fill:var(--ink);font:800 10px var(--font);text-anchor:middle">HQ</text></svg><span><b>'+esc(root.label)+'</b><span>'+root.count+' agents · '+(down?down+' broken':watch?watch+' running late':'all running')+'</span></span></button><div class="ol-kids">'+root.kids.map(item).join('')+'</div>';
-  el.onclick=e=>{const a=e.target.closest('[data-a]');if(a){const r=ALL.find(x=>x.name===a.dataset.a);if(r)openDrawer(r);return;}
-    const g=e.target.closest('[data-g]');if(!g)return;
-    if(g.dataset.g==='__hq'){openDrawer({name:root.label,state:root.state,what:(ORG&&ORG.root.note)||''});return;}
-    const id=g.dataset.g,n=(function f(x){if(x.id===id)return x;for(const k of x.kids){const h=f(k);if(h)return h;}return null;})(root);
-    if(n&&!n.kids.length){openDrawer({name:n.label,state:n.planned&&!n.count?'idle':n.state,what:n.note});return;}
-    COLL.has(id)?COLL.delete(id):COLL.add(id);try{localStorage.setItem('cc_coll',JSON.stringify([...COLL]));}catch(_){}drawOutline(root);};
+  const root=buildTree(),groups=townGroups(root),W=Math.max(300,box.clientWidth-24),phone=W<600;
+  const PAD=4,avail=W-PAD*2,B=phone?58:64,CW=phone?Math.max(70,Math.min(86,avail/4)):90,CH=B+30,GAP=phone?10:16,SIGN=34;
+  const n=g=>Math.max(1,g.rows.length),need=g=>COLL.has(g.id)?1:n(g),tall=(g,w)=>COLL.has(g.id)?0:Math.ceil(n(g)/w);
+  const maxCells=Math.max(1,Math.floor(avail/CW)),fits=ws=>ws.reduce((a,b)=>a+b,0)*CW+(ws.length-1)*GAP<=avail;
+  /* pack blocks into shelves (one shelf on a wide screen), then widen the tallest block while it still fits */
+  const pack=one=>{const sh=[];
+    if(one)sh.push(groups.map(g=>({g,w:1})));
+    else for(const g of groups){const w=Math.min(need(g),maxCells),s=sh.find(s=>fits([...s.map(x=>x.w),w]));s?s.push({g,w}):sh.push([{g,w}]);}
+    for(const s of sh)for(;;){const t=s.filter(x=>x.w<need(x.g)&&tall(x.g,x.w)>1).sort((a,b)=>tall(b.g,b.w)-tall(a.g,a.w))[0];
+      if(!t)break;const w2=Math.ceil(n(t.g)/(tall(t.g,t.w)-1));if(!fits(s.map(x=>x===t?w2:x.w)))break;t.w=w2;}
+    for(const s of sh)for(const x of s)if(!COLL.has(x.g.id))x.w=Math.ceil(n(x.g)/tall(x.g,x.w)); /* even rows: 4+4, not 7+1 */
+    return sh;};
+  /* one row of blocks when it fits, else stacked rows of blocks — whichever makes the shorter town */
+  const height=sh=>sh.reduce((a,s)=>a+SIGN+30+Math.max(...s.map(x=>Math.max(1,tall(x.g,x.w))))*CH,0);
+  const multi=pack(false),shelves=fits(groups.map(()=>1))?[pack(true),multi].sort((a,b)=>height(a)-height(b))[0]:multi;
+  const down=ALL.filter(r=>r.state==='down').length,watch=ALL.filter(r=>r.state==='watch').length;
+  const hqW=phone?86:100,hqH=hqW*80/96;let y=4,edges='',streets='',nodes='';
+  nodes+=`<g class="onode" data-id="__hq"><rect x="${(W-180)/2}" y="0" width="180" height="${hqH+34}" fill="transparent"/><g class="bld hq ${root.state}" transform="translate(${(W-hqW)/2} ${y}) scale(${hqW/96})">${hqArt()}</g><text class="hql" x="${W/2}" y="${y+hqH+15}">${esc(root.label)}</text><text class="hqs ${root.state}" x="${W/2}" y="${y+hqH+29}">${root.count} agents · ${down?down+' broken':watch?watch+' running late':'all running'}</text></g>`;
+  y+=hqH+36;
+  let tx=W/2,px=W/2,ty=y;const shelfSt=shelves.map(s=>worst(s.map(x=>x.g.state)));
+  shelves.forEach((s,i)=>{
+    const tw=s.reduce((a,x)=>a+x.w*CW,0)+(s.length-1)*GAP,x0=PAD+(avail-tw)/2,busY=y+8,signTop=busY+16,bodyTop=signTop+SIGN+8;
+    edges+=`<path class="edge ${worst(shelfSt.slice(i))}" d="M${px} ${ty}H${tx}V${busY}"/>`;
+    let gx=x0,rowsMax=0;const cand=[x0-GAP/2>2?x0-GAP/2:2,x0+tw+GAP/2<W-2?x0+tw+GAP/2:W-2];
+    s.forEach((x,j)=>{const g=x.g,gw=x.w*CW,gcx=gx+gw/2,shut=COLL.has(g.id),empty=!g.rows.length,cls=g.planned&&empty?'planned':g.state;
+      const dx=gcx-tx,r=Math.min(8,Math.abs(dx));
+      edges+=`<path class="edge ${cls}" d="M${tx} ${busY}${Math.abs(dx)<1?'':`H${gcx-Math.sign(dx)*r}Q${gcx} ${busY} ${gcx} ${busY+r}`}V${signTop}"/>`;
+      const lines=wrap2(g.label,Math.max(5,Math.floor((gw-14)/6.3)));
+      nodes+=`<g class="onode sign ${g.state}${empty?' empty':''}" data-id="${esc(g.id)}"><rect x="${gx+2}" y="${signTop}" width="${gw-4}" height="${SIGN}" rx="9" class="st-${g.state}" style="fill:var(--panel-2)"/>`+
+        lines.map((l,k)=>`<text x="${gcx}" y="${signTop+SIGN/2+(lines.length===1?3.5:k?10:-2.5)}">${esc(l)}</text>`).join('')+
+        (empty?'':`<circle class="cnt-b st-${g.state}" cx="${gx+gw-6}" cy="${signTop+1}" r="8"/><text class="cnt" x="${gx+gw-6}" y="${signTop+4.5}">${g.rows.length}</text>`);
+      let gh;
+      if(shut){const k=Math.max(1,Math.floor((gw-12)/8));
+        nodes+=g.rows.slice(0,k).map((rw,q)=>{const hh=8+hash(rw.name)%10;return `<rect class="mini st-${rw.state}" x="${gx+7+q*8}" y="${bodyTop+16-hh}" width="6" height="${hh}" rx="1"/>`;}).join('')+`<line class="gnd" x1="${gx+4}" y1="${bodyTop+16.5}" x2="${gx+gw-4}" y2="${bodyTop+16.5}"/>`;
+        gh=24;}
+      nodes+='</g>';
+      if(shut){}else if(empty){nodes+=`<g class="onode" data-id="${esc(g.id)}"><g transform="translate(${gx+(CW-B)/2} ${bodyTop}) scale(${B/64})">${craneArt()}</g><text class="bl dim" x="${gcx}" y="${bodyTop+B+11}">planned</text></g>`;
+        streets+=`<path class="edge planned" d="M${gx+6} ${signTop+SIGN}V${bodyTop+B*60.5/64}H${gx+gw-4}"/>`;gh=CH;}
+      else{const per=x.w,nr=Math.ceil(g.rows.length/per),gy=rr=>bodyTop+rr*CH+B*60.5/64;
+        g.rows.forEach((rw,q)=>{const cx=gx+(q%per)*CW,by=bodyTop+Math.floor(q/per)*CH;
+          nodes+=`<g class="onode" data-id="a:${esc(rw.name)}"><rect x="${cx}" y="${by-4}" width="${CW}" height="${CH}" fill="transparent"/><g class="bld ${rw.state}" transform="translate(${cx+(CW-B)/2} ${by}) scale(${B/64})">${bldArt(rw.name,rw.state,BLD_KIND[g.id])}</g>`+
+            wrap2(rw.name,Math.floor(CW/5.6)).map((l,k)=>`<text class="bl ${rw.state==='down'?'down':''}" x="${cx+CW/2}" y="${by+B+11+k*11}">${esc(l)}</text>`).join('')+`</g>`;});
+        for(let rr=0;rr<nr;rr++)streets+=`<path class="edge street ${worst(g.rows.slice(rr*per,rr*per+per).map(r=>r.state))}" d="M${gx+6} ${gy(rr)}H${gx+gw-4}"/>`;
+        streets+=`<path class="edge ${g.state}" d="M${gx+6} ${signTop+SIGN}V${gy(nr-1)}"/>`;gh=nr*CH;}
+      rowsMax=Math.max(rowsMax,gh);if(j<s.length-1)cand.push(gx+gw+GAP/2);gx+=gw+GAP;});
+    /* the street to the next shelf leaves this bus through the gap nearest the middle */
+    ty=busY;px=tx;tx=cand.sort((a,b)=>Math.abs(a-W/2)-Math.abs(b-W/2))[0];y=bodyTop+rowsMax+6;
+  });
+  svg.setAttribute('viewBox',`0 0 ${W} ${Math.ceil(y)}`);svg.innerHTML=edges+streets+nodes;
+  const gById=Object.fromEntries(groups.map(g=>[g.id,g]));
+  svg.onclick=e=>{const el=e.target.closest('.onode');if(!el)return;const id=el.dataset.id;
+    if(id==='__hq'){openDrawer({name:root.label,state:root.state,what:(ORG&&ORG.root.note)||'',hq:true});return;}
+    if(id.startsWith('a:')){const r=ALL.find(x=>x.name===id.slice(2));if(r)openDrawer(r);return;}
+    const g=gById[id];if(!g)return;
+    if(!g.rows.length){openDrawer({name:g.label,state:g.state,what:(g.planned?'planned · ':'')+(g.note||'')});return;}
+    COLL.has(id)?COLL.delete(id):COLL.add(id);try{localStorage.setItem('cc_coll',JSON.stringify([...COLL]));}catch(_){}drawOrg();};
 }
 let rsz=null;addEventListener('resize',()=>{clearTimeout(rsz);rsz=setTimeout(()=>{if(CREW_MODE==='org')drawOrg();},150);});
 document.querySelectorAll('.num').forEach(n=>n.onclick=()=>{FILTER=n.dataset.f;drawCards();crewMode('cards');show('agents');});
