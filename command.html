@@ -740,6 +740,17 @@ function openDrawer(row){
   $('d-more').hidden=!entry;$('d-more').open=false;
   const tgt=AGENT_TO_TARGET[key(row.name)];
   $('d-send').hidden=!tgt;$('d-send').onclick=()=>{$('drawer-l').hidden=true;pickTarget(tgt);show('send');$('subj').focus();};
+  /* Paperclip rows (2026-10-18): a way to act — open Paperclip, and for "asked for more" go straight to the waiting
+     approvals and list them here (from data/agents/paperclip-reach.md). Paperclip is http over Tailscale, so the
+     app can only open it in a tab, never call it. */
+  {const pcU=(()=>{try{return localStorage.getItem('paperclip_url')||'';}catch(e){return '';}})().replace(/\/+$/,'');
+   let pcb=$('d-pc');if(!pcb){pcb=document.createElement('button');pcb.id='d-pc';pcb.className='pri';pcb.style.marginTop='8px';$('d-send').after(pcb);}
+   const isPc=/paperclip/i.test(row.name),ask=/asked for more/i.test(row.name);pcb.hidden=!isPc;
+   if(isPc){pcb.textContent=pcU?(ask?'Approve or reject in Paperclip ›':'Open Paperclip ›'):'Set the Paperclip address first (app → Agents → change Paperclip address)';
+     pcb.onclick=()=>{if(pcU)window.open(pcU+(ask?'/FIE/approvals/pending':''),'_blank','noopener');};
+     if(ask)file('data/agents/paperclip-reach.md').then(t=>{const sec=(String(t).split('## Asked')[1]||'').split('\n## ')[0];
+       const items=sec.split('\n').filter(l=>/^- 🚨/.test(l)).slice(0,5);
+       if(items.length)$('d-now').insertAdjacentHTML('beforeend','<div style="margin-top:8px">'+items.map(l=>'<div style="margin:5px 0">• '+esc(l.replace(/^- 🚨\s*/,'').replace(/\*\*/g,'').replace(/ \| status: \w+.*$/,'').slice(0,280))+'</div>').join('')+'</div>');}).catch(()=>{});}}
   $('drawer-l').hidden=false;
 }
 $('d-close').onclick=$('d-x').onclick=()=>{$('drawer-l').hidden=true;};
@@ -1055,7 +1066,9 @@ function drawOrg(){
     if(!g.rows.length){openDrawer({name:g.label,state:g.state,what:(g.planned?'planned · ':'')+(g.note||'')});return;}
     COLL.has(id)?COLL.delete(id):COLL.add(id);try{localStorage.setItem('cc_coll',JSON.stringify([...COLL]));}catch(_){}drawOrg();};
 }
-let rsz=null;addEventListener('resize',()=>{clearTimeout(rsz);rsz=setTimeout(()=>{if(CREW_MODE==='org')drawOrg();},150);});
+/* redraw on a WIDTH change only (2026-10-18): on iPhone, scrolling near the bottom slides Safari's toolbar in and out,
+   which fires 'resize' with only the height changed — redrawing the whole town then made the page jump */
+let rsz=null,rszW=innerWidth;addEventListener('resize',()=>{if(innerWidth===rszW)return;rszW=innerWidth;clearTimeout(rsz);rsz=setTimeout(()=>{if(CREW_MODE==='org')drawOrg();},150);});
 document.querySelectorAll('.num').forEach(n=>n.onclick=()=>{FILTER=n.dataset.f;drawCards();crewMode('cards');show('agents');});
 
 let NEEDS='KOS';
