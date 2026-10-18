@@ -6150,8 +6150,10 @@ async function renderAgents(){
    const pb=document.createElement('button');pb.className='checkin';pb.style.marginTop='8px';
    pb.innerHTML=pcu?'<span class="ci-i">📎</span><span><b>Open Paperclip</b><small>the floor agents — tasks, approvals, budgets, live runs (needs Tailscale on)</small></span><span class="ci-go">Open ›</span>'
      :'<span class="ci-i">📎</span><span><b>Paperclip</b><small>not set up on this device — tap to paste its Tailscale address (after the mini PC)</small></span><span class="ci-go">Set ›</span>';
-   pb.onclick=()=>{if(pcu){window.open(pcu,'_blank','noopener');return;}const u=(prompt('Paperclip address (from the mini PC, e.g. http://minipc.tailnet-name.ts.net:3100):')||'').trim();if(/^https?:\/\/[^\s]+$/.test(u)){try{localStorage.setItem('paperclip_url',u);}catch(e){}runRender('agents');}};
-   body.appendChild(pb);}
+   const pcSet=()=>{const u=(prompt('Paperclip address (Tailscale on):',pcu||'http://100.88.62.47:3100')||'').trim();if(/^https?:\/\/[^\s]+$/.test(u)){try{localStorage.setItem('paperclip_url',u);}catch(e){}runRender('agents');}};
+   pb.onclick=()=>{if(pcu){window.open(pcu,'_blank','noopener');return;}pcSet();};
+   body.appendChild(pb);
+   if(pcu){const ch=document.createElement('a');ch.href='#';ch.textContent='change Paperclip address ('+pcu.replace(/^https?:\/\//,'')+')';ch.style.cssText='display:block;font-size:12px;opacity:.7;margin:4px 0 0 4px';ch.onclick=e=>{e.preventDefault();pcSet();};body.appendChild(ch);}}
   body.insertAdjacentHTML('beforeend','<div class="sec">Board</div>');
   const bc=card();body.appendChild(bc);
   if(!board){empty(bc,'No data/agents.md yet — the board task writes it every 30 minutes.');}
