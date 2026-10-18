@@ -443,6 +443,8 @@ input:focus,textarea:focus{outline:none;border-color:var(--live);box-shadow:0 0 
 .hql{fill:var(--ink);font:800 13px var(--font);text-anchor:middle}
 .hqs{fill:var(--muted);font:600 11px var(--font);text-anchor:middle}.hqs.down{fill:var(--down)}.hqs.watch{fill:var(--watch)}
 .edge.street{stroke-width:2.4;stroke-linecap:round}
+.yard-rule{stroke:var(--idle);stroke-width:1.2;stroke-dasharray:4 6}
+.yard-t{fill:var(--dim);font:700 11px var(--font);text-anchor:middle}
 .sign rect{stroke-width:1.6}
 .sign.down rect{filter:drop-shadow(0 0 6px rgba(255,92,108,.7))}
 .sign.empty rect{stroke-dasharray:3 3;stroke:var(--idle)}
@@ -905,7 +907,7 @@ function buildTree(){
   const o=ORG||{root:{id:'hq',label:'KevinOS HQ'},groups:[],members:{},patterns:[]},rootId=o.root.id,nodes={};
   const mk=(id,label,x)=>nodes[id]={id,label,kids:[],...x};
   mk(rootId,o.root.label,{kind:'hq',note:o.root.note||''});
-  for(const g of o.groups||[])mk(g.id,g.label,{kind:'group',note:g.note||'',planned:!!g.planned});
+  for(const g of o.groups||[])mk(g.id,g.label,{kind:'group',note:g.note||'',planned:!!g.planned,district:g.district||''});
   for(const r of ALL)mk('a:'+r.name,r.name,{kind:'agent',row:r});
   for(const g of o.groups||[])(nodes[g.parent]||nodes[rootId]).kids.push(nodes[g.id]);
   const parentOf=r=>{let p=(o.members||{})[r.name];
@@ -919,7 +921,7 @@ function buildTree(){
 /* ---- org chart as a little town (2026-10-17). Kevin: "top down instead of left to right … have them as little buildings".
    HQ on top, a street runs down to each group's block, every agent is a building on its block's street.
    The building type follows the group; windows + the roof light follow the state. Lines still carry status up to HQ. ---- */
-const BLD_KIND={routines:'tower',airsync:'house',fp:'office',trading:'exchange',ops:'factory',paperclip:'factory'};
+const BLD_KIND={routines:'tower',airsync:'house',fp:'office',trading:'exchange',ops:'factory',jobs:'factory',paperclip:'factory'};
 const WINC={live:'#FFD98A',watch:'#FFB454',known:'#C9805A',down:'#2A1820',idle:'#18203A'};
 const SRANK={down:4,watch:3,known:2,live:1,idle:0},worst=a=>a.reduce((s,x)=>SRANK[x]>SRANK[s]?x:s,'idle');
 let KIND_OF={};
@@ -982,7 +984,7 @@ function townGroups(root){
   const flat=(n,acc)=>{for(const k of n.kids){if(k.row)acc.push(k.row);flat(k,acc);}return acc;};
   const out=[],loose=[];
   for(const k of root.kids){
-    if(k.kind==='group')out.push({id:k.id,label:k.label,note:k.note,planned:k.planned,state:k.planned&&!k.count?'idle':k.state,rows:flat(k,[])});
+    if(k.kind==='group')out.push({id:k.id,label:k.label,note:k.note,planned:k.planned,district:k.district,state:k.planned&&!k.count?'idle':k.state,rows:flat(k,[])});
     else{loose.push(k.row);flat(k,loose);}}
   if(loose.length)out.push({id:'__unfiled',label:'Unfiled',note:'not placed in data/agents/org.json yet',rows:loose,state:worst(loose.map(r=>r.state))});
   KIND_OF={};for(const g of out)for(const r of g.rows)KIND_OF[r.name]=BLD_KIND[g.id]||'';
@@ -996,22 +998,27 @@ function drawOrg(){
   const n=g=>Math.max(1,g.rows.length),need=g=>COLL.has(g.id)?1:n(g),tall=(g,w)=>COLL.has(g.id)?0:Math.ceil(n(g)/w);
   const maxCells=Math.max(1,Math.floor(avail/CW)),fits=ws=>ws.reduce((a,b)=>a+b,0)*CW+(ws.length-1)*GAP<=avail;
   /* pack blocks into shelves (one shelf on a wide screen), then widen the tallest block while it still fits */
-  const pack=one=>{const sh=[];
-    if(one)sh.push(groups.map(g=>({g,w:1})));
-    else for(const g of groups){const w=Math.min(need(g),maxCells),s=sh.find(s=>fits([...s.map(x=>x.w),w]));s?s.push({g,w}):sh.push([{g,w}]);}
+  const pack=(one,gs=groups)=>{const sh=[];
+    if(one)sh.push(gs.map(g=>({g,w:1})));
+    else for(const g of gs){const w=Math.min(need(g),maxCells),s=sh.find(s=>fits([...s.map(x=>x.w),w]));s?s.push({g,w}):sh.push([{g,w}]);}
     for(const s of sh)for(;;){const t=s.filter(x=>x.w<need(x.g)&&tall(x.g,x.w)>1).sort((a,b)=>tall(b.g,b.w)-tall(a.g,a.w))[0];
       if(!t)break;const w2=Math.ceil(n(t.g)/(tall(t.g,t.w)-1));if(!fits(s.map(x=>x===t?w2:x.w)))break;t.w=w2;}
     for(const s of sh)for(const x of s)if(!COLL.has(x.g.id))x.w=Math.ceil(n(x.g)/tall(x.g,x.w)); /* even rows: 4+4, not 7+1 */
     return sh;};
   /* one row of blocks when it fits, else stacked rows of blocks — whichever makes the shorter town */
   const height=sh=>sh.reduce((a,s)=>a+SIGN+30+Math.max(...s.map(x=>Math.max(1,tall(x.g,x.w))))*CH,0);
-  const multi=pack(false),shelves=fits(groups.map(()=>1))?[pack(true),multi].sort((a,b)=>height(a)-height(b))[0]:multi;
+  /* the yard (2026-10-17, Kevin: "repeating ones we can't work on … a different building"): groups marked
+     district:"yard" in org.json (routines, scheduled jobs, machines) sit below the town behind a divider */
+  const packAll=gs=>{if(!gs.length)return [];const m=pack(false,gs);return fits(gs.map(()=>1))?[pack(true,gs),m].sort((a,b)=>height(a)-height(b))[0]:m;};
+  const mainSh=packAll(groups.filter(g=>g.district!=='yard')),yardSh=packAll(groups.filter(g=>g.district==='yard'));
+  const shelves=[...mainSh,...yardSh],yardFrom=mainSh.length;
   const down=ALL.filter(r=>r.state==='down').length,watch=ALL.filter(r=>r.state==='watch').length;
   const hqW=phone?86:100,hqH=hqW*80/96;let y=4,edges='',streets='',nodes='';
   nodes+=`<g class="onode" data-id="__hq"><rect x="${(W-180)/2}" y="0" width="180" height="${hqH+34}" fill="transparent"/><g class="bld hq ${root.state}" transform="translate(${(W-hqW)/2} ${y}) scale(${hqW/96})">${hqArt()}</g><text class="hql" x="${W/2}" y="${y+hqH+15}">${esc(root.label)}</text><text class="hqs ${root.state}" x="${W/2}" y="${y+hqH+29}">${root.count} agents · ${down?down+' broken':watch?watch+' running late':'all running'}</text></g>`;
   y+=hqH+36;
   let tx=W/2,px=W/2,ty=y;const shelfSt=shelves.map(s=>worst(s.map(x=>x.g.state)));
   shelves.forEach((s,i)=>{
+    if(i===yardFrom&&i>0){y+=12;nodes+=`<line class="yard-rule" x1="${PAD+8}" y1="${y}" x2="${W-PAD-8}" y2="${y}"/><text class="yard-t" x="${W/2}" y="${y+17}">The yard · runs on its own — watch it, nothing to work on</text>`;y+=26;}
     const tw=s.reduce((a,x)=>a+x.w*CW,0)+(s.length-1)*GAP,x0=PAD+(avail-tw)/2,busY=y+8,signTop=busY+16,bodyTop=signTop+SIGN+8;
     edges+=`<path class="edge ${worst(shelfSt.slice(i))}" d="M${px} ${ty}H${tx}V${busY}"/>`;
     let gx=x0,rowsMax=0;const cand=[x0-GAP/2>2?x0-GAP/2:2,x0+tw+GAP/2<W-2?x0+tw+GAP/2:W-2];
