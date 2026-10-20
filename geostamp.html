@@ -313,6 +313,10 @@ function setCoords(lat, lng){
 function debounce(fn, ms){ var t; return function(){ clearTimeout(t); t = setTimeout(fn, ms); }; }
 
 // ---------- geocoding (OpenStreetMap Nominatim, Photon as fallback) ----------
+// The stamp's address line uses FieldPacket's format (Kevin, 2026-10-20): OpenStreetMap's full
+// display_name, e.g. "1626, 43rd Street, Brooklyn, Kings County, New York, 11204, United States"
+// (FieldPacket src/lib/geotag/resolve.ts: reverse with zoom=18, display_name as is).
+function fpAddr(displayName){ return String(displayName || '').trim(); }
 function shortAddr(a, name){
   if(!a) return name || '';
   var line1 = [a.house_number, a.road].filter(Boolean).join(' ') || name || a.neighbourhood || '';
@@ -329,7 +333,7 @@ function geocodeNominatim(q){
     if(!r.ok) throw new Error('Nominatim ' + r.status);
     return r.json();
   }).then(function(j){
-    return j.map(function(x){ return { lat:+x.lat, lng:+x.lon, full:x.display_name, short:shortAddr(x.address, x.name) }; });
+    return j.map(function(x){ return { lat:+x.lat, lng:+x.lon, full:x.display_name, short:fpAddr(x.display_name) || shortAddr(x.address, x.name) }; });
   });
 }
 function geocodePhoton(q){
@@ -342,8 +346,11 @@ function geocodePhoton(q){
       var pr = f.properties || {}, c = f.geometry.coordinates;
       var line1 = [pr.housenumber, pr.street].filter(Boolean).join(' ') || pr.name || '';
       var tail = [pr.city || pr.county, [pr.state, pr.postcode].filter(Boolean).join(' ')].filter(Boolean).join(', ');
-      var short = [line1, tail].filter(Boolean).join(', ');
-      return { lat:c[1], lng:c[0], full:[short, pr.country].filter(Boolean).join(', '), short:short };
+      // Photon has no display_name: build the same OpenStreetMap order FieldPacket stamps
+      // (number, street, neighbourhood, city, county, state, zip, country).
+      var short = [pr.housenumber, pr.street || pr.name, pr.district, pr.city, pr.county, pr.state, pr.postcode, pr.country].filter(Boolean)
+        .filter(function(v, i, arr){ return arr.indexOf(v) === i; }).join(', ') || [line1, tail].filter(Boolean).join(', ');
+      return { lat:c[1], lng:c[0], full:short, short:short };
     });
   });
 }
@@ -419,9 +426,9 @@ function lookupWeather(auto){
 }
 
 function reverseGeocode(lat, lng){
-  var url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=' + lat + '&lon=' + lng;
+  var url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&lat=' + lat + '&lon=' + lng;
   return fetch(url, { headers:{ 'Accept':'application/json' } }).then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(x){ return x && x.address ? { full:x.display_name, short:shortAddr(x.address, x.name) } : null; })
+    .then(function(x){ return x && (x.display_name || x.address) ? { full:x.display_name, short:fpAddr(x.display_name) || shortAddr(x.address, x.name) } : null; })
     .catch(function(){ return null; });
 }
 function showResults(list){
