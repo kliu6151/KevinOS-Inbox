@@ -2162,6 +2162,8 @@ async function renderToday(){
   {const h=document.createElement('div');sig.appendChild(h);nightShiftRow(h);}
   // 📋 FieldPacket to-do (2026-10-18): FieldPacket's morning list, relayed by ops/fp-todo.js; tap to open in place
   {const h=document.createElement('div');sig.appendChild(h);fpTodoRow(h);}
+  // 📊 Pipeline dashboard (2026-10-20): the Claude dashboard — private, opens in a new tab signed in to Claude
+  {const d=document.createElement('a');d.className='sigrow';d.href='https://claude.ai/artifact/8rumwDvXS2Ymy1gYANj4kF';d.target='_blank';d.rel='noopener';d.style.cssText='text-decoration:none;color:inherit';d.innerHTML='<span class="sl">📊</span><span class="st"><b>Pipeline dashboard</b> · charts and trends</span><span class="sm">↗</span>';d.onclick=()=>fx('play','tap');sig.appendChild(d);}
   // TOP 3 — bold title + one action line; the coach's why: sits behind a tap (detail sheet)
   if(top3.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Top 3</div>');
