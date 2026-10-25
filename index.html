@@ -2160,6 +2160,8 @@ async function renderToday(){
   {const h=document.createElement('div');sig.appendChild(h);hoursRow(h);}
   // 🌙 Night shift (2026-10-17): the night desk's drafts + calls, only when today's file has open lines
   {const h=document.createElement('div');sig.appendChild(h);nightShiftRow(h);}
+  // ☀️ Overnight (2026-10-25): what happened while Kevin slept + what needs him (ops/morning-status.js); tap to open in place
+  {const h=document.createElement('div');sig.appendChild(h);overnightRow(h);}
   // 📋 FieldPacket to-do (2026-10-18): FieldPacket's morning list, relayed by ops/fp-todo.js; tap to open in place
   {const h=document.createElement('div');sig.appendChild(h);fpTodoRow(h);}
   // 📊 Pipeline dashboard (2026-10-20): the Claude dashboard — private, opens in a new tab signed in to Claude
@@ -6020,6 +6022,17 @@ function fpTodoParse(text){
     if(sec&&l.startsWith('- '))sec.items.push(l.slice(2));}
   return out;}
 const fpInline=t=>esc(t).replace(/\[([^\]]+)\]\((https?:\/\/[^)\s"'<>]+)\)/g,(m,a,u)=>`<a href="${u}" target="_blank" rel="noopener">${a}</a>`);
+async function overnightRow(holder){
+  let f=null;try{f=await getFile('data/morning-status.md');}catch(e){return;}
+  if(!f)return;const p=fpTodoParse(f.text);if(!p.summary)return;
+  const needs=(p.secs.find(s=>s.title==='Needs you')||{items:[]}).items,red=/🚨/.test(p.summary);
+  const b=document.createElement('button');b.className='sigrow';
+  b.innerHTML=`<span class="sl">☀️</span><span class="st"><b>Overnight</b> · ${esc(p.summary)}</span><span class="sm">${red?'🚨':needs.some(i=>!/^nothing/.test(i))?'!':''} ›</span>`;
+  const box=document.createElement('div');box.className='card';box.hidden=true;box.style.cssText='margin:4px 0 2px;padding:10px 12px;font-size:13.5px';
+  box.innerHTML=p.secs.map(sc=>`<div style="font-weight:800;margin:8px 0 3px">${esc(sc.title)}</div>`+sc.items.map(i=>`<div style="padding:2px 0 2px 10px">• ${fpInline(i).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')}</div>`).join('')).join('');
+  b.onclick=()=>{fx('play','tap');box.hidden=!box.hidden;};
+  holder.replaceChildren(b,box);
+}
 async function fpTodoRow(holder){
   let f=null;try{f=await getFile('data/fieldpacket-todo.md');}catch(e){return;}
   if(!f)return;const p=fpTodoParse(f.text);
