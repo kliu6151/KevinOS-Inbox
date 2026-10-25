@@ -2161,9 +2161,13 @@ async function renderToday(){
   // 🌙 Night shift (2026-10-17): the night desk's drafts + calls, only when today's file has open lines
   {const h=document.createElement('div');sig.appendChild(h);nightShiftRow(h);}
   // ☀️ Overnight (2026-10-25): what happened while Kevin slept + what needs him (ops/morning-status.js); tap to open in place
-  {const h=document.createElement('div');sig.appendChild(h);overnightRow(h);}
+  // Morning mode (Kevin 2026-10-25: "everything in one tab/window"): before 10 AM the ☀️ and 📋 cards open
+  // by themselves, so Today reads top to bottom — overnight, needs-you + approvals, the FieldPacket passes,
+  // then the Top 3 — with nothing to tap open. Tapping ☀️ closed/open remembers the choice for the day.
+  const morningOpen=(()=>{try{const k=localStorage.getItem('morning-open')||'';const [d,v]=k.split('|');if(d===t)return v==='1';}catch(e){}return new Date().getHours()<10;})();
+  {const h=document.createElement('div');sig.appendChild(h);overnightRow(h,morningOpen);}
   // 📋 FieldPacket to-do (2026-10-18): FieldPacket's morning list, relayed by ops/fp-todo.js; tap to open in place
-  {const h=document.createElement('div');sig.appendChild(h);fpTodoRow(h);}
+  {const h=document.createElement('div');sig.appendChild(h);fpTodoRow(h,morningOpen);}
   // 📊 Pipeline dashboard (2026-10-20): the Claude dashboard — private, opens in a new tab signed in to Claude
   {const d=document.createElement('a');d.className='sigrow';d.href='https://claude.ai/artifact/8rumwDvXS2Ymy1gYANj4kF';d.target='_blank';d.rel='noopener';d.style.cssText='text-decoration:none;color:inherit';d.innerHTML='<span class="sl">📊</span><span class="st"><b>Pipeline dashboard</b> · charts and trends</span><span class="sm">↗</span>';d.onclick=()=>fx('play','tap');sig.appendChild(d);}
   // TOP 3 — bold title + one action line; the coach's why: sits behind a tap (detail sheet)
@@ -6022,15 +6026,16 @@ function fpTodoParse(text){
     if(sec&&l.startsWith('- '))sec.items.push(l.slice(2));}
   return out;}
 const fpInline=t=>esc(t).replace(/\[([^\]]+)\]\((https?:\/\/[^)\s"'<>]+)\)/g,(m,a,u)=>`<a href="${u}" target="_blank" rel="noopener">${a}</a>`);
-async function overnightRow(holder){
+async function overnightRow(holder,open){
   let f=null;try{f=await getFile('data/morning-status.md');}catch(e){return;}
   if(!f)return;const p=fpTodoParse(f.text);if(!p.summary)return;
   const needs=(p.secs.find(s=>s.title==='Needs you')||{items:[]}).items,red=/🚨/.test(p.summary);
   const b=document.createElement('button');b.className='sigrow';
   b.innerHTML=`<span class="sl">☀️</span><span class="st"><b>Overnight</b> · ${esc(p.summary)}</span><span class="sm">${red?'🚨':needs.some(i=>!/^nothing/.test(i))?'!':''} ›</span>`;
-  const box=document.createElement('div');box.className='card';box.hidden=true;box.style.cssText='margin:4px 0 2px;padding:10px 12px;font-size:13.5px';
+  const box=document.createElement('div');box.className='card';box.hidden=!open;box.style.cssText='margin:4px 0 2px;padding:10px 12px;font-size:13.5px';
   box.innerHTML=p.secs.map(sc=>`<div style="font-weight:800;margin:8px 0 3px">${esc(sc.title)}</div>`+sc.items.map(i=>`<div style="padding:2px 0 2px 10px">• ${fpInline(i).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')}</div>`).join('')).join('');
-  b.onclick=()=>{fx('play','tap');box.hidden=!box.hidden;};
+  // the ☀️ tap opens/closes the whole morning view (this card + the 📋 list) and remembers it for the day
+  b.onclick=()=>{fx('play','tap');const o=box.hidden;box.hidden=!o;try{localStorage.setItem('morning-open',todayStr()+'|'+(o?'1':'0'));}catch(e){}const fp=document.querySelector('.fp-todo-box');if(fp)fp.hidden=!o;};
   holder.replaceChildren(b,box);
   // Proposals with Approve / Reject (2026-10-25): kos-lane's pending requests from the reach log; a tap writes
   // queue/paperclip/<id>.md and the mini PC applies it to Paperclip within 15 min. Decided ids hide locally until then.
@@ -6062,14 +6067,14 @@ async function overnightRow(holder){
     box.appendChild(sec);
   }catch(e){/* no reach file yet */}
 }
-async function fpTodoRow(holder){
+async function fpTodoRow(holder,open){
   let f=null;try{f=await getFile('data/fieldpacket-todo.md');}catch(e){return;}
   if(!f)return;const p=fpTodoParse(f.text);
   if(!p.summary||/^not set up yet/.test(p.summary))return;
   const warn=/⚠/.test(p.summary),n=(p.summary.match(/^(\d+) to do/)||[])[1];
   const b=document.createElement('button');b.className='sigrow';
   b.innerHTML=`<span class="sl">📋</span><span class="st"><b>FieldPacket</b> · ${n!=null?n+' to do':esc(p.summary)}${p.stale?' · from an earlier day':''}${warn&&!p.stale?' · ⚠ part unread':''}</span><span class="sm">›</span>`;
-  const box=document.createElement('div');box.className='card';box.hidden=true;box.style.cssText='margin:4px 0 2px;padding:10px 12px;font-size:13.5px';
+  const box=document.createElement('div');box.className='card fp-todo-box';box.hidden=!open;box.style.cssText='margin:4px 0 2px;padding:10px 12px;font-size:13.5px';
   box.innerHTML=(p.stale||warn?`<div style="margin-bottom:6px">${fpInline(p.summary)}</div>`:'')+
     p.secs.map(sc=>`<div style="font-weight:800;margin:8px 0 3px">${fpInline(sc.title)}</div>`+sc.items.map(i=>`<div style="padding:2px 0 2px 10px">• ${fpInline(i)}</div>`).join('')).join('')||'<div>Nothing to do in FieldPacket today.</div>';
   b.onclick=()=>{fx('play','tap');box.hidden=!box.hidden;};
