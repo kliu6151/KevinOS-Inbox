@@ -6049,11 +6049,13 @@ async function overnightRow(holder,open){
     const sec=document.createElement('div');sec.innerHTML=`<div style="font-weight:800;margin:10px 0 3px">Proposals from kos-lane — ${pend.length}</div>`;
     for(const x of pend){
       const it=document.createElement('div');it.style.cssText='padding:6px 0 6px 10px;border-top:1px solid var(--line,#eee)';
-      it.innerHTML=`<div><b>${esc(x.title)}</b> <span style="opacity:.6;font-size:12px">· ${esc(x.kind||'')}</span></div>`+
+      // plain line first (what it fixes for Kevin, in his words); the technical why sits behind "more"
+      it.innerHTML=`<div><b>${esc(x.title)}</b> <span style="opacity:.6;font-size:12px">· ${esc(String(x.kind||'').replace(/_/g,' '))}</span></div>`+
+        (x.plain?`<div style="font-size:13.5px;margin-top:3px">${esc(x.plain)}</div>`:'')+
         (x.shipped?`<div style="color:#b45309;font-size:12.5px;margin-top:2px">${esc(x.shipped)}</div>`:'')+
-        `<div class="pc-why" style="opacity:.8;font-size:12.5px;margin-top:3px;max-height:3.6em;overflow:hidden">${esc(x.why||'')}</div>`+
+        `<div class="pc-why" style="opacity:.8;font-size:12.5px;margin-top:3px;max-height:${x.plain?'0':'3.6em'};overflow:hidden">${esc(x.why||'')}</div>`+
         `<div style="display:flex;gap:8px;margin-top:6px"><button class="pc-a" style="flex:1;padding:8px;border-radius:10px;border:0;background:#16a34a;color:#fff;font-weight:700">Approve</button><button class="pc-r" style="flex:1;padding:8px;border-radius:10px;border:0;background:#dc2626;color:#fff;font-weight:700">Reject</button><button class="pc-m" style="padding:8px 10px;border-radius:10px;border:1px solid var(--line,#ccc);background:transparent">more</button></div>`;
-      it.querySelector('.pc-m').onclick=()=>{const w=it.querySelector('.pc-why');w.style.maxHeight=w.style.maxHeight?'':'3.6em';};
+      it.querySelector('.pc-m').onclick=()=>{const w=it.querySelector('.pc-why');w.style.maxHeight=(w.style.maxHeight==='0px'||w.style.maxHeight==='3.6em')?'':(x.plain?'0':'3.6em');};
       const decide=async(decision)=>{
         for(const q of it.querySelectorAll('button'))q.disabled=true;
         const body=`---\napproval: ${x.id}\ndecision: ${decision}\nat: ${new Date().toISOString()}\nnote: \n---\n${x.title}\n`;
