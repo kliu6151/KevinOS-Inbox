@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#060A12">
+<title>Kevin's Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* KevinOS Desk (2026-10-31). Kevin: "something for my personal part on KevinOS … aggregate everything … I will only
+   use this on the computer." Shaped like FieldPacket's pilot Desk (D-383): six count tiles, one list, today's
+   calendar, three verbs per row — Done · Wait until · Give to. Same login as the app (PAT in localStorage).
+   Reads data/desk.json (script-owned, ops/desk.js, every 30 min) and writes back to the SOURCE lines in
+   data/tasks.md / loops.md, queue/<agent>/, queue/paperclip/. Public repo: no data lives in this file. */
+:root{
+  --night:#060A12; --panel:#0D1424; --panel-2:#121C33; --line:rgba(138,151,176,.15); --line-2:rgba(138,151,176,.28);
+  --ink:#E8EEF8; --muted:#8A97B0; --dim:#56627A;
+  --live:#2EE6D6; --watch:#FFB454; --down:#FF5C6C; --cloud:#7C9CFF; --push:#C792EA; --ok:#4ADE80;
+  --r:16px; --font:'Manrope',system-ui,-apple-system,sans-serif; --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0}
+[hidden]{display:none!important}
+html{background:var(--night)}
+body{font-family:var(--font);color:var(--ink);min-height:100vh;font-feature-settings:"tnum" 1;
+  background:radial-gradient(1100px 520px at 15% -10%,rgba(46,230,214,.07),transparent 60%),radial-gradient(800px 480px at 110% 10%,rgba(124,156,255,.06),transparent 60%),var(--night);padding-bottom:60px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--live);outline-offset:2px;border-radius:8px}
+.bar{position:sticky;top:0;z-index:10;background:rgba(6,10,18,.94);border-bottom:1px solid var(--line);padding:12px 20px}
+.bar-in{max-width:1400px;margin:0 auto;display:flex;align-items:center;gap:16px}
+.title b{display:block;font-size:17px;font-weight:800;letter-spacing:-.01em}
+.title span{display:block;font-size:12px;color:var(--muted)}
+.links{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.links a{font-size:13px;color:var(--muted);text-decoration:none;padding:8px 12px;border:1px solid var(--line);border-radius:10px}
+.links a:hover{color:var(--ink);border-color:var(--line-2)}
+.clock{font-family:var(--mono);font-size:20px;font-weight:600}
+.clock small{display:block;font-size:11px;color:var(--muted);font-family:var(--font);font-weight:400}
+main{max-width:1400px;margin:0 auto;padding:18px 20px;display:grid;gap:16px}
+.tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;text-align:left;display:grid;gap:2px;position:relative;transition:border-color .15s}
+.tile:hover{border-color:var(--line-2)}
+.tile.on{border-color:var(--live);box-shadow:0 0 0 1px var(--live) inset}
+.tile b{font-size:30px;font-weight:800;line-height:1;font-family:var(--mono)}
+.tile span{font-size:12.5px;color:var(--muted)}
+.tile small{font-size:11px;color:var(--dim)}
+.tile.zero b{color:var(--dim)}
+.tile.needs b{color:var(--watch)} .tile.red b{color:var(--down)} .tile.due b{color:var(--ink)} .tile.money b{color:var(--cloud)} .tile.fp b{color:var(--push)} .tile.waiting b{color:var(--muted)}
+.tile.zero.needs b,.tile.zero.red b{color:var(--dim)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.panel h2{font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.panel h2 small{font-weight:400;text-transform:none;letter-spacing:0;color:var(--dim)}
+.row{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:12px;padding:11px 0;border-top:1px solid var(--line);align-items:start}
+.row:first-of-type{border-top:0}
+.row .dot{width:8px;height:8px;border-radius:50%;margin-top:7px;background:var(--dim)}
+.row.needs .dot{background:var(--watch)} .row.red .dot{background:var(--down)} .row.due .dot{background:var(--ink)} .row.money .dot{background:var(--cloud)} .row.waiting .dot{background:var(--muted)}
+.row .t{font-size:14.5px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
+.row .s{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+.row .n{font-size:12px;color:var(--watch);margin-top:3px}
+.row .biz{font-size:10.5px;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;text-transform:uppercase;letter-spacing:.04em}
+.acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;position:relative}
+.btn{font-size:12.5px;font-weight:600;padding:7px 11px;border-radius:9px;border:1px solid var(--line-2);color:var(--ink);white-space:nowrap}
+.btn:hover{background:var(--panel-2)}
+.btn.ok{background:#16a34a;border-color:#16a34a;color:#fff} .btn.no{background:#dc2626;border-color:#dc2626;color:#fff} .btn.done{background:var(--live);border-color:var(--live);color:#06202a}
+.btn:disabled{opacity:.5;cursor:default}
+.pop{position:absolute;right:0;top:calc(100% + 6px);z-index:5;background:var(--panel-2);border:1px solid var(--line-2);border-radius:12px;padding:10px;display:grid;gap:6px;min-width:260px;box-shadow:0 12px 32px rgba(0,0,0,.45)}
+.pop .opts{display:flex;gap:6px;flex-wrap:wrap}
+.pop input{font:inherit;color:var(--ink);background:var(--night);border:1px solid var(--line-2);border-radius:8px;padding:7px 9px;width:100%}
+.pop label{font-size:11.5px;color:var(--muted)}
+.empty{color:var(--dim);font-size:13.5px;padding:14px 0}
+.cal{display:grid;gap:0}
+.cal .ev{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.cal .ev:first-child{border-top:0}
+.cal time{font-family:var(--mono);font-size:13px;color:var(--live)}
+.cal .et{font-size:13.5px;font-weight:600} .cal .ew{font-size:12px;color:var(--muted)}
+details.fold summary{cursor:pointer;font-size:13px;color:var(--muted);list-style:none;padding:4px 0}
+details.fold summary::-webkit-details-marker{display:none}
+details.fold summary::before{content:"▸ ";color:var(--dim)} details.fold[open] summary::before{content:"▾ "}
+.fp .sec{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);padding:3px 0}
+.fp .sec b{font-family:var(--mono);color:var(--ink)}
+.status{font-size:12.5px;color:var(--muted);min-height:1.2em}
+.status.err{color:var(--down)}
+.phone{display:none}
+@media (max-width:880px){
+  .grid{grid-template-columns:1fr}
+  .tiles{grid-template-columns:repeat(3,1fr)}
+  .tile b{font-size:24px}
+  .desk-only{display:none}
+  .phone{display:block}
+  .bar-in{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <div class="title"><b>Kevin's Desk</b><span id="sub">loading…</span></div>
+  <div class="clock" id="clock"></div>
+  <nav class="links">
+    <a href="index.html">Today</a>
+    <a href="command.html">Command center</a>
+    <a id="fp-link" href="https://www.getfieldpacket.com/desk" target="_blank" rel="noopener">FieldPacket Desk ↗</a>
+  </nav>
+</div></header>
+
+<main>
+  <div class="tiles" id="tiles"></div>
+  <div class="status" id="status"></div>
+  <div class="phone panel">The Desk is built for the computer. On the phone use <a href="index.html">Today</a>; the tiles above still count.</div>
+  <div class="grid desk-only">
+    <div style="display:grid;gap:16px">
+      <section class="panel"><h2 id="list-h">Today</h2><div id="list"></div></section>
+      <section class="panel" id="sweep" hidden><h2>When should this come back? <small id="sweep-sub"></small></h2><div id="sweep-rows"></div></section>
+      <details class="fold panel" id="aside-fold"><summary id="aside-sum">Set aside</summary><div id="aside"></div></details>
+    </div>
+    <div style="display:grid;gap:16px">
+      <section class="panel"><h2>Today's calendar <small id="cal-sub"></small></h2><div class="cal" id="cal"></div></section>
+      <section class="panel fp"><h2>FieldPacket today <small id="fp-sub"></small></h2><div id="fp"></div></section>
+    </div>
+  </div>
+</main>
+
+<script>
+const OWNER='kliu6151',REPO='KevinOS';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ls=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
+const token=()=>ls('gh_token');
+const enc=s=>btoa(unescape(encodeURIComponent(s)));
+const dec=b=>decodeURIComponent(escape(atob(String(b).replace(/\n/g,''))));
+async function api(path,opts={}){
+  const r=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/${path}`,{...opts,cache:'no-store',headers:{'Authorization':`Bearer ${token()}`,'Accept':'application/vnd.github+json',...(opts.body?{'Content-Type':'application/json'}:{})}});
+  if(r.status===404)return null;
+  if(!r.ok)throw new Error((await r.json().catch(()=>({}))).message||r.status);
+  return r.json();
+}
+const nyParts=(d=new Date())=>Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',weekday:'short',hourCycle:'h23'}).formatToParts(d).map(x=>[x.type,x.value]));
+const today=()=>{const p=nyParts();return `${p.year}-${p.month}-${p.day}`;};
+const nowNY=()=>{const p=nyParts();return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;};
+const plus=(days)=>{const d=new Date(today()+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);};
+function tick(){const p=nyParts();$('clock').innerHTML=`${p.hour}:${p.minute}<small>${p.weekday} · New York</small>`;}
+tick();setInterval(tick,15000);
+
+// Rows acted on from this page hide until desk.json is rebuilt after the action (30-min job on the mini PC).
+const ACTED=(()=>{try{return JSON.parse(ls('desk-acted')||'{}');}catch(e){return {};}})();
+const acted=(id)=>{ACTED[id]=nowNY();try{localStorage.setItem('desk-acted',JSON.stringify(ACTED));}catch(e){}};
+const hidden=(id,updated)=>ACTED[id]&&ACTED[id]>=updated;
+
+const TILES=[['needs','need you','approvals, branches to review'],['red','red','agents, security'],['due','due or late','tasks + loops'],['waiting','waiting on someone','past the nudge'],['money','money stuck','rebates, payouts'],['fp','FieldPacket','its own Desk ↗']];
+const TARGETS={fp:'FieldPacket lane',growth:'Marketing agent',wechat:'WeChat photos',briefing:'Morning briefing'};
+let DESK=null,FILTER='';
+
+function setStatus(t,err){const s=$('status');s.textContent=t||'';s.className='status'+(err?' err':'');}
+
+// ── writes: find the exact source line and replace it ────────────────────────────────────────────────────
+async function editLine(file,oldLine,fn,message){
+  const j=await api('contents/'+file+'?ref=main');if(!j)throw new Error(file+' not found');
+  const text=dec(j.content);const crlf=/\r\n/.test(text);const lines=text.split(/\r?\n/);
+  const want=oldLine.replace(/\r$/,'');const i=lines.findIndex(l=>l===want);
+  if(i<0)throw new Error('that line changed since the Desk was built — refresh');
+  lines[i]=fn(want);
+  await api('contents/'+file,{method:'PUT',body:JSON.stringify({message,content:enc(lines.join(crlf?'\r\n':'\n')),sha:j.sha})});
+}
+const dropSeg=(l,k)=>l.replace(new RegExp(`\\s\\|\\s*${k}:\\s*[^|]*`,'i'),'').replace(/\s+$/,'');
+const markDone=l=>l.replace(/^- \[ \]/,'- [x]').replace(/\s+$/,'')+` | done:${today()}`;
+const setWait=(date,who)=>l=>{let x=dropSeg(dropSeg(l,'nudge'),'waiting-on');if(who)x+=` | waiting-on: ${who}`;return x+` | nudge:${date}`;};
+const setDue=(date,kind)=>l=>kind==='loop'?dropSeg(l,'nudge')+` | nudge:${date}`:dropSeg(l,'due')+` | due:${date}`;
+async function queueItem(target,subject,text){
+  const at=nowNY();const id=`q-${at.replace(/[^0-9]/g,'')}-${Math.random().toString(36).slice(2,6)}`;
+  const content=`---\nid: ${id}\nto: ${target}\nfrom: desk\nat: ${at} NY\nsubject: ${subject.slice(0,120)}\n${target==='fp'?'needs: KOS\n':''}---\n\n${text}\n`;
+  await api(`contents/queue/${target}/${id}.md`,{method:'PUT',body:JSON.stringify({message:`queue: ${target} ${id} (desk)`,content:enc(content)})});
+  return id;
+}
+async function decide(x,decision){
+  const body=`---\napproval: ${x.approval}\ndecision: ${decision}\nat: ${new Date().toISOString()}\nnote: \n---\n${x.title}\n`;
+  await api(`contents/queue/paperclip/${x.approval}.md`,{method:'PUT',body:JSON.stringify({message:`paperclip: ${decision} ${x.approval.slice(0,8)} (desk)`,content:enc(body)})});
+  try{const d=new Set(JSON.parse(ls('pc-decided')||'[]'));d.add(x.approval);localStorage.setItem('pc-decided',JSON.stringify([...d]));}catch(e){}
+}
+
+// ── render ─────────────────────────────────────────────────────────────────────────────────────────────
+function drawTiles(){
+  const t=DESK.tiles;
+  $('tiles').innerHTML=TILES.map(([k,label,sub])=>`<button class="tile ${k} ${t[k]?'':'zero'} ${FILTER===k?'on':''}" data-k="${k}"><b>${t[k]??0}</b><span>${label}</span><small>${esc(sub)}</small></button>`).join('');
+  $('tiles').onclick=e=>{const b=e.target.closest('.tile');if(!b)return;if(b.dataset.k==='fp'){window.open(DESK.fp.url,'_blank');return;}FILTER=FILTER===b.dataset.k?'':b.dataset.k;drawTiles();drawList();};
+}
+function row(x){
+  const d=document.createElement('div');d.className='row '+x.tile;
+  const biz=x.biz&&x.biz!=='airsync'?`<span class="biz">${esc(x.biz)}</span>`:'';
+  d.innerHTML=`<span class="dot"></span><div><div class="t">${esc(x.title)}${biz}</div>${x.sub?`<div class="s">${esc(x.sub)}</div>`:''}${x.note?`<div class="n">${esc(x.note)}</div>`:''}</div><div class="acts"></div>`;
+  const acts=d.querySelector('.acts');
+  const btn=(label,cls,fn)=>{const b=document.createElement('button');b.className='btn '+(cls||'');b.textContent=label;b.onclick=fn;acts.appendChild(b);return b;};
+  const run=async(label,work)=>{for(const b of acts.querySelectorAll('button'))b.disabled=true;setStatus(label+'…');
+    try{await work();acted(x.id);d.remove();DESK.tiles[x.tile]=Math.max(0,(DESK.tiles[x.tile]||1)-1);drawTiles();setStatus('Saved. The Desk re-counts within 30 min.');if(!$('list').children.length)drawList();}
+    catch(e){for(const b of acts.querySelectorAll('button'))b.disabled=false;setStatus('Could not save: '+(e.message||e),true);}};
+  const pop=(build)=>{const old=acts.querySelector('.pop');if(old){old.remove();return;}const p=document.createElement('div');p.className='pop';build(p);acts.appendChild(p);};
+  if(x.open)btn('Open ↗','',()=>window.open(x.open,/^https?:/.test(x.open)?'_blank':'_self'));
+  if(x.src)btn('Open','',()=>window.open(`https://github.com/${OWNER}/${REPO}/blob/main/${x.src.file}`,'_blank'));
+  for(const a of x.actions||[]){
+    if(a==='approve')btn('Approve','ok',()=>run('Approving',()=>decide(x,'approve')));
+    if(a==='reject')btn('Reject','no',()=>run('Rejecting',()=>decide(x,'reject')));
+    if(a==='done')btn('Done','done',()=>run('Saving',()=>editLine(x.src.file,x.src.line,markDone,`desk: done — ${x.title.slice(0,60)}`)));
+    if(a==='wait')btn('Wait until…','',()=>pop(p=>{
+      p.innerHTML=`<label>Comes back on</label><div class="opts"><button class="btn" data-d="1">Tomorrow</button><button class="btn" data-d="3">+3 d</button><button class="btn" data-d="7">+1 wk</button><button class="btn" data-d="14">+2 wk</button><button class="btn" data-d="30">+1 mo</button></div><input type="date" min="${today()}"><label>Waiting on (optional)</label><input type="text" placeholder="Andrea, partner, the inspector…" value="${esc(x.who||'')}"><div class="opts"><button class="btn done" data-go>Set</button></div>`;
+      const date=p.querySelector('input[type=date]'),who=p.querySelector('input[type=text]');
+      p.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{date.value=plus(+b.dataset.d);});
+      p.querySelector('[data-go]').onclick=()=>{if(!date.value){setStatus('Pick a day first.',true);return;}run('Setting aside',()=>editLine(x.src.file,x.src.line,setWait(date.value,who.value.trim()),`desk: wait until ${date.value} — ${x.title.slice(0,50)}`));};
+    }));
+    if(a==='give')btn('Give to…','',()=>pop(p=>{
+      p.innerHTML=`<label>A person (becomes a waiting-on line, back in 3 days)</label><div class="opts"><button class="btn" data-p="Andrea">Andrea</button><button class="btn" data-p="partner">Partner</button><button class="btn" data-p="Slavko">Slavko</button></div><input type="text" placeholder="someone else…"><label>An agent (queued, delivered within 15 min)</label><div class="opts">${Object.entries(TARGETS).map(([k,v])=>`<button class="btn" data-a="${k}">${v}</button>`).join('')}</div>`;
+      const other=p.querySelector('input');
+      const toPerson=(who)=>run('Giving',()=>editLine(x.src.file,x.src.line,setWait(plus(3),who),`desk: gave to ${who} — ${x.title.slice(0,50)}`));
+      p.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>toPerson(b.dataset.p));
+      other.onkeydown=e=>{if(e.key==='Enter'&&other.value.trim())toPerson(other.value.trim());};
+      p.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>run('Queueing',async()=>{
+        const line=x.src.line.replace(/^- \[ \]\s*/,'');
+        if(/\b\d{1,5} [A-Z][a-z]+ (Street|St|Avenue|Ave|Road|Rd|Blvd|Lane|Ln|Drive|Dr)\b/.test(line)||/sk-ant-|ghp_|password\s*[:=]/i.test(line))throw new Error('that line carries an address or a secret — the queue takes neither; give it to a person instead');
+        await queueItem(b.dataset.a,x.title,`From Kevin's Desk (${today()}). Source line in ${x.src.file}:\n\n${line}\n\nDo what it asks of you; reply on the board / handoff as usual.`);
+        await editLine(x.src.file,x.src.line,setWait(plus(3),TARGETS[b.dataset.a]),`desk: gave to ${b.dataset.a} — ${x.title.slice(0,50)}`);
+      }));
+    }));
+  }
+  return d;
+}
+function drawList(){
+  const L=$('list');L.innerHTML='';
+  const items=DESK.items.filter(x=>!hidden(x.id,DESK.updated)&&(!FILTER||x.tile===FILTER));
+  $('list-h').textContent=FILTER?TILES.find(t=>t[0]===FILTER)[1].replace(/^./,c=>c.toUpperCase()):'Today';
+  if(!items.length){L.innerHTML=`<div class="empty">${FILTER?'Nothing here.':'Nothing on the desk. Go do the calendar.'}</div>`;return;}
+  for(const x of items)L.appendChild(row(x));
+  if(FILTER==='money'&&DESK.moneyMore)L.insertAdjacentHTML('beforeend',`<div class="empty">+ ${DESK.moneyMore} more stuck rebates — <a href="index.html#money">open the Money tab</a></div>`);
+}
+function drawCal(){
+  const c=$('cal');const ev=DESK.calendar||[];$('cal-sub').textContent=ev.length?`${ev.length} today`:'';
+  c.innerHTML=ev.length?ev.map(e=>`<div class="ev"><time>${esc(e.time||'—')}</time><div><div class="et">${esc(e.title)}</div>${e.where?`<div class="ew">${esc(e.where)}</div>`:''}</div></div>`).join(''):'<div class="empty">Nothing on the calendar today.</div>';
+}
+function drawFp(){
+  const f=DESK.fp||{};$('fp-sub').textContent=f.stale?`from ${f.date} — stale`:(f.date||'');
+  $('fp').innerHTML=(f.summary?`<div class="s" style="font-size:12.5px;color:var(--muted);margin-bottom:8px">${esc(f.summary)}</div>`:'<div class="empty">No FieldPacket list yet.</div>')+
+    (f.sections||[]).slice(0,10).map(s=>`<div class="sec"><span>${esc(s.section)}</span><b>${s.n}</b></div>`).join('')+
+    `<div style="margin-top:10px"><a class="btn" style="display:inline-block;text-decoration:none" href="${esc(f.url||'#')}" target="_blank" rel="noopener">Open FieldPacket's Desk ↗</a></div>`;
+}
+function drawAside(){
+  const a=(DESK.aside||[]).filter(x=>!hidden(x.id,DESK.updated));$('aside-sum').textContent=`Set aside — ${a.length}`;
+  const A=$('aside');A.innerHTML='';
+  if(!a.length){A.innerHTML='<div class="empty">Nothing set aside.</div>';return;}
+  for(const x of a){const d=document.createElement('div');d.className='row waiting';
+    d.innerHTML=`<span class="dot"></span><div><div class="t">${esc(x.title)}</div><div class="s">back ${esc(x.until)}${x.who?` · waiting on ${esc(x.who)}`:''}</div></div><div class="acts"></div>`;
+    const b=document.createElement('button');b.className='btn';b.textContent='Bring back';
+    b.onclick=async()=>{b.disabled=true;setStatus('Bringing back…');try{await editLine(x.src.file,x.src.line,setWait(today(),x.who||''),`desk: bring back — ${x.title.slice(0,50)}`);acted(x.id);d.remove();setStatus('Back on the desk at the next re-count.');}catch(e){b.disabled=false;setStatus('Could not save: '+(e.message||e),true);}};
+    d.querySelector('.acts').appendChild(b);A.appendChild(d);}
+}
+function drawSweep(){
+  const u=DESK.undated||{count:0,items:[]};const items=u.items.filter(x=>!hidden(x.id,DESK.updated));
+  $('sweep').hidden=!items.length;if(!items.length)return;
+  $('sweep-sub').textContent=`${u.count} open lines have no come-back day — five at a time`;
+  const S=$('sweep-rows');S.innerHTML='';
+  for(const x of items){const d=document.createElement('div');d.className='row due';
+    d.innerHTML=`<span class="dot"></span><div><div class="t">${esc(x.title)}</div><div class="s">${esc(x.section||'')}${x.biz&&x.biz!=='airsync'?' · '+esc(x.biz):''}</div></div><div class="acts"></div>`;
+    const acts=d.querySelector('.acts');
+    const go=(label,fn,msg)=>{const b=document.createElement('button');b.className='btn';b.textContent=label;b.onclick=async()=>{for(const q of acts.querySelectorAll('button'))q.disabled=true;setStatus('Saving…');
+      try{await editLine(x.src.file,x.src.line,fn,msg);acted(x.id);d.remove();setStatus('Saved.');if(!S.children.length)$('sweep').hidden=true;}catch(e){for(const q of acts.querySelectorAll('button'))q.disabled=false;setStatus('Could not save: '+(e.message||e),true);}};acts.appendChild(b);};
+    for(const [l,n] of [['+3 d',3],['+1 wk',7],['+2 wk',14],['+1 mo',30]])go(l,setDue(plus(n),x.src.kind),`desk: comes back ${plus(n)} — ${x.title.slice(0,50)}`);
+    go('Done',markDone,`desk: done — ${x.title.slice(0,60)}`);
+    S.appendChild(d);}
+}
+async function load(){
+  if(!token()){$('sub').textContent='Not signed in';setStatus('Open Today once on this browser and paste the GitHub token on the Dump tab — the Desk uses the same login.',true);return;}
+  try{const j=await api('contents/data/desk.json?ref=main');if(!j)throw new Error('data/desk.json is not there yet — the mini PC writes it every 30 min');
+    DESK=JSON.parse(dec(j.content));
+    const stale=DESK.today<today();
+    $('sub').textContent=`built ${DESK.updated} NY${stale?' — yesterday\'s desk, the 30-min job has not run yet today':''}`;
+    for(const k of Object.keys(ACTED))if(ACTED[k]<DESK.updated)delete ACTED[k];try{localStorage.setItem('desk-acted',JSON.stringify(ACTED));}catch(e){}
+    drawTiles();drawList();drawCal();drawFp();drawAside();drawSweep();setStatus('');
+  }catch(e){$('sub').textContent='could not load';setStatus(String(e.message||e),true);}
+}
+load();
+setInterval(load,5*60*1000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
+</script>
+</body>
+</html>

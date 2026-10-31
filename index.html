@@ -6221,6 +6221,7 @@ async function renderAgents(){
   const upd=((L.find(l=>l.startsWith('- updated:'))||'').match(/updated: (\S+ \d{2}:\d{2})/)||[])[1]||'';
   const nA=L.filter(l=>l.startsWith('- ')&&/🚨/.test(l)).length,nW=L.filter(l=>l.startsWith('- ')&&/⚠/.test(l)).length;
   $('agents-date').textContent=board?`${nA?nA+' need you · ':''}${nW?nW+' to check · ':''}${upd.split(' ')[1]||upd}`:'no board yet';
+  body.insertAdjacentHTML('beforeend','<a href="desk.html" class="checkin" style="display:flex;text-decoration:none;margin-top:0"><span class="ci-i">🗂️</span><span><b>Open the Desk</b><small>everything to act on today — approvals, due, waiting, money, red · computer</small></span><span class="ci-go">Open ›</span></a>');
   body.insertAdjacentHTML('beforeend','<a href="command.html" class="checkin" style="display:flex;text-decoration:none;margin-top:0"><span class="ci-i">🛰️</span><span><b>Open the command center</b><small>orbit map, send work, queue, activity — full screen</small></span><span class="ci-go">Open ›</span></a>');
   // Paperclip (OD-0030): the plant manager for the mini PC's local agents. Its address is a Tailscale
   // URL, so it lives in this device's storage only (never the public repo) and works only with Tailscale on.
