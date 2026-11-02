@@ -6053,9 +6053,10 @@ async function overnightRow(holder,open){
       it.innerHTML=`<div><b>${esc(x.title)}</b> <span style="opacity:.6;font-size:12px">· ${esc(String(x.kind||'').replace(/_/g,' '))}</span></div>`+
         (x.plain?`<div style="font-size:13.5px;margin-top:3px">${esc(x.plain)}</div>`:'')+
         (x.shipped?`<div style="color:#b45309;font-size:12.5px;margin-top:2px">${esc(x.shipped)}</div>`:'')+
-        `<div class="pc-why" style="opacity:.8;font-size:12.5px;margin-top:3px;max-height:${x.plain?'0':'3.6em'};overflow:hidden">${esc(x.why||'')}</div>`+
-        `<div style="display:flex;gap:8px;margin-top:6px"><button class="pc-a" style="flex:1;padding:8px;border-radius:10px;border:0;background:#16a34a;color:#fff;font-weight:700">Approve</button><button class="pc-r" style="flex:1;padding:8px;border-radius:10px;border:0;background:#dc2626;color:#fff;font-weight:700">Reject</button><button class="pc-m" style="padding:8px 10px;border-radius:10px;border:1px solid var(--line,#ccc);background:transparent">more</button></div>`;
-      it.querySelector('.pc-m').onclick=()=>{const w=it.querySelector('.pc-why');w.style.maxHeight=(w.style.maxHeight==='0px'||w.style.maxHeight==='3.6em')?'':(x.plain?'0':'3.6em');};
+        `<div class="pc-why" style="opacity:.8;font-size:12.5px;margin-top:3px;max-height:${x.plain?'0':'3.6em'};overflow:hidden">${x.plainFull?`<div style="opacity:1;margin-bottom:4px">${esc(x.plainFull)}</div>`:''}${esc(x.why||'')}</div>`+
+        `<div style="display:flex;gap:8px;margin-top:6px"><button class="pc-a" style="flex:1;padding:8px;border-radius:10px;border:0;background:#16a34a;color:#fff;font-weight:700">Approve</button><button class="pc-r" style="flex:1;padding:8px;border-radius:10px;border:0;background:#dc2626;color:#fff;font-weight:700">Reject</button>${(x.plainFull||x.why)?`<button class="pc-m" style="padding:8px 10px;border-radius:10px;border:1px solid var(--line,#ccc);background:transparent">more</button>`:''}</div>`;
+      // "more" (2026-11-02 fix): toggle on a data flag, not on the computed style string; hidden when there is nothing more to show
+      const mb=it.querySelector('.pc-m');if(mb)mb.onclick=()=>{const w=it.querySelector('.pc-why');const open=w.dataset.open==='1';w.style.maxHeight=open?(x.plain?'0':'3.6em'):'none';w.dataset.open=open?'0':'1';mb.textContent=open?'more':'less';};
       const decide=async(decision)=>{
         for(const q of it.querySelectorAll('button'))q.disabled=true;
         const body=`---\napproval: ${x.id}\ndecision: ${decision}\nat: ${new Date().toISOString()}\nnote: \n---\n${x.title}\n`;
