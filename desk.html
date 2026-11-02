@@ -82,6 +82,29 @@ details.fold summary::before{content:"▸ ";color:var(--dim)} details.fold[open]
 .status{font-size:12.5px;color:var(--muted);min-height:1.2em}
 .status.err{color:var(--down)}
 .phone{display:none}
+/* Wall mode (?wall=1, 2026-11-01): a glance surface for the second monitor — big tiles with the change since
+   yesterday, calendar + FieldPacket beside them, no list, no buttons. A tile that did not move is dimmed, so a
+   change is the only thing that catches the eye (Kevin: "a monitor that shows 81 every minute trains you to stop seeing it"). */
+.tile .delta{display:block;font-size:12px;margin-top:6px;color:var(--dim)}
+.tile .delta.up{color:var(--down)} .tile .delta.down{color:var(--ok)}
+body.wall main{padding:28px 32px;gap:22px}
+body.wall .links,body.wall .status,body.wall .phone{display:none}
+body.wall .tiles{grid-template-columns:repeat(6,1fr);gap:16px}
+body.wall .tile{padding:26px 24px;border-radius:22px;cursor:default}
+body.wall .tile b{font-size:72px}
+body.wall .tile span{font-size:16px} body.wall .tile small{font-size:13px}
+body.wall .tile .delta{font-size:16px;margin-top:10px}
+body.wall .tile.same b{color:var(--dim)!important}
+body.wall .tile.same{border-color:var(--line)}
+body.wall .tile.moved{border-color:var(--line-2);box-shadow:0 0 0 1px rgba(232,238,248,.08) inset}
+body.wall .grid{display:block}
+body.wall .grid>div:first-child{display:none}
+body.wall .grid>div:last-child{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+body.wall .panel{padding:20px 24px}
+body.wall .panel h2{font-size:15px}
+body.wall .cal .ev{padding:12px 0;grid-template-columns:70px 1fr} body.wall .cal time{font-size:17px} body.wall .cal .et{font-size:18px} body.wall .cal .ew{font-size:14px}
+body.wall .fp .sec{font-size:15px;padding:5px 0}
+body.wall .clock{font-size:28px}
 @media (max-width:880px){
   .grid{grid-template-columns:1fr}
   .tiles{grid-template-columns:repeat(3,1fr)}
@@ -147,6 +170,8 @@ const acted=(id)=>{ACTED[id]=nowNY();try{localStorage.setItem('desk-acted',JSON.
 const hidden=(id,updated)=>ACTED[id]&&ACTED[id]>=updated;
 
 const TILES=[['needs','need you','approvals, branches to review'],['red','red','agents, security'],['due','due or late','tasks + loops'],['waiting','waiting on someone','past the nudge'],['money','money stuck','rebates, payouts'],['fp','FieldPacket','its own Desk ↗']];
+const WALL=new URLSearchParams(location.search).get('wall')==='1';
+if(WALL)document.body.classList.add('wall');
 const TARGETS={fp:'FieldPacket lane',growth:'Marketing agent',wechat:'WeChat photos',briefing:'Morning briefing'};
 let DESK=null,FILTER='';
 
@@ -179,9 +204,10 @@ async function decide(x,decision){
 
 // ── render ─────────────────────────────────────────────────────────────────────────────────────────────
 function drawTiles(){
-  const t=DESK.tiles;
-  $('tiles').innerHTML=TILES.map(([k,label,sub])=>`<button class="tile ${k} ${t[k]?'':'zero'} ${FILTER===k?'on':''}" data-k="${k}"><b>${t[k]??0}</b><span>${label}</span><small>${esc(sub)}</small></button>`).join('');
-  $('tiles').onclick=e=>{const b=e.target.closest('.tile');if(!b)return;if(b.dataset.k==='fp'){window.open(DESK.fp.url,'_blank');return;}FILTER=FILTER===b.dataset.k?'':b.dataset.k;drawTiles();drawList();};
+  const t=DESK.tiles,y=DESK.yesterday||null;
+  const delta=(k)=>{if(!y||y[k]==null)return {cls:'',txt:'no yesterday yet'};const d=(t[k]??0)-y[k];return d===0?{cls:'same',txt:'no change'}:{cls:d>0?'up':'down',txt:`${d>0?'▲':'▼'} ${Math.abs(d)} since ${y.date===plus(-1)?'yesterday':y.date}`};};
+  $('tiles').innerHTML=TILES.map(([k,label,sub])=>{const d=delta(k);return `<button class="tile ${k} ${t[k]?'':'zero'} ${FILTER===k?'on':''} ${d.cls==='same'?'same':d.cls?'moved':''}" data-k="${k}"><b>${t[k]??0}</b><span>${label}</span><small>${esc(sub)}</small>${WALL||y?`<small class="delta ${d.cls}">${esc(d.txt)}</small>`:''}</button>`;}).join('');
+  $('tiles').onclick=e=>{const b=e.target.closest('.tile');if(!b)return;if(b.dataset.k==='fp'){if(!WALL)window.open(DESK.fp.url,'_blank');return;}if(WALL)return;FILTER=FILTER===b.dataset.k?'':b.dataset.k;drawTiles();drawList();};
 }
 function row(x){
   const d=document.createElement('div');d.className='row '+x.tile;
