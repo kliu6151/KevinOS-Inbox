@@ -157,6 +157,16 @@
   .age{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:2px}
   .age.warn{color:var(--red);font-weight:600}
 
+  /* 📍 Where am I? (2026-11-04) — one tap moves Kevin's character in the office display; time per place is counted there */
+  .where{margin-top:12px;padding:12px;background:var(--panel);border:1px solid var(--border);border-radius:12px}
+  .where .wtop{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;width:100%;background:none;border:0;color:var(--text);padding:0;text-align:left}
+  .where .wtop .wn{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted);font-weight:500}
+  .where .wg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+  .where .wg.hide{display:none}
+  .where .wh{grid-column:1/-1;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--muted);margin-top:4px}
+  .where .wb{border:1px solid var(--border);border-top:3px solid var(--wk,#999);background:var(--bg);color:var(--text);border-radius:10px;padding:7px 2px;font-size:11.5px;font-weight:600;line-height:1.2}
+  .where .wb span{display:block;font-size:19px;margin-bottom:2px}
+  .where .wb.on{background:var(--wk,#7fe7ff);color:#101418}
   /* collapsible fold */
   .fold{
     display:flex;align-items:center;gap:10px;width:100%;margin-top:14px;padding:13px 14px;
@@ -1968,6 +1978,56 @@ function setBiz(id){
   runRender('today');
   const back=()=>window.scrollTo({top:y,behavior:'instant'});setTimeout(back,60);setTimeout(back,400);
 }
+/* 📍 Where am I? (2026-11-04, Kevin: "give me buttons on KevinOS to say where my character is"). A tap appends one
+   line to data/where/<day>-app.md in the private repo; the office display (ops/office, mini PC) merges it with the
+   computer's moves and counts time per place. Without a tap you are wherever today's plan block says. */
+const WHERE=[
+  ['WORK'],['pile:empower_kicked_back','🔁','Kickbacks','#f2b134'],['pile:empower_finals','✅','Finals','#f2b134'],['pile:empower_workscopes','📐','Workscopes','#f2b134'],['pile:coned_ready_to_file','⚡','Con Ed','#4aa3ff'],
+  ['pile:replies','📞','Calls','#b58cff'],['kos','🧠','KevinOS','#22a9c7'],['field','🛻','Field','#9aa4b2'],['drive','🚗','Driving','#9aa4b2'],
+  ['LIFE'],['gym','🏋️','Gym','#ff8fb1'],['food','🍽','Food','#ff8fb1'],['family','👨‍👩‍👧','Family','#ff8fb1'],['journal','📓','Journal','#ff8fb1'],
+  ['ventures','🚀','Ventures','#ff8fb1'],['sleep','😴','Sleep','#ff8fb1'],['off','⏸','Off','#999']
+];
+const whereLabel=p=>{const w=WHERE.find(x=>x[0]===p);return w&&w[2]?w[1]+' '+w[2]:p.replace(/^pile:/,'').replace(/_/g,' ');};
+const hhmm=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+function lastMove(...texts){let best=null;for(const t of texts)for(const l of String(t||'').split('\n')){const m=l.match(/^- (\d{2}):(\d{2}) ([a-z_:]+)/);if(m){const k=+m[1]*60+ +m[2];if(!best||k>=best.k)best={k,time:m[1]+':'+m[2],place:m[3]};}}return best;}
+async function whereAppend(place){
+  const path=`data/where/${todayStr()}-app.md`;
+  return withFile(path,async()=>{
+    for(let a=0;a<2;a++){
+      let f=null;try{f=await freshFile(path);}catch(e){}
+      if(f&&f.stale)throw new Error('offline — reconnect and try again');
+      const head=`# Where Kevin was — ${todayStr()} (phone)\n\n_Written by the app's 📍 buttons. The computer's moves live in ${todayStr()}-desk.md. Script-owned._\n\n`;
+      const text=(f?f.text.replace(/\n*$/,'\n'):head)+`- ${hhmm()} ${place} | src:app\n`;
+      try{
+        const res=await api(`contents/${path}`,{method:'PUT',body:JSON.stringify({message:`where: ${place}`,content:enc(text),...(f?{sha:f.sha}:{})})});
+        noteWrite(path,text,res.content.sha,f&&f.sha);return;
+      }catch(e){if(a===0&&isConflict(e)){delete recentWrite[path];continue;}throw e;}
+    }
+  });
+}
+async function whereCard(body){
+  const card=document.createElement('div');card.className='where';
+  const open=localStorage.getItem('where-open')!=='0';
+  card.innerHTML=`<button class="wtop">📍 Where am I?<span class="wn">…</span></button><div class="wg${open?'':' hide'}"></div>`;
+  body.appendChild(card);
+  const grid=card.querySelector('.wg'),now=card.querySelector('.wn');
+  card.querySelector('.wtop').onclick=()=>{grid.classList.toggle('hide');localStorage.setItem('where-open',grid.classList.contains('hide')?'0':'1');};
+  let cur=null;
+  const paint=()=>{grid.querySelectorAll('.wb').forEach(b=>b.classList.toggle('on',b.dataset.p===cur));now.textContent=cur?whereLabel(cur):'following today\'s plan';};
+  for(const w of WHERE){
+    if(w.length===1){const h=document.createElement('div');h.className='wh';h.textContent=w[0];grid.appendChild(h);continue;}
+    const b=document.createElement('button');b.className='wb';b.dataset.p=w[0];b.style.setProperty('--wk',w[3]);b.innerHTML=`<span>${w[1]}</span>${esc(w[2])}`;
+    b.onclick=async()=>{const prev=cur;cur=w[0];paint();try{await whereAppend(w[0]);now.textContent=whereLabel(w[0])+' · since '+hhmm();}catch(e){cur=prev;paint();now.textContent='not saved — '+(e.message||e);}};
+    grid.appendChild(b);
+  }
+  paint();
+  try{
+    const t=todayStr();
+    const [a,d]=await Promise.all([getFile(`data/where/${t}-app.md`).catch(()=>null),getFile(`data/where/${t}-desk.md`).catch(()=>null)]);
+    const m=lastMove(a&&a.text,d&&d.text);
+    if(m){cur=m.place;paint();now.textContent=whereLabel(m.place)+' · since '+m.time;}
+  }catch(e){}
+}
 function bizStrip(body,tasksAll){
   const strip=document.createElement('div');strip.className='biz-strip';
   for(const b of BIZ){
@@ -2027,6 +2087,7 @@ async function renderToday(){
   const loopsAll=loops?parseChecklist(loops.text).filter(it=>!it.checked&&bizVisible(it,'data/loops.md')):[];
   let tasksAll=tasks?parseChecklist(tasks.text).filter(it=>!it.checked):[];
   bizStrip(body,tasksAll); // first thing on the screen
+  whereCard(body);
   if(bizFilter!=='all')tasksAll=tasksAll.filter(it=>bizOf(it.section)===bizFilter);
   // WITHIN the note: a follow-up the briefing also promoted into Top 3 is the SAME job
   // (e.g. "Pelham permit drop-off" in both). Show it once, in Top 3 — the higher-commitment
