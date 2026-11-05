@@ -157,6 +157,19 @@
   .age{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:2px}
   .age.warn{color:var(--red);font-weight:600}
 
+  /* 🏢 pocket office (2026-11-05): the office display's lanes, havoc and door line, on the phone */
+  .pocket{margin-top:10px;padding:10px 12px;background:var(--panel);border:1px solid var(--border);border-radius:12px}
+  .pocket .ph{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+  .pocket .ph .pn{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--muted);font-weight:500;text-align:right}
+  .pocket .pl{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:8px}
+  .pocket .pc{position:relative;border:1px solid var(--border);border-top:3px solid var(--pk,#999);border-radius:8px;padding:5px 2px;text-align:center;background:var(--bg)}
+  .pocket .pc b{display:block;font-family:var(--mono);font-size:17px}
+  .pocket .pc small{display:block;font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pocket .pc i{position:absolute;top:3px;right:4px;font-style:normal;font-family:var(--mono);font-size:9.5px;color:#fff;background:#ff4d4f;border-radius:6px;padding:0 4px}
+  .pocket .hv{margin-top:8px;padding:7px 9px;border-radius:8px;background:#ff4d4f;color:#fff;font-size:12.5px;font-weight:600}
+  .pocket .door{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;font-size:12px}
+  .pocket .door span{background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px 8px}
+  .pocket .pf{margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--muted)}
   /* 📍 Where am I? (2026-11-04) — one tap moves Kevin's character in the office display; time per place is counted there */
   .where{margin-top:12px;padding:12px;background:var(--panel);border:1px solid var(--border);border-radius:12px}
   .where .wtop{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;width:100%;background:none;border:0;color:var(--text);padding:0;text-align:left}
@@ -2005,6 +2018,23 @@ async function whereAppend(place){
     }
   });
 }
+/* 🏢 Pocket office (2026-11-05, Kevin: "okay" to bringing the office to the phone). Reads data/office.json — the counts
+   the office display keeps (script-owned, written by the manager when something changes): lanes as mini cubbies, havoc
+   (overdue must-dos) as a red bar, who is waiting at the door, mail. Read-only; acting stays in the Desk / FieldPacket. */
+async function pocketOffice(body){
+  let f=null;try{f=await getFile('data/office.json');}catch(e){return;}
+  if(!f)return;let o;try{o=JSON.parse(f.text).body;}catch(e){return;}
+  const card=document.createElement('div');card.className='pocket';
+  const COL={workscope:'#f2b134',final:'#ff9f43',coned:'#4aa3ff',office:'#b58cff',kos:'#22a9c7'};
+  const now=o.now?`${esc(o.now.label)}${o.now.src==='plan'?' (plan)':''}`:'—';
+  const mins=m=>`${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
+  card.innerHTML=`<div class="ph">🏢 Office<span class="pn">${now}<br>work ${mins(o.work||0)} · life ${mins(o.life||0)}</span></div>
+    <div class="pl">${(o.lanes||[]).map(l=>`<div class="pc" style="--pk:${COL[l.lane]||'#999'}">${l.hot?`<i>${l.hot}</i>`:''}<b>${l.count}</b><small>${esc(l.label)}</small></div>`).join('')}</div>
+    ${(o.havoc||[]).length?`<div class="hv">⚠ ${o.havoc.length} overdue — ${o.havoc.slice(0,2).map(x=>esc(x.title)+' ('+x.late+' d)').join(' · ')}</div>`:''}
+    ${(o.door||[]).length?`<div class="door">🚪 ${o.door.slice(0,5).map(p=>`<span title="${esc(p.ask)}">${esc(p.who)}</span>`).join('')}</div>`:''}
+    <div class="pf">${o.mail?`📬 ${o.mail} mail · `:''}${o.unsorted?`${o.unsorted} unsorted · `:''}${o.lanesSource==='desk'?'from the Desk lanes':'from today\'s FieldPacket list'}</div>`;
+  body.appendChild(card);
+}
 async function whereCard(body){
   const card=document.createElement('div');card.className='where';
   const open=localStorage.getItem('where-open')!=='0';
@@ -2088,6 +2118,7 @@ async function renderToday(){
   let tasksAll=tasks?parseChecklist(tasks.text).filter(it=>!it.checked):[];
   bizStrip(body,tasksAll); // first thing on the screen
   whereCard(body);
+  pocketOffice(body);
   if(bizFilter!=='all')tasksAll=tasksAll.filter(it=>bizOf(it.section)===bizFilter);
   // WITHIN the note: a follow-up the briefing also promoted into Top 3 is the SAME job
   // (e.g. "Pelham permit drop-off" in both). Show it once, in Top 3 — the higher-commitment
