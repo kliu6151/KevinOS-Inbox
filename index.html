@@ -1978,12 +1978,12 @@ function setBiz(id){
   runRender('today');
   const back=()=>window.scrollTo({top:y,behavior:'instant'});setTimeout(back,60);setTimeout(back,400);
 }
-/* 📍 Where am I? (2026-11-04, Kevin: "give me buttons on KevinOS to say where my character is"). A tap appends one
+/* 📍 Where am I? (2026-11-04; work buttons = the Desk lanes since layout B the same day, Kevin: "give me buttons on KevinOS to say where my character is"). A tap appends one
    line to data/where/<day>-app.md in the private repo; the office display (ops/office, mini PC) merges it with the
    computer's moves and counts time per place. Without a tap you are wherever today's plan block says. */
 const WHERE=[
-  ['WORK'],['pile:empower_kicked_back','🔁','Kickbacks','#f2b134'],['pile:empower_finals','✅','Finals','#f2b134'],['pile:empower_workscopes','📐','Workscopes','#f2b134'],['pile:coned_ready_to_file','⚡','Con Ed','#4aa3ff'],
-  ['pile:replies','📞','Calls','#b58cff'],['kos','🧠','KevinOS','#22a9c7'],['field','🛻','Field','#9aa4b2'],['drive','🚗','Driving','#9aa4b2'],
+  ['WORK'],['lane:workscope','📐','Workscopes','#f2b134'],['lane:final','✅','Finals','#ff9f43'],['lane:coned','⚡','Con Ed','#4aa3ff'],['lane:office','📞','Office','#b58cff'],
+  ['lane:kos','🧠','KevinOS','#22a9c7'],['field','🛻','Field','#9aa4b2'],['drive','🚗','Driving','#9aa4b2'],
   ['LIFE'],['gym','🏋️','Gym','#ff8fb1'],['food','🍽','Food','#ff8fb1'],['family','👨‍👩‍👧','Family','#ff8fb1'],['journal','📓','Journal','#ff8fb1'],
   ['ventures','🚀','Ventures','#ff8fb1'],['sleep','😴','Sleep','#ff8fb1'],['off','⏸','Off','#999']
 ];
