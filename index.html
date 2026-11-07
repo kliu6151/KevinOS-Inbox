@@ -205,6 +205,32 @@
   .st-row.x .t{display:block}
   .st-row.n .d{background:var(--border2)}
   .st-ok{color:var(--green);font-family:var(--mono);font-size:12px;font-weight:600}
+  /* 🧾 Rebates fold (2026-11-07): data/rebates.md — the glance block answers "did we submit it?" per program */
+  .rb-gl{padding:14px 14px 6px}
+  .rb-gl .rb-top{display:flex;align-items:flex-start;gap:10px}
+  .rb-gl .rb-top .rb-sum{flex:1;font-size:13px;line-height:1.45;color:var(--muted)}
+  .rb-prog{margin-top:12px}
+  .rb-prog .rb-ph{font-size:15px;font-weight:700;line-height:1.35}
+  .rb-prog .rb-ph b{font-family:var(--mono)}
+  .rb-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:7px;margin-top:8px}
+  .rb-tile{background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--border2);border-radius:0 10px 10px 0;padding:8px 10px;text-align:left;font:inherit;color:var(--text);margin:0;box-shadow:none}
+  .rb-tile .n{font-family:var(--mono);font-size:20px;font-weight:800;line-height:1.1}
+  .rb-tile .l{font-size:11.5px;line-height:1.3;color:var(--muted);margin-top:2px}
+  .rb-tile .a{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:2px}
+  .rb-tile .x{display:none;font-size:11.5px;line-height:1.35;color:var(--muted);margin-top:4px;overflow-wrap:anywhere}
+  .rb-tile.open .x{display:block}
+  .rb-tile.g{border-left-color:var(--green)} .rb-tile.a{border-left-color:var(--amber)} .rb-tile.a .n{color:var(--amber)} .rb-tile.r{border-left-color:var(--red)} .rb-tile.r .n{color:var(--red)}
+  .rb-upd{font-family:var(--mono);font-size:10.5px;color:var(--faint);padding:10px 0 4px}
+  .rb-upd.stale{color:var(--amber)}
+  /* 🔊 read-aloud (2026-11-07): the browser's own speechSynthesis — on-device, no network, no cost */
+  .say{flex:none;background:var(--panel);border:1px solid var(--border);border-radius:999px;color:var(--muted);font-size:13px;line-height:1;padding:6px 9px;margin:0;box-shadow:none}
+  .say.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+  .ai-a .say{display:inline-block;margin-top:8px}
+  #ai-tools{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 16px 0;border-top:1px solid var(--border)}
+  #ai-tools button{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:999px;padding:8px 12px;font-size:13px;font-weight:600;line-height:1.2;margin:0;box-shadow:none}
+  #ai-tools #ai-brief{border-color:color-mix(in srgb,var(--amber) 45%,var(--border));color:var(--amber)}
+  #ai-tools #ai-sayauto{font-weight:500;color:var(--muted)}
+  #ai-tools .hint{font-size:11.5px;color:var(--faint);flex-basis:100%}
   /* Slavko pay list: owed headline + one tidy row per audit */
   .sp-sum{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:16px 14px 10px}
   .sp-sum .k{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
@@ -485,7 +511,7 @@
   .ai-confirm .ck{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--amber)}
   .ai-confirm .row{padding:7px 0;border-bottom:1px solid var(--border);line-height:1.45}
   .ai-confirm .row:last-of-type{border-bottom:none}
-  #ai-inrow{display:flex;gap:9px;padding:11px 16px 0;border-top:1px solid var(--border)}
+  #ai-inrow{display:flex;gap:9px;padding:9px 16px 0}
   #ai-in{flex:1;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:12px;
     padding:12px 14px;font-size:16px;line-height:1.4;outline:none;color-scheme:dark;min-height:46px;max-height:160px;resize:none;box-shadow:none;overflow-y:auto}
   #ai-in:focus{border-color:var(--accent)}
@@ -1054,6 +1080,11 @@
     </div>
     <div id="ask-mode"></div>
     <div id="ai-log"></div>
+    <div id="ai-tools">
+      <button type="button" id="ai-brief">🎙 Brief me</button>
+      <button type="button" id="ai-sayauto"></button>
+      <span class="hint">Tap the 🎤 on your keyboard to talk · 🔊 on a reply reads it out</span>
+    </div>
     <div id="ai-inrow">
       <textarea id="ai-in" rows="1" placeholder="Ask or tell KevinOS…"></textarea>
       <button id="ai-send" aria-label="Send">➤</button>
@@ -2264,6 +2295,27 @@ async function renderToday(){
   {const h=document.createElement('div');sig.appendChild(h);fpTodoRow(h,morningOpen);}
   // 📊 Pipeline dashboard (2026-10-20): the Claude dashboard — private, opens in a new tab signed in to Claude
   {const d=document.createElement('a');d.className='sigrow';d.href='https://claude.ai/artifact/8rumwDvXS2Ymy1gYANj4kF';d.target='_blank';d.rel='noopener';d.style.cssText='text-decoration:none;color:inherit';d.innerHTML='<span class="sl">📊</span><span class="st"><b>Pipeline dashboard</b> · charts and trends</span><span class="sm">↗</span>';d.onclick=()=>fx('play','tap');sig.appendChild(d);}
+  // 🔊 Read today's plan (2026-11-07): Top 3 + first move + what's left of the day plan, spoken on-device (free)
+  if(daily&&SAY){
+    const speech=()=>{
+      const parts=[];
+      const open3=top3.filter(i=>!i.checked).map(i=>stripMeta(i.body).replace(/\*\*/g,'').split(' — ')[0].trim()).filter(Boolean);
+      if(open3.length)parts.push((open3.length===1?"Today's one thing: ":'Top '+open3.length+': ')+open3.join('. ')+'.');
+      const fm=fmSec?fmSec.lines.map(l=>l.trim()).filter(Boolean).join(' '):'';
+      if(fm)parts.push('First move: '+fm);
+      const now=new Date(),hm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+      const left=dayBlocks.filter(b=>!b.status&&b.end>hm&&!['break','buffer'].includes(b.kind)).slice(0,6);
+      const t12=x=>{const [H,M]=x.split(':').map(Number);return (H%12||12)+(M?':'+String(M).padStart(2,'0'):'')+(H<12?' AM':' PM');};
+      if(left.length)parts.push('Still on the plan: '+left.map(b=>t12(b.start)+', '+b.title.replace(/^📌\s*/,'')).join('. ')+'.');
+      return parts.join(' ')||'Nothing is planned for today.';
+    };
+    const b=document.createElement('button');b.className='sigrow';
+    b.innerHTML=`<span class="sl">🔊</span><span class="st"><b>Read me today's plan</b> · plan, first move, what's left</span><span class="sm"></span>`;
+    // the row keeps its own text; this stand-in takes say()'s playing/stopped marks and shows "tap to stop"
+    const mark={classList:{toggle(){}},set textContent(v){b.querySelector('.sm').textContent=v==='🔊'?'':'tap to stop';},setAttribute(){}};
+    b.onclick=()=>say(speech(),mark);
+    sig.appendChild(b);
+  }
   // TOP 3 — bold title + one action line; the coach's why: sits behind a tap (detail sheet)
   if(top3.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Top 3</div>');
@@ -2804,6 +2856,143 @@ function ledgerRow(line){
   }
   return div;
 }
+/* 🧾 REBATES (2026-11-07) — data/rebates.md (script-owned, ops/rebate-tracker.js, every 30 min).
+   Kevin: "I'm not exactly sure which ones we submitted, which ones we didn't … I haven't been looking
+   at" the master sheet. The fold opens on a glance block — "Con Ed: submitted N · not submitted N",
+   the same for EmPower+ — then one sub-fold per stage list. Read-only: the app never counts or adds
+   money up here, every number is the file's own. */
+function rebatesParse(text){
+  const L=String(text||'').split('\n').map(l=>l.replace(/\r$/,''));
+  const out={updated:'',updDate:'',summary:'',glance:[],secs:[]};
+  const um=L.join('\n').match(/Updated (\d{4}-\d\d-\d\d) ([0-9:]+\s*[AP]M)/i);
+  if(um){out.updDate=um[1];out.updated=um[2];}
+  let cur=null;
+  for(const l of L){
+    if(l.startsWith('## ')){cur={head:l.slice(3).trim(),lines:[]};out.secs.push(cur);continue;}
+    if(!cur){const m=l.match(/^- summary:\s*(.+)$/);if(m)out.summary=m[1].trim();continue;}
+    if(l.startsWith('- ')||/^_.+_$/.test(l.trim()))cur.lines.push(l.trim());
+  }
+  // a glance section = every line is "- **Label:** N — $X …" (the per-program "did we submit it?" blocks)
+  const stat=/^- \*\*([^*#][^*]*?):\*\*\s*(\d+)\s*(?:—\s*(\$[\d,.]+[kKmM]?))?\s*(.*)$/;
+  out.secs=out.secs.filter(sc=>{
+    if(!sc.lines.length||!sc.lines.every(l=>stat.test(l)))return true;
+    const rows=[];
+    for(const l of sc.lines){
+      // "Filed, with NYSERDA: 9 — $X · **approved, awaiting payment:** 0 — $0" is two tiles on one line
+      for(const part of l.split(/\s·\s(?=\*\*)/)){
+        const m=('- '+part.replace(/^- /,'')).match(stat);if(!m)continue;
+        const rest=m[4].trim().replace(/^\((.*)\)$/,'$1').replace(/^:\s*/,'');
+        rows.push({label:m[1].trim(),n:+m[2],amt:m[3]||'',rest});
+      }
+    }
+    const prog=sc.head.split(/\s+—\s+/)[0].trim(),q=(sc.head.split(/\s+—\s+/)[1]||'').trim();
+    out.glance.push({prog,q,rows});
+    return false;
+  });
+  // stage lists first (what Kevin asked), the context sections after
+  const stage=sc=>/^(not submitted|pre-approved|submitted|kicked back|cancelled|not found|paid)\b/i.test(sc.head);
+  out.secs=[...out.secs.filter(stage),...out.secs.filter(sc=>!stage(sc))].map(sc=>{
+    let title=sc.head,label='';
+    const i=title.indexOf(' — ');
+    if(i>0){label=title.slice(i+3).trim();title=title.slice(0,i).trim();}
+    else{const m=title.match(/^(.*?)\s*\((\d+)\)$/);if(m){title=m[1];label=m[2];}}
+    if(title===title.toUpperCase())title=title.charAt(0)+title.slice(1).toLowerCase();
+    const c=label.match(/^([^:]+?):\s*(\d.*)$/);if(c){title+=' — '+c[1].trim();label=c[2].trim();}
+    const kind=/not submitted|not found/i.test(title)?'a':/kicked back|cancelled|disagree/i.test(title)?'r':/^paid/i.test(title)?'g':'n';
+    return {title,label,kind,lines:sc.lines,stage:stage(sc)};
+  });
+  return out;
+}
+/* tile colour from the label's meaning: not-done amber, trouble red, done green */
+const rbTone=l=>/\bnot\b|never/i.test(l)?'a':/kicked|cancel|needs/i.test(l)?'r':/submitted|filed|paid|approved|with /i.test(l)?'g':'n';
+/* "Con Ed: submitted 23 · not submitted 16" — the one line Kevin asked to see at a glance */
+function rebatesHeadline(g){
+  const sub=g.rows.find(r=>/^(submitted|filed)\b/i.test(r.label)&&!/\bnot\b/i.test(r.label));
+  const not=g.rows.find(r=>/\bnot (submitted|filed)\b/i.test(r.label));
+  const name=/con ed/i.test(g.prog)?'Con Ed':g.prog;
+  const verb=/final/i.test((not||sub||{}).label||'')||/final/i.test(g.q)?['final filed','final not filed']:['submitted','not submitted'];
+  const bits=[];if(sub)bits.push(verb[0]+' '+sub.n);if(not)bits.push(verb[1]+' '+not.n);
+  return {name,bits,short:name+(sub?' '+sub.n+' submitted':'')+(not?(sub?' ·':'')+' '+not.n+' not':'')};
+}
+function rebatesSpeech(p){
+  const parts=['Rebates.'];
+  for(const g of p.glance){
+    const h=rebatesHeadline(g);
+    parts.push(h.name+': '+(h.bits.length?h.bits.join(', '):'')+'.');
+    const trouble=g.rows.filter(r=>/kicked|cancel/i.test(r.label)&&r.n);
+    trouble.forEach(r=>parts.push(r.n+' '+r.label.replace(/\s*\/.*$/,'').toLowerCase()+(r.amt?', '+r.amt:'')+'.'));
+  }
+  const mv=p.secs.find(s=>/^moved/i.test(s.title));if(mv&&mv.lines.length)parts.push(mv.lines.length+' moved this week.');
+  const old=p.secs.find(s=>/^oldest/i.test(s.title));
+  if(old&&old.lines[0])parts.push('Oldest stuck: '+old.lines[0].replace(/^- /,'').split(' · owner')[0]+'.');
+  return parts.join(' ');
+}
+/* one ledger line → status row: bold "#job Name · $amount", the rest clamped to two lines, tap for all */
+function rebatesRow(l,kind,prog){
+  let t=l.replace(/^- /,'').replace(/^_(.*)_$/,'$1');
+  const b=document.createElement('button');b.className='st-row '+(kind||'n');
+  const m=t.match(/^\*\*([^*]+)\*\*\s*(?:·\s*)?(.*)$/);
+  let head='',rest=t;
+  if(m){head=m[1].replace(/:$/,'');rest=m[2];
+    const amt=(rest.match(/^[^·]*?·\s*(\$[\d,]+)/)||[])[1];
+    if(/^#/.test(head)&&amt){head+=' · '+amt;rest=rest.replace(/\s*·\s*\$[\d,]+\s*·?\s*/,' · ').trim();}}
+  else{const d=t.indexOf(' — '),c=t.search(/:\s/);
+    if(d>0&&d<70){head=t.slice(0,d);rest=t.slice(d+3);}
+    else if(c>2&&c<45){head=t.slice(0,c);rest=t.slice(c+1).trim();}}
+  rest=rest.replace(/\*\*/g,'').replace(/^—\s*/,'');
+  // inside a program group the program name is the header — drop it, and squeeze the ages so the
+  // two visible lines reach "owner — missing: …" (the part Kevin acts on)
+  if(prog&&rest.startsWith(prog))rest=rest.slice(prog.length).replace(/^\s*·\s*/,'');
+  rest=rest.replace(/installed (\d+)d ago · in this stage \1d/,'installed $1d ago').replace(/ · in this stage since \? \(tracked from [^)]*\)/,'').replace(/in this stage (≥?\d+d)/,'$1 in this stage');
+  b.innerHTML='<i class="d"></i><span class="t">'+(head?'<b>'+esc(head)+'</b> ':'')+'<span>'+esc(rest)+'</span></span>';
+  b.onclick=()=>b.classList.toggle('x');
+  return b;
+}
+function rebatesFold(body,text,prevFolds){
+  const p=rebatesParse(text);
+  const today=typeof todayStr==='function'?todayStr():'';
+  const heads=p.glance.map(rebatesHeadline);
+  const label=(heads.find(h=>h.name==='Con Ed')||heads[0]||{}).short||'';
+  const open=prevFolds.has('🧾 Rebates')?prevFolds.get('🧾 Rebates'):true; // the glance is the point — open unless Kevin closed it
+  const rf=fold('🧾 Rebates',label,open,0);
+  const gl=document.createElement('div');gl.className='rb-gl';
+  const top=document.createElement('div');top.className='rb-top';
+  top.innerHTML=`<div class="rb-sum">${esc(p.summary||'')}</div>`;
+  const sb=sayButton(()=>rebatesSpeech(p));if(sb)top.appendChild(sb);
+  gl.appendChild(top);
+  p.glance.forEach((g,gi)=>{
+    const h=heads[gi],w=document.createElement('div');w.className='rb-prog';
+    w.innerHTML=`<div class="rb-ph">${esc(h.name)}${h.bits.length?': '+h.bits.map(x=>{const m=x.match(/^(.*) (\d+)$/);return m?esc(m[1])+' <b>'+m[2]+'</b>':esc(x);}).join(' · '):''}</div>`;
+    const tiles=document.createElement('div');tiles.className='rb-tiles';
+    g.rows.forEach(r=>{
+      const t=document.createElement('button');t.type='button';t.className='rb-tile '+rbTone(r.label);
+      t.innerHTML=`<div class="n">${r.n}</div><div class="l">${esc(r.label)}</div>${r.amt?`<div class="a">${esc(r.amt)}</div>`:''}${r.rest?`<div class="x">${esc(r.rest.replace(/\*\*/g,''))}</div>`:''}`;
+      if(r.rest)t.onclick=()=>t.classList.toggle('open');
+      tiles.appendChild(t);
+    });
+    w.appendChild(tiles);gl.appendChild(w);
+  });
+  const stale=p.updDate&&today&&p.updDate!==today;
+  gl.insertAdjacentHTML('beforeend',`<div class="rb-upd${stale?' stale':''}">${p.updated?'updated '+esc(stale?p.updDate+' '+p.updated:p.updated)+(stale?' ⚠ not today':''):''} · tap a tile for the detail · lists below</div>`);
+  rf.card.appendChild(gl);
+  if(!p.glance.length&&!p.secs.length)empty(rf.card,'rebates.md is empty — the 30-min board job rebuilds it.');
+  for(const sc of p.secs){
+    const isOpen=prevFolds.has(sc.title)?prevFolds.get(sc.title):false;
+    const sf=fold(sc.title,sc.label,isOpen,0);
+    sf.head.classList.add('subfold');sf.card.classList.add('subfoldcard');
+    if(sc.stage){
+      // one small header per program so Con Ed and EmPower+ don't blur together (the file lists Con Ed first)
+      const groups=[];
+      for(const l of sc.lines){const pg=(l.match(/^- \*\*[^*]+\*\*\s*·\s*([^·]+?)\s*·/)||[])[1]||'';const g=groups[groups.length-1];if(g&&g.pg===pg)g.lines.push(l);else groups.push({pg,lines:[l]});}
+      groups.forEach(g=>{
+        if(groups.length>1&&g.pg){const hh=document.createElement('div');hh.className='st-h';hh.textContent=g.pg+' · '+g.lines.length;sf.card.appendChild(hh);}
+        appendCapped(sf.card,g.lines,l=>rebatesRow(l,/^_/.test(l)?'n':sc.kind,groups.length>1?g.pg:''),6);
+      });
+    }else appendCapped(sf.card,sc.lines,l=>rebatesRow(l,/^\- \*\*(money\.md is behind|auditor)/i.test(l)?'a':'n'),6);
+    rf.card.appendChild(sf.head);rf.card.appendChild(sf.card);
+  }
+  body.appendChild(rf.head);body.appendChild(rf.card);
+}
 /* status rows for the Ops / Security feeds: problems first, ✅ lines folded into one "N fine" row */
 function statusList(cardEl,lines){
   const sev=l=>/🚨|🔴/.test(l)?'r':/⚠/.test(l)?'a':/✅|🟢/.test(l)?'g':'n';
@@ -2962,9 +3151,11 @@ async function renderMoney(){
   // remember which folds the user opened/closed so a check-off re-render doesn't collapse them
   const prevFolds=new Map([...body.querySelectorAll('.fold')].map(h=>[h.querySelector('.ft').textContent,h.classList.contains('open')]));
   if(!keepView)body.innerHTML=skel();
-  const [f,ops,sbf,sec,slv]=await Promise.all([getFile('data/money.md'),getFile('data/ops-status.md'),getFile('data/scoreboard.json').catch(()=>null),getFile('data/security-status.md').catch(()=>null),getFile('data/slavko-pay.md').catch(()=>null)]);body.innerHTML='';
+  const [f,ops,sbf,sec,slv,rbf]=await Promise.all([getFile('data/money.md'),getFile('data/ops-status.md'),getFile('data/scoreboard.json').catch(()=>null),getFile('data/security-status.md').catch(()=>null),getFile('data/slavko-pay.md').catch(()=>null),getFile('data/rebates.md').catch(()=>null)]);body.innerHTML='';
   let sb=null;try{sb=sbf?JSON.parse(sbf.text):null;}catch(e){}
   if(sb)moneyHero(body,sb);
+  // 🧾 Rebates (2026-11-07) — near the top: "which ones did we submit?" answered before anything else
+  if(rbf)rebatesFold(body,rbf.text,prevFolds);
   if(f)moneyNeedsYou(body,f.text);
   body.insertAdjacentHTML('beforeend','<div class="sec">Details</div>');
   // ⚙ Ops status — script-written watch feed for the local money routines
@@ -5744,6 +5935,83 @@ async function aiTurn(text,busyEl){
 }
 /* ================= end Assistant engines (UI wiring below) ================= */
 
+/* ==================== 🔊 READ-ALOUD (2026-11-07) ====================
+   Kevin wants to talk to KevinOS from the truck; live API voice is ~$15–40/mo, so v1 is free:
+   the browser's own speechSynthesis (on-device — no network call, no key, no Worker). Talking IN
+   is the iPhone keyboard's 🎤 dictation into the same box. One utterance queue for the whole app:
+   a second tap on the playing 🔊 stops it; tapping another 🔊 switches. */
+const SAY=(typeof window!=='undefined'&&window.speechSynthesis&&typeof SpeechSynthesisUtterance!=='undefined')?window.speechSynthesis:null;
+let sayBtnOn=null,sayGen=0;
+function sayVoice(){
+  if(!SAY)return null;
+  const en=(SAY.getVoices()||[]).filter(v=>/^en[-_]/i.test(v.lang||''));
+  const us=en.filter(v=>/^en[-_]US/i.test(v.lang));
+  return us.find(v=>/enhanced|premium/i.test(v.name+' '+v.voiceURI))||us.find(v=>/samantha|siri/i.test(v.name))||us.find(v=>v.localService)||us[0]||en[0]||null;
+}
+if(SAY&&SAY.addEventListener)try{SAY.addEventListener('voiceschanged',()=>{});}catch(e){} // Chrome loads voices late; listening warms the list
+/* markdown / ledger text → something a voice can read: no pipes, meta tokens, links or emoji */
+function sayClean(t){
+  return String(t||'')
+    .replace(/https?:\/\/\S+/g,'')
+    .replace(/\s\|\s*(ref|src|why|pri|due|nudge|done|biz|type|kind|hcp|outcome):[^|]*/gi,'')
+    .replace(/[*_`]+/g,'').replace(/^#+\s*/gm,'')
+    .replace(/\b(\d+)d\b/g,'$1 days').replace(/≥/g,'at least ')
+    .replace(/\s*[·|]\s*/g,', ').replace(/\s*→\s*/g,' to ').replace(/\s+—\s+/g,'. ').replace(/&/g,' and ')
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu,'')
+    .replace(/\s{2,}/g,' ').trim();
+}
+function sayMark(btn,on){if(!btn)return;btn.classList.toggle('on',on);btn.textContent=on?'■ stop':'🔊';btn.setAttribute('aria-label',on?'Stop reading':'Read it to me');}
+function sayStop(){sayGen++;if(SAY)try{SAY.cancel();}catch(e){}sayMark(sayBtnOn,false);sayBtnOn=null;}
+/* speak `text`; `btn` (optional) shows the playing state and a second tap on it stops */
+function say(text,btn){
+  if(!SAY){if(typeof fx==='function')fx('banner','This browser can\'t read aloud','calm',1800);return false;}
+  if(btn&&sayBtnOn===btn){sayStop();return false;}
+  sayStop();
+  const clean=sayClean(text);if(!clean)return false;
+  // short chunks: long utterances get cut off on some engines, and a chunk boundary is a natural pause
+  const parts=clean.match(/[^.!?\n]+[.!?]*\s*/g)||[clean],chunks=[];let cur='';
+  for(const p of parts){if((cur+p).length>220&&cur){chunks.push(cur);cur='';}cur+=p;}
+  if(cur.trim())chunks.push(cur);
+  const gen=++sayGen,v=sayVoice();
+  sayBtnOn=btn||null;sayMark(btn,true);
+  chunks.forEach((c,i)=>{
+    const u=new SpeechSynthesisUtterance(c.trim());
+    u.lang=(v&&v.lang)||'en-US';if(v)u.voice=v;u.rate=1.02;
+    if(i===chunks.length-1)u.onend=u.onerror=()=>{if(gen===sayGen){sayMark(sayBtnOn,false);sayBtnOn=null;}};
+    SAY.speak(u);
+  });
+  return true;
+}
+/* a small 🔊 button that reads getText() when tapped (null where the browser can't speak) */
+function sayButton(getText){
+  if(!SAY)return null;
+  const b=document.createElement('button');b.type='button';b.className='say';sayMark(b,false);
+  b.onclick=e=>{e.stopPropagation();say(typeof getText==='function'?getText():getText,b);};
+  return b;
+}
+/* every assistant reply gets one (live and restored); it reads the reply's own text */
+function sayAttach(d){
+  if(!SAY||!d||!d.appendChild||(d.querySelector&&d.querySelector('.say')))return null;
+  const txt=d.textContent||'';const b=sayButton(()=>txt);if(b)d.appendChild(b);
+  return b;
+}
+/* auto-read setting: 'brief' (default — only the reply to Brief me) · 'all' · 'off' */
+const sayAutoMode=()=>{try{return localStorage.getItem('say_auto')||'brief';}catch(e){return 'brief';}};
+const SAY_AUTO_LABEL={brief:'🔊 Auto-read: Brief me only',all:'🔊 Auto-read: every reply',off:'🔇 Auto-read: off'};
+/* a Brief me reply is expected until this time (localStorage, so a Claude reply that lands
+   after iOS reloaded the page is still read) */
+const sayNextSet=ms=>{try{if(ms)localStorage.setItem('say_next',String(Date.now()+ms));else localStorage.removeItem('say_next');}catch(e){}};
+const sayNextOn=()=>{try{return Date.now()<+(localStorage.getItem('say_next')||0);}catch(e){return false;}};
+function sayAuto(d,text){
+  if(!SAY)return;
+  const m=sayAutoMode(),brief=sayNextOn();
+  if(m==='off'||(m==='brief'&&!brief))return;
+  if(brief)sayNextSet(0);
+  if(typeof document!=='undefined'&&document.hidden)return; // never talk from a backgrounded tab
+  say(text,d&&d.querySelector?d.querySelector('.say'):null);
+}
+const BRIEF_PROMPT="Brief me: today's plan and first move, what is late, money that moved, who is waiting on me — short, for listening.";
+
 /* ---- assistant UI ---- */
 let aiWarned=false;
 function aiMsg(cls,html){
@@ -5751,6 +6019,7 @@ function aiMsg(cls,html){
   const log=$('ai-log');log.appendChild(d);log.scrollTop=1e9;
   // transient rows (spinner) and interactive ones (confirm card buttons) don't persist
   if(cls!=='ai-busy'&&cls!=='ai-confirm'){aiLog.push({c:cls,h:html});aiConvSave(undefined);}
+  if(cls==='ai-a')sayAttach(d); // 🔊 on every reply — added after logging, so the stored html stays button-free
   return d;
 }
 /* shown, never recorded: greeting affordances must not replay when a
@@ -5760,7 +6029,7 @@ function aiEphemeral(cls,html){
   const log=$('ai-log');log.appendChild(d);log.scrollTop=1e9;return d;
 }
 function aiChip(kind,label,text){aiMsg('ai-chip'+(kind?' '+kind:''),`<span class="k">${esc(label)}</span>${esc(text)}`);}
-function aiText(t){aiMsg('ai-a',String(t).split(/\n{2,}/).map(p=>`<div>${inline(p).replace(/\n/g,'<br>')}</div>`).join('<div style="height:8px"></div>'));}
+function aiText(t){const d=aiMsg('ai-a',String(t).split(/\n{2,}/).map(p=>`<div>${inline(p).replace(/\n/g,'<br>')}</div>`).join('<div style="height:8px"></div>'));sayAuto(d,t);return d;}
 const AI_STARTERS=[
   "What's due today?",
   "What am I waiting on?",
@@ -5770,7 +6039,7 @@ const AI_STARTERS=[
   "Remember: ",
 ];
 function aiHello(){
-  aiMsg('ai-a','<div>Ask about today, the week, or any thread \u2014 or just tell me what happened and I\'ll update KevinOS. Writes show up as green chips.</div>');
+  aiMsg('ai-a ai-hi','<div>Ask about today, the week, or any thread \u2014 or just tell me what happened and I\'ll update KevinOS. Writes show up as green chips.</div>');
   const d=aiEphemeral('ai-starts',AI_STARTERS.map((t,i)=>`<button type="button" data-i="${i}">${esc(t)}</button>`).join(''));
   d.onclick=e=>{
     const b=e.target.closest('button'); if(!b) return;
@@ -5917,14 +6186,31 @@ $('ai-open').onclick=()=>{
     const c=aiConvLoad(); // restore a live conversation after iOS killed the page
     if(c&&c.log&&c.log.length){
       aiLog=c.log.slice();
-      for(const r of c.log){const d=document.createElement('div');d.className=r.c;d.innerHTML=r.h;$('ai-log').appendChild(d);}
+      for(const r of c.log){const d=document.createElement('div');d.className=r.c;d.innerHTML=r.h;$('ai-log').appendChild(d);if(r.c==='ai-a')sayAttach(d);}
       $('ai-log').scrollTop=1e9;
     }else aiHello();
   }
   aiShowAgg();
-  askPaintMode();
+  askPaintMode();sayPaintAuto();
   askResume();
   setTimeout(()=>$('ai-in').focus(),100);
+};
+/* 🎙 Brief me + auto-read toggle (2026-11-07). The short spoken "Getting your brief" happens inside
+   the tap on purpose: iOS only lets a page speak later after a user tap has spoken once. */
+function sayPaintAuto(){const b=$('ai-sayauto');if(b)b.textContent=SAY?(SAY_AUTO_LABEL[sayAutoMode()]||SAY_AUTO_LABEL.brief):'🔇 Read-aloud not supported here';}
+$('ai-brief').onclick=()=>{
+  if($('ai-send').disabled)return;
+  fx('play','tap');
+  const claude=askMode()==='claude';
+  if(SAY&&sayAutoMode()!=='off'){sayNextSet(claude?20*60e3:3*60e3);say(claude?'Getting your brief. About two minutes.':'Getting your brief.');}
+  askKevinOS(BRIEF_PROMPT);
+};
+$('ai-sayauto').onclick=()=>{
+  if(!SAY)return;
+  const order=['brief','all','off'],m=order[(order.indexOf(sayAutoMode())+1)%order.length];
+  try{localStorage.setItem('say_auto',m);}catch(e){}
+  if(m==='off')sayStop();
+  fx('play','tap');sayPaintAuto();
 };
 $('ask-mode').onclick=e=>{const b=e.target.closest('button[data-m]');if(!b)return;try{localStorage.setItem('ask_mode',b.dataset.m);}catch(_){}fx('play','tap');askPaintMode();};
 function aiNavOn(on){
