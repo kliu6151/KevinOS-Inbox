@@ -464,6 +464,24 @@
     background:var(--panel);border:1px solid var(--border);border-radius:12px;color:var(--faint);
     font-size:15px;text-align:left;transition:border-color .15s}
   #ai-open .spark{color:var(--amber)}
+  /* The Morning Read (2026-11-09): seven cards, one at a time, the first screen of the day until read */
+  #mr-ov{position:fixed;inset:0;background:#0b0f16;z-index:60;display:flex;flex-direction:column;color:#eef2f7}
+  #mr-ov[hidden]{display:none}
+  #mr-top{display:flex;align-items:center;gap:10px;padding:max(14px,env(safe-area-inset-top)) 18px 6px}
+  #mr-top .d{font:800 13px system-ui,sans-serif;color:#f2c94c;letter-spacing:.04em;text-transform:uppercase}
+  #mr-top .n{margin-left:auto;font:600 12px system-ui;color:#8b97a8}
+  #mr-dots{display:flex;gap:6px;padding:0 18px 8px}
+  #mr-dots i{flex:1;height:3px;border-radius:2px;background:#27313f}
+  #mr-dots i.on{background:#f2c94c}
+  #mr-card{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 22px 20px;user-select:none;-webkit-user-select:none}
+  #mr-card .t{font:800 15px system-ui,sans-serif;color:#8b97a8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+  #mr-card .b{font:600 clamp(20px,5.6vw,30px)/1.3 system-ui,sans-serif;white-space:pre-line}
+  #mr-card .w{margin-top:14px;font:400 14px/1.45 system-ui;color:#8b97a8}
+  #mr-card textarea{width:100%;margin-top:14px;min-height:88px;border-radius:12px;border:1px solid #27313f;background:#141a23;color:#eef2f7;padding:12px;font:16px system-ui}
+  #mr-foot{display:flex;gap:10px;padding:0 18px max(18px,env(safe-area-inset-bottom))}
+  #mr-foot button{flex:1;border:0;border-radius:12px;padding:14px;font:800 15px system-ui,sans-serif;cursor:pointer}
+  #mr-foot .go{background:#f2c94c;color:#1b1406}
+  #mr-foot .alt{background:#27313f;color:#eef2f7;flex:0 0 auto;padding:14px 16px}
   #ai-ov{position:fixed;inset:0 0 var(--navh,0px) 0;background:rgba(4,6,10,.68);z-index:52;display:flex;align-items:flex-end;backdrop-filter:blur(4px)}
   #ai-ov[hidden]{display:none}
   /* full-height on phones: the assistant is a place you sit in, not a peek (Kevin 2026-09-24: "everything feels too cramped") */
@@ -1070,6 +1088,16 @@
 </div>
 
 <!-- ASSISTANT: conversation sheet -->
+<!-- The Morning Read (2026-11-09, Kevin: "I don't even look at the brief … it has to keep me engaged"): the first
+     screen of the day until he has gone through it. Cards come from the private repo's data/morning-read.json
+     (ops/morning-read.js); going through it writes a read receipt to data/morning-read-log.json; the question
+     card writes his answer to data/work/answers.json (same shape the office /ask page writes). -->
+<div id="mr-ov" hidden>
+  <div id="mr-top"><span class="d">The Morning Read</span><span class="n" id="mr-n"></span></div>
+  <div id="mr-dots"></div>
+  <div id="mr-card"></div>
+  <div id="mr-foot"><button class="alt" id="mr-say" title="Read aloud">🔊</button><button class="alt" id="mr-later">Later</button><button class="go" id="mr-next">Next</button></div>
+</div>
 <div id="ai-ov" hidden>
   <div id="ai-sheet">
     <div id="ai-head">
@@ -6770,6 +6798,80 @@ try{
     if(token())setTimeout(()=>openCheckinForm(),400);
   }
 }catch(e){}
+
+/* ---- The Morning Read (2026-11-09) ----
+   One screen, seven cards max, one tap each. Shown the first time the app opens after 5 AM when
+   data/morning-read.json is dated today and data/morning-read-log.json has no entry for today.
+   "Later" hides it for this session only — it comes back on the next open, because a brief that
+   can be dismissed for good is one that never gets read. Going through every card = read; the log
+   line carries when, how many cards, and whether the question was answered. The Sunday review
+   counts those lines (ops/specs/morning-read.md). */
+let MR=null,mrI=0,mrAnswered=false;
+async function morningRead(){
+  try{
+    if(!token())return;
+    const h=new Date().getHours();if(h<5)return;
+    if(sessionStorage.getItem('mr-later')===todayStr())return;
+    const f=await getFile('data/morning-read.json');if(!f)return;
+    const d=JSON.parse(f.text);if(!d||d.date!==todayStr()||!(d.cards||[]).length)return;
+    const lg=await getFile('data/morning-read-log.json').catch(()=>null);
+    const log=lg?JSON.parse(lg.text||'[]'):[];
+    if(log.some(x=>x.date===todayStr()))return;
+    MR=d;mrI=0;mrAnswered=false;mrShow();
+  }catch(e){}
+}
+function mrShow(){
+  const ov=$('mr-ov'),c=MR.cards[mrI];if(!c){mrDone();return;}
+  ov.hidden=false;
+  $('mr-n').textContent=`${mrI+1} / ${MR.cards.length}`;
+  $('mr-dots').innerHTML=MR.cards.map((_,i)=>`<i class="${i<=mrI?'on':''}"></i>`).join('');
+  const isQ=c.key==='question';
+  $('mr-card').innerHTML=`<div class="t">${esc(c.title)}</div><div class="b">${esc(c.body)}</div>`+
+    (c.why?`<div class="w">${esc(c.why)}</div>`:'')+
+    (isQ?`<textarea id="mr-a" placeholder="Your answer — a sentence is enough"></textarea><div class="w">${c.left?`${c.left} more waiting on the office /ask page`:'last one on the list'}</div>`:'')+
+    (c.href&&!isQ?`<div class="w">tap "Open" to go there</div>`:'');
+  const last=mrI===MR.cards.length-1;
+  $('mr-next').textContent=isQ?(last?'Answer & done':'Answer'):(last?'Done':'Next');
+  $('mr-later').textContent=isQ?'Skip':'Later';
+  $('mr-say').onclick=()=>{try{say(c.say||c.body,$('mr-say'));}catch(e){}};
+  // optional "Open" on cards that point somewhere: tap the body
+  $('mr-card').onclick=(e)=>{if(e.target.id==='mr-a')return;if(c.href&&!isQ){mrGo(c.href);}};
+}
+function mrGo(href){
+  $('mr-ov').hidden=true;sessionStorage.setItem('mr-later',todayStr());
+  try{if(href==='money')goView('money');else if(href==='cal')goView('cal');else goView('today');}catch(e){}
+}
+async function mrNext(){
+  const c=MR.cards[mrI];
+  if(c&&c.key==='question'){
+    const a=($('mr-a')||{}).value||'';
+    if(a.trim()){
+      try{
+        const f=await getFile('data/work/answers.json').catch(()=>null);
+        const all=f?JSON.parse(f.text||'[]'):[];
+        all.push({day:c.qday||todayStr(),key:c.qkey,kind:'',question:c.body,answer:a.trim().slice(0,2000),at:new Date().toISOString(),via:'morning-read'});
+        await api('contents/data/work/answers.json',{method:'PUT',body:JSON.stringify({message:`answer via Morning Read: ${c.qkey}`,sha:f?f.sha:undefined,content:enc(JSON.stringify(all,null,2)+'\n')})});
+        mrAnswered=true;
+      }catch(e){alert('Could not save the answer: '+e.message);return;}
+    }
+  }
+  mrI++;if(mrI>=MR.cards.length)mrDone();else mrShow();
+}
+async function mrDone(){
+  $('mr-ov').hidden=true;
+  try{
+    const f=await getFile('data/morning-read-log.json').catch(()=>null);
+    const all=f?JSON.parse(f.text||'[]'):[];
+    if(!all.some(x=>x.date===todayStr())){
+      all.push({date:todayStr(),read_at:new Date().toISOString(),cards:MR.cards.length,answered:mrAnswered});
+      await api('contents/data/morning-read-log.json',{method:'PUT',body:JSON.stringify({message:`morning read ${todayStr()}`,sha:f?f.sha:undefined,content:enc(JSON.stringify(all,null,1)+'\n')})});
+    }
+  }catch(e){}
+}
+$('mr-next').onclick=mrNext;
+$('mr-later').onclick=()=>{const c=MR&&MR.cards[mrI];if(c&&c.key==='question'){mrI++;if(mrI>=MR.cards.length)mrDone();else mrShow();return;}$('mr-ov').hidden=true;sessionStorage.setItem('mr-later',todayStr());};
+setTimeout(morningRead,900);
+
 $('ai-x').onclick=aiClose;
 $('ai-ov').onclick=e=>{if(e.target.id==='ai-ov')aiClose();};
 $('ai-new').onclick=()=>{aiConvClear();$('ai-log').innerHTML='';aiWarned=false;aiHello();};
