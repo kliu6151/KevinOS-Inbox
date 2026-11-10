@@ -166,7 +166,7 @@
   .pocket .pc b{display:block;font-family:var(--mono);font-size:17px}
   .pocket .pc small{display:block;font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pocket .pc i{position:absolute;top:3px;right:4px;font-style:normal;font-family:var(--mono);font-size:9.5px;color:#fff;background:#ff4d4f;border-radius:6px;padding:0 4px}
-  .pocket .hv{margin-top:8px;padding:7px 9px;border-radius:8px;background:#ff4d4f;color:#fff;font-size:12.5px;font-weight:600}
+  .pocket .hv{margin-top:8px;padding:7px 9px;border-radius:8px;background:#3a3114;color:#f1e3b8;font-size:12.5px;font-weight:600}
   .pocket .door{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;font-size:12px}
   .pocket .door span{background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px 8px}
   .pocket .pf{margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--muted)}
@@ -2078,8 +2078,9 @@ async function whereAppend(place){
   });
 }
 /* 🏢 Pocket office (2026-11-05, Kevin: "okay" to bringing the office to the phone). Reads data/office.json — the counts
-   the office display keeps (script-owned, written by the manager when something changes): lanes as mini cubbies, havoc
-   (overdue must-dos) as a red bar, who is waiting at the door, mail. Read-only; acting stays in the Desk / FieldPacket. */
+   the office display keeps (script-owned, written by the manager when something changes): lanes as mini cubbies, late
+   to-dos as a quiet "N to clear" bar (red until 2026-11-09), who is waiting at the door, mail. Read-only; acting stays
+   in the office / the Desk / FieldPacket. */
 async function pocketOffice(body){
   let f=null;try{f=await getFile('data/office.json');}catch(e){return;}
   if(!f)return;let o;try{o=JSON.parse(f.text).body;}catch(e){return;}
@@ -2089,7 +2090,7 @@ async function pocketOffice(body){
   const mins=m=>`${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
   card.innerHTML=`<div class="ph">🏢 Office<span class="pn">${now}<br>work ${mins(o.work||0)} · life ${mins(o.life||0)}</span></div>
     <div class="pl">${(o.lanes||[]).map(l=>`<div class="pc" style="--pk:${COL[l.lane]||'#999'}">${l.hot?`<i>${l.hot}</i>`:''}<b>${l.count}</b><small>${esc(l.label)}</small></div>`).join('')}</div>
-    ${(o.havoc||[]).length?`<div class="hv">⚠ ${o.havoc.length} overdue — ${o.havoc.slice(0,2).map(x=>esc(x.title)+' ('+x.late+' d)').join(' · ')}</div>`:''}
+    ${(o.havoc||[]).length?`<div class="hv">${o.havoc.length} to clear — ${o.havoc.slice(0,2).map(x=>esc(x.title)+' ('+x.late+' d)').join(' · ')}</div>`:''}
     ${(o.door||[]).length?`<div class="door">🚪 ${o.door.slice(0,5).map(p=>`<span title="${esc(p.ask)}">${esc(p.who)}</span>`).join('')}</div>`:''}
     <div class="pf">${o.mail?`📬 ${o.mail} mail · `:''}${o.unsorted?`${o.unsorted} unsorted · `:''}${o.lanesSource==='desk'?'from the Desk lanes':'from today\'s FieldPacket list'}</div>`;
   body.appendChild(card);
