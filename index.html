@@ -3192,6 +3192,10 @@ async function renderMoney(){
   if(sb)moneyHero(body,sb);
   // 🧾 Rebates (2026-11-07) — near the top: "which ones did we submit?" answered before anything else
   if(rbf)rebatesFold(body,rbf.text,prevFolds);
+  // 💳 Sort card charges (2026-11-10, OD-0060): a link to the mini PC's sort-only bank page over Tailscale. The address
+  // lives in the private repo (data/links.json); no charge, total or bank name ever reaches this app.
+  try{const lk=await getFile('data/links.json').catch(()=>null);const u=lk?String(JSON.parse(lk.text).cards||''):'';
+    if(/^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.ts\.net(:\d+)?\/?$/.test(u)){const c=card();c.innerHTML=`<a href="${esc(u)}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit">💳 <b>Sort card charges</b> — business or personal, by statement <span style="float:right;color:var(--muted)">↗</span><div class="tiny" style="color:var(--muted);margin-top:4px">Opens on the mini PC through Tailscale — your phone has to be on Tailscale.</div></a>`;body.appendChild(c);}}catch(e){}
   if(f)moneyNeedsYou(body,f.text);
   body.insertAdjacentHTML('beforeend','<div class="sec">Details</div>');
   // ⚙ Ops status — script-written watch feed for the local money routines
