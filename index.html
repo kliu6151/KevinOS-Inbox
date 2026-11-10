@@ -897,6 +897,9 @@
     *,*::before,*::after{animation:none!important;transition:none!important}
     html{scroll-behavior:auto}
   }
+  /* switched off by Kevin 2026-11-10 ("not using"): the Ask box and Peak — hidden, not deleted (OFF below) */
+  body.off-ask #ai-open,body.off-ask nav button[data-v="ask"]{display:none!important}
+  body.off-peak nav button[data-v="peak"],body.off-peak #more-ov button[data-go="peak"]{display:none!important}
 </style>
 </head>
 <body>
@@ -1156,6 +1159,10 @@
 </nav>
 
 <script>
+/* switched-off features (Kevin 2026-11-10) — see goView */
+const OFF={ask:true,peak:true};
+for(const k in OFF)if(OFF[k])document.body.classList.add('off-'+k);
+
 /* ==================== FX: the feel layer (2026-09-30) ====================
    Kevin: "give the app more frontend like button effects … make it more
    satisfying" and "something that feels more like leveling up". Pure
@@ -6970,7 +6977,11 @@ function updateBadge(){
 /* One entry point for "show me this tab" — the nav, the More sheet and the
    Today-to-Brief link all go through it, so there is a single definition of
    what switching a tab means. */
+/* Kevin 2026-11-10: "the kevinOS chatbox … not that helpful for now since i dont use it" and "i also am not using peak,
+   so we can disable that too". Switched off, not removed: flip a flag back to bring it back. The evening check-in still
+   uses the chat sheet as its own flow; only the Ask entry points and the auto-open on launch are gone. */
 function goView(v){
+  if(OFF[v])v='today';
   /* Switching tabs leaves the assistant: #ai-ov is a full-height overlay, so
      without this the new tab renders invisibly underneath it (Kevin 2026-09-25:
      "the chat bot is stickied even when i try to switch tabs"). The log is only
@@ -7020,7 +7031,7 @@ function goView(v){
     paint();
   }
 }
-const TAB_ORDER=['dump','dev','today','cal','money','peak','brief','edu','agents'];
+const TAB_ORDER=['dump','dev','today','cal','money','peak','brief','edu','agents'].filter(t=>!OFF[t]);
 document.body.dataset.tab=currentView;
 /* sound toggle (Dump tab) — per phone, remembered */
 {
@@ -7068,6 +7079,7 @@ if(localStorage.getItem('gh_token')){refreshPending();updateBadge();runRender('t
 setTimeout(()=>{
   try{
     if(!localStorage.getItem('gh_token'))return;
+    if(OFF.ask)return;
     if(sessionStorage.getItem('ai_launched'))return;
     sessionStorage.setItem('ai_launched','1');
     $('ai-open').click();
