@@ -465,7 +465,8 @@
     font-size:15px;text-align:left;transition:border-color .15s}
   #ai-open .spark{color:var(--amber)}
   /* The Morning Read (2026-11-09): seven cards, one at a time, the first screen of the day until read */
-  #mr-ov{position:fixed;inset:0;background:#0b0f16;z-index:60;display:flex;flex-direction:column;color:#eef2f7}
+  /* z-index 70: above the tab bar (nav, 60, later in the page) — at 60 the bar covered Later/Next and the read could not be left (2026-11-10) */
+  #mr-ov{position:fixed;inset:0;background:#0b0f16;z-index:70;touch-action:pan-y;display:flex;flex-direction:column;color:#eef2f7}
   #mr-ov[hidden]{display:none}
   #mr-top{display:flex;align-items:center;gap:10px;padding:max(14px,env(safe-area-inset-top)) 18px 6px}
   #mr-top .d{font:800 13px system-ui,sans-serif;color:#f2c94c;letter-spacing:.04em;text-transform:uppercase}
@@ -6876,6 +6877,12 @@ async function mrDone(){
   }catch(e){}
 }
 $('mr-next').onclick=mrNext;
+// swipe: left = next card (on the question card it skips, the same as Skip — an answer is only saved by its button), right = back
+(function(){let x0=null,y0=0;const ov=$('mr-ov');
+  ov.addEventListener('touchstart',e=>{if(e.target.id==='mr-a'||e.target.closest('#mr-foot')){x0=null;return;}const t=e.touches[0];x0=t.clientX;y0=t.clientY;},{passive:true});
+  ov.addEventListener('touchend',e=>{if(x0===null||!MR)return;const t=e.changedTouches[0],dx=t.clientX-x0,dy=t.clientY-y0;x0=null;
+    if(Math.abs(dx)<50||Math.abs(dx)<Math.abs(dy)*1.5)return;
+    if(dx<0){mrI++;if(mrI>=MR.cards.length)mrDone();else mrShow();}else if(mrI>0){mrI--;mrShow();}},{passive:true});})();
 $('mr-later').onclick=()=>{const c=MR&&MR.cards[mrI];if(c&&c.key==='question'){mrI++;if(mrI>=MR.cards.length)mrDone();else mrShow();return;}$('mr-ov').hidden=true;sessionStorage.setItem('mr-later',todayStr());};
 setTimeout(morningRead,900);
 
