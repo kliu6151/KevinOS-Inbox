@@ -37,7 +37,7 @@ a{color:inherit}
 .clock{font-family:var(--mono);font-size:20px;font-weight:600}
 .clock small{display:block;font-size:11px;color:var(--muted);font-family:var(--font);font-weight:400}
 main{max-width:1400px;margin:0 auto;padding:18px 20px;display:grid;gap:16px}
-.tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.tiles{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
 .tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;text-align:left;display:grid;gap:2px;position:relative;transition:border-color .15s}
 .tile:hover{border-color:var(--line-2)}
 .tile.on{border-color:var(--live);box-shadow:0 0 0 1px var(--live) inset}
@@ -45,7 +45,7 @@ main{max-width:1400px;margin:0 auto;padding:18px 20px;display:grid;gap:16px}
 .tile span{font-size:12.5px;color:var(--muted)}
 .tile small{font-size:11px;color:var(--dim)}
 .tile.zero b{color:var(--dim)}
-.tile.needs b{color:var(--watch)} .tile.red b{color:var(--down)} .tile.due b{color:var(--ink)} .tile.money b{color:var(--cloud)} .tile.fp b{color:var(--push)} .tile.waiting b{color:var(--muted)}
+.tile.needs b{color:var(--watch)} .tile.red b{color:var(--down)} .tile.due b{color:var(--ink)} .tile.money b{color:var(--cloud)} .tile.fp b{color:var(--push)} .tile.waiting b{color:var(--muted)} .tile.asks b{color:#ffd84d}
 .tile.zero.needs b,.tile.zero.red b{color:var(--dim)}
 .grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
@@ -68,6 +68,8 @@ main{max-width:1400px;margin:0 auto;padding:18px 20px;display:grid;gap:16px}
 .pop .opts{display:flex;gap:6px;flex-wrap:wrap}
 .pop input{font:inherit;color:var(--ink);background:var(--night);border:1px solid var(--line-2);border-radius:8px;padding:7px 9px;width:100%}
 .pop label{font-size:11.5px;color:var(--muted)}
+.ans{display:grid;gap:6px;margin-top:10px;max-width:720px} .ans .opts{display:flex;gap:6px;flex-wrap:wrap} .ans label{font-size:11.5px;color:var(--muted)}
+.ans textarea{font:inherit;color:var(--ink);background:var(--night);border:1px solid var(--line-2);border-radius:8px;padding:7px 9px;width:100%;resize:vertical}
 .empty{color:var(--dim);font-size:13.5px;padding:14px 0}
 .cal{display:grid;gap:0}
 .cal .ev{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;padding:9px 0;border-top:1px solid var(--line)}
@@ -89,7 +91,7 @@ details.fold summary::before{content:"▸ ";color:var(--dim)} details.fold[open]
 .tile .delta.up{color:var(--down)} .tile .delta.down{color:var(--ok)}
 body.wall main{padding:28px 32px;gap:22px}
 body.wall .links,body.wall .status,body.wall .phone{display:none}
-body.wall .tiles{grid-template-columns:repeat(6,1fr);gap:16px}
+body.wall .tiles{grid-template-columns:repeat(7,1fr);gap:16px}
 body.wall .tile{padding:26px 24px;border-radius:22px;cursor:default}
 body.wall .tile b{font-size:72px}
 body.wall .tile span{font-size:16px} body.wall .tile small{font-size:13px}
@@ -169,7 +171,7 @@ const ACTED=(()=>{try{return JSON.parse(ls('desk-acted')||'{}');}catch(e){return
 const acted=(id)=>{ACTED[id]=nowNY();try{localStorage.setItem('desk-acted',JSON.stringify(ACTED));}catch(e){}};
 const hidden=(id,updated)=>ACTED[id]&&ACTED[id]>=updated;
 
-const TILES=[['needs','need you','approvals, branches to review'],['red','red','agents, security'],['due','due or late','tasks + loops'],['waiting','waiting on someone','past the nudge'],['money','money stuck','rebates, payouts'],['fp','FieldPacket','its own Desk ↗']];
+const TILES=[['needs','need you','approvals, branches to review'],['red','red','agents, security'],['due','due or late','tasks + loops'],['waiting','waiting on someone','past the nudge'],['money','money stuck','rebates, payouts'],['asks','questions for you','KevinOS is waiting on'],['fp','FieldPacket','its own Desk ↗']];
 const WALL=new URLSearchParams(location.search).get('wall')==='1';
 if(WALL)document.body.classList.add('wall');
 const TARGETS={fp:'FieldPacket lane',growth:'Marketing agent',wechat:'WeChat photos',briefing:'Morning briefing'};
@@ -205,6 +207,30 @@ async function decide(x,decision){
   try{const d=new Set(JSON.parse(ls('pc-decided')||'[]'));d.add(x.approval);localStorage.setItem('pc-decided',JSON.stringify([...d]));}catch(e){}
 }
 
+// A question KevinOS asked (2026-11-09): the answer is ONE record in data/work/answers.json plus a self-describing
+// note in inbox/ that the next session / the morning briefing applies. Same record + note as the office's
+// ops/office/asks.js in the private repo — keep the two in step. The note goes first: if the record then fails,
+// the question simply stays here and nothing he typed is lost.
+const askDefault=t=>{const m=String(t||'').match(/Default:\s*(.+?)\s*$/);return m?m[1].replace(/\.$/,''):'';};
+async function answerAsk(x,text){
+  if(!/^[a-z0-9][a-z0-9-]{0,60}$/i.test(x.key||''))throw new Error('that question is not on the list');
+  text=String(text||'').replace(/\r/g,'').trim().slice(0,2000);if(!text)throw new Error('write an answer first');
+  const f='data/work/answers.json';const j=await api('contents/'+f+'?ref=main');
+  let all=[];if(j){try{all=JSON.parse(dec(j.content));}catch(e){throw new Error('the answers file could not be read — answer this one in the office');}}
+  if(!Array.isArray(all))all=[];
+  if(all.some(a=>a&&a.key===x.key))throw new Error('already answered — it leaves at the next re-count');
+  const note=['[answer to a KevinOS question] '+nowNY()+' NY · from the Desk page','','Question ('+x.key+' · '+(x.qkind||'question')+'): '+x.title,x.sub?'Why it was asked: '+x.sub:null,'',"Kevin's answer:",text,'',
+    'How to process this note: it is Kevin answering a question KevinOS asked — not a new dump, and not a task for him.',
+    'Apply it where it belongs: a ruling → ONE new OD-#### line in data/decisions.md (his words, his why); a fact → the',
+    'loop, task or doc that was waiting for it (update or close that line); something another agent needs → a queue item.',
+    'Then archive this note. Never ask this question again — it is recorded in data/work/answers.json. If the answer is',
+    'unclear, say so in the plan as ONE follow-up question; do not guess.',''].filter(l=>l!==null).join('\n');
+  let name=`inbox/answer-${x.key}-${today()}.md`;if(await api('contents/'+name+'?ref=main'))name=`inbox/answer-${x.key}-${today()}-${nowNY().slice(11).replace(':','')}.md`;
+  await api('contents/'+name,{method:'PUT',body:JSON.stringify({message:`ask: answer note — ${x.key} (desk)`,content:enc(note)})});
+  all.push({day:today(),key:x.key,kind:x.qkind||'',question:x.title,answer:text,at:new Date().toISOString(),via:'desk',note:name});
+  await api('contents/'+f,{method:'PUT',body:JSON.stringify({message:`ask: answered — ${x.key} (desk)`,content:enc(JSON.stringify(all,null,2)+'\n'),...(j?{sha:j.sha}:{})})});
+}
+
 // ── render ─────────────────────────────────────────────────────────────────────────────────────────────
 function drawTiles(){
   const t=DESK.tiles,y=DESK.yesterday||null;
@@ -227,6 +253,13 @@ function row(x){
   for(const a of x.actions||[]){
     if(a==='approve')btn('Approve','ok',()=>run('Approving',()=>decide(x,'approve')));
     if(a==='reject')btn('Reject','no',()=>run('Rejecting',()=>decide(x,'reject')));
+    if(a==='answer'){const def=askDefault(x.title);btn('Answer…','done',()=>{const old=d.querySelector('.ans');if(old){old.remove();return;}const p=document.createElement('div');p.className='ans';d.children[1].appendChild(p);
+      p.innerHTML=`<label>Your answer — a line is plenty</label><textarea rows="3"></textarea><div class="opts"><button class="btn done" data-go>Save</button>${def?'<button class="btn" data-def>Take the default</button>':''}</div><label>Skip it and it stays here. KevinOS applies the answer at the next session and does not ask again.</label>`;
+      const ta=p.querySelector('textarea');ta.focus();
+      const go=(t)=>{if(d.dataset.busy)return;d.dataset.busy='1';run('Saving your answer',()=>answerAsk(x,t)).then(()=>{delete d.dataset.busy;});}; // one save at a time
+      p.querySelector('[data-go]').onclick=()=>{if(!ta.value.trim()){setStatus('Write a line first — or take the default.',true);return;}go(ta.value);};
+      const dq=p.querySelector('[data-def]');if(dq)dq.onclick=()=>go('Go with the default: '+def+(ta.value.trim()?' — '+ta.value.trim():''));
+    });}
     if(a==='done')btn('Done','done',()=>run('Saving',()=>editLine(x.src.file,x.src.line,markDone,`desk: done — ${x.title.slice(0,60)}`)));
     if(a==='wait')btn('Wait until…','',()=>pop(p=>{
       p.innerHTML=`<label>Comes back on</label><div class="opts"><button class="btn" data-d="1">Tomorrow</button><button class="btn" data-d="3">+3 d</button><button class="btn" data-d="7">+1 wk</button><button class="btn" data-d="14">+2 wk</button><button class="btn" data-d="30">+1 mo</button></div><input type="date" min="${today()}"><label>Waiting on (optional)</label><input type="text" placeholder="Andrea, partner, the inspector…" value="${esc(x.who||'')}"><div class="opts"><button class="btn done" data-go>Set</button></div>`;
@@ -252,10 +285,13 @@ function row(x){
 }
 function drawList(){
   const L=$('list');L.innerHTML='';
-  const items=DESK.items.filter(x=>!hidden(x.id,DESK.updated)&&(!FILTER||x.tile===FILTER));
+  // questions show only under their own tile (2026-11-09) — 30 of them would bury today's work — and five at a time
+  let items=DESK.items.filter(x=>!hidden(x.id,DESK.updated)&&(FILTER?x.tile===FILTER:x.tile!=='asks'));
+  let more=0;if(FILTER==='asks'&&items.length>5&&!drawList.all){more=items.length-5;items=items.slice(0,5);}
   $('list-h').textContent=FILTER?TILES.find(t=>t[0]===FILTER)[1].replace(/^./,c=>c.toUpperCase()):'Today';
   if(!items.length){L.innerHTML=`<div class="empty">${FILTER?'Nothing here.':'Nothing on the desk. Go do the calendar.'}</div>`;return;}
   for(const x of items)L.appendChild(row(x));
+  if(more){const b=document.createElement('button');b.className='btn';b.style.marginTop='10px';b.textContent=`Show ${more} more`;b.onclick=()=>{drawList.all=true;drawList();};L.appendChild(b);}
   if(FILTER==='money'&&DESK.moneyMore)L.insertAdjacentHTML('beforeend',`<div class="empty">+ ${DESK.moneyMore} more stuck rebates — <a href="index.html#money">open the Money tab</a></div>`);
 }
 function drawCal(){
