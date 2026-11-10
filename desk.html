@@ -186,7 +186,10 @@ async function editLine(file,oldLine,fn,message){
   lines[i]=fn(want);
   await api('contents/'+file,{method:'PUT',body:JSON.stringify({message,content:enc(lines.join(crlf?'\r\n':'\n')),sha:j.sha})});
 }
-const dropSeg=(l,k)=>l.replace(new RegExp(`\\s\\|\\s*${k}:\\s*[^|]*`,'i'),'').replace(/\s+$/,'');
+// the value stops BEFORE the next ` |` (2026-11-09): `[^|]*` also ate the space in front of the next segment, so
+// dropping nudge: from `… | nudge:X | waiting-on: A` left `…| waiting-on: A` — glued, and then never dropped.
+// Same edit as the office's ops/office/act.js in the private repo — keep the two in step.
+const dropSeg=(l,k)=>l.replace(new RegExp(`\\s\\|\\s*${k}:[^|]*?(?=\\s\\||\\s*$)`,'i'),'').replace(/\s+$/,'');
 const markDone=l=>l.replace(/^- \[ \]/,'- [x]').replace(/\s+$/,'')+` | done:${today()}`;
 const setWait=(date,who)=>l=>{let x=dropSeg(dropSeg(l,'nudge'),'waiting-on');if(who)x+=` | waiting-on: ${who}`;return x+` | nudge:${date}`;};
 const setDue=(date,kind)=>l=>kind==='loop'?dropSeg(l,'nudge')+` | nudge:${date}`:dropSeg(l,'due')+` | due:${date}`;
