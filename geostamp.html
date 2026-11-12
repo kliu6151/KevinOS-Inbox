@@ -579,7 +579,11 @@ function loadFile(file){
       var img = res[0], exif = res[1];
       state.img = img; state.name = file.name || 'photo'; state.exif = exif; state.heic = heic;
       var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
-      var scale = Math.min(1, Math.sqrt(MAX_PIXELS / (w*h)));
+      // iPhone size (2026-11-11, Kevin: "can you resize it to a iphone size"): the long side is capped at 4032 px, a
+      // standard 12 MP iPhone photo — a 48 MP original or a big crop comes out the size a normal iPhone shot is. Never
+      // enlarged. (MAX_PIXELS stays as the Safari ceiling.)
+      var IPHONE_LONG = 4032;
+      var scale = Math.min(1, IPHONE_LONG / Math.max(w, h), Math.sqrt(MAX_PIXELS / (w*h)));
       state.outW = Math.round(w*scale); state.outH = Math.round(h*scale);
       els.photoInfo.textContent = state.name + ' · ' + w + ' × ' + h + (heic ? ' · HEIC → JPEG' : '') + (scale < 1 ? ' (exported at ' + state.outW + ' × ' + state.outH + ')' : '');
       els.photoInfo.className = 'hint ok';
