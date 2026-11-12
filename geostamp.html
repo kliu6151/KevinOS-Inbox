@@ -579,13 +579,14 @@ function loadFile(file){
       var img = res[0], exif = res[1];
       state.img = img; state.name = file.name || 'photo'; state.exif = exif; state.heic = heic;
       var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
-      // iPhone size (2026-11-11, Kevin: "can you resize it to a iphone size"): the long side is capped at 4032 px, a
-      // standard 12 MP iPhone photo — a 48 MP original or a big crop comes out the size a normal iPhone shot is. Never
-      // enlarged. (MAX_PIXELS stays as the Safari ceiling.)
+      // iPhone size (2026-11-11, Kevin: "can you resize it to a iphone size" — then the three LED screenshots): every
+      // photo comes out with its long side at 4032 px, a standard 12 MP iPhone photo. Big originals shrink; SMALL ones
+      // (screenshots, tight crops) are enlarged too — on a 400 px screenshot the stamp hit its minimum text size and
+      // filled the picture. At iPhone size the stamp has the same proportion as on any phone photo (and as FieldPacket's).
       var IPHONE_LONG = 4032;
-      var scale = Math.min(1, IPHONE_LONG / Math.max(w, h), Math.sqrt(MAX_PIXELS / (w*h)));
+      var scale = Math.min(IPHONE_LONG / Math.max(w, h), Math.sqrt(MAX_PIXELS / (w*h)));
       state.outW = Math.round(w*scale); state.outH = Math.round(h*scale);
-      els.photoInfo.textContent = state.name + ' · ' + w + ' × ' + h + (heic ? ' · HEIC → JPEG' : '') + (scale < 1 ? ' (exported at ' + state.outW + ' × ' + state.outH + ')' : '');
+      els.photoInfo.textContent = state.name + ' · ' + w + ' × ' + h + (heic ? ' · HEIC → JPEG' : '') + (Math.abs(scale - 1) > 0.001 ? ' (saved at iPhone size: ' + state.outW + ' × ' + state.outH + ')' : '');
       els.photoInfo.className = 'hint ok';
       if(exif.date){
         els.fromPhoto.disabled = false;
@@ -683,7 +684,7 @@ function render(){
   var W, H;
   if(state.img){ W = state.outW; H = state.outH; } else { W = 1600; H = 1200; }
   if(cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; }
-  if(state.img) ctx.drawImage(state.img, 0, 0, W, H); else drawPlaceholder(ctx, W, H);
+  if(state.img){ ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(state.img, 0, 0, W, H); } else drawPlaceholder(ctx, W, H);
   drawStamp(ctx, W, H);
   els.dims.textContent = (state.img ? 'export ' : 'placeholder ') + W + ' × ' + H;
 }
