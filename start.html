@@ -25,13 +25,13 @@ body{margin:0;background:radial-gradient(1200px 700px at 50% 30%,#0f1a33 0%,var(
 #clock{font-size:clamp(56px,9vw,120px);font-weight:200;letter-spacing:-2px;font-variant-numeric:tabular-nums}
 #date{color:var(--ink2);font-size:clamp(16px,1.6vw,20px);letter-spacing:.08em;text-transform:uppercase}
 #hello{font-size:clamp(20px,2.2vw,28px);margin-top:6px;color:var(--ink)}
-.orb{position:relative;width:180px;height:180px;margin-top:40px;border-radius:50%;border:0;cursor:pointer;color:#fff;
+.orb{position:relative;will-change:transform;width:180px;height:180px;margin-top:40px;border-radius:50%;border:0;cursor:pointer;color:#fff;
   font-size:20px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;
   background:radial-gradient(circle at 35% 30%,#7dd3fc,#2563eb 55%,#1e1b4b 100%);
   box-shadow:0 0 40px rgba(56,189,248,.45),0 0 120px rgba(129,140,248,.25),inset 0 0 30px rgba(255,255,255,.18);animation:breathe 4s ease-in-out infinite}
-.orb::before,.orb::after{content:"";position:absolute;inset:-18px;border-radius:50%;border:1px solid rgba(56,189,248,.35);animation:ring 4s ease-out infinite}
+.orb::before,.orb::after{content:"";position:absolute;inset:-18px;border-radius:50%;border:1px solid rgba(56,189,248,.35);animation:ring 4s ease-out infinite;will-change:transform,opacity}
 .orb::after{animation-delay:2s}
-@keyframes breathe{50%{transform:scale(1.04);box-shadow:0 0 60px rgba(56,189,248,.6),0 0 160px rgba(129,140,248,.3),inset 0 0 30px rgba(255,255,255,.2)}}
+@keyframes breathe{50%{transform:scale(1.04)}}
 @keyframes ring{0%{transform:scale(.9);opacity:.9}100%{transform:scale(1.5);opacity:0}}
 #introSub{color:var(--ink3);font-size:14px;margin-top:22px}
 /* ---- board ---- */
@@ -42,7 +42,7 @@ header{grid-column:1/-1;display:flex;align-items:baseline;justify-content:space-
 header h1{margin:0;font-size:clamp(22px,2.2vw,30px);font-weight:500}
 header .meta{color:var(--ink2);font-size:15px;font-variant-numeric:tabular-nums}
 .col{min-height:0;display:flex;flex-direction:column;gap:14px;overflow:auto;padding-right:4px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 18px;backdrop-filter:blur(6px)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 18px;}
 .card h2{margin:0 0 10px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);font-weight:600}
 /* timeline */
 .tl{list-style:none;margin:0;padding:0}
@@ -128,15 +128,18 @@ function tick(){const p=NY();const h=+p.hour;$('clock').textContent=`${h%12||12}
   $('hello').textContent=`${h<12?'Good morning':h<17?'Good afternoon':'Good evening'}, Kevin.`;}
 tick();setInterval(tick,10000);
 
-let G=null,CLIPS={};
+let G=null,CLIPS={},UPD='';
 const AUD=new Audio();
 async function loadAll(){
   G=await readJSON('data/guide.json');
-  try{const m=await readJSON('manifest.json?ref=voice');CLIPS=Object.fromEntries(Object.values((m&&m.items)||{}).map(x=>[String(x.text).trim(),x.file]));}catch(e){CLIPS={};}
+  try{const m=await readJSON('manifest.json?ref=voice');CLIPS=Object.fromEntries(Object.values((m&&m.items)||{}).map(x=>[String(x.text).trim(),x.file]));UPD=(m&&m.items&&m.items.update&&m.items.update.file)||'';}catch(e){CLIPS={};}
 }
+let BLOB=null,BLOBF='';
+async function prefetch(){const f=G&&(CLIPS[String(G.spoken||'').trim()]||UPD);if(!f||f===BLOBF)return;try{const r=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(f)}?ref=voice`,{cache:'no-store',headers:{'Authorization':`Bearer ${token()}`,'Accept':'application/vnd.github.raw'}});if(r.ok){BLOB=URL.createObjectURL(await r.blob());BLOBF=f;}}catch(e){}}
 async function playUpdate(){
+  if(G&&BLOB&&BLOBF===(CLIPS[String(G.spoken||'').trim()]||UPD)){try{AUD.src=BLOB;await AUD.play();return;}catch(e){}}
   if(!G)return;
-  const f=CLIPS[String(G.spoken||'').trim()];
+  const f=CLIPS[String(G.spoken||'').trim()]||UPD;
   try{
     if(f){const r=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(f)}?ref=voice`,{cache:'no-store',headers:{'Authorization':`Bearer ${token()}`,'Accept':'application/vnd.github.raw'}});
       if(r.ok){AUD.src=URL.createObjectURL(await r.blob());await AUD.play();return;}}
@@ -183,7 +186,7 @@ $('stopv').onclick=()=>{try{AUD.pause();}catch(e){}window.speechSynthesis&&speec
 $('exit').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();};
 $('checkin').onclick=e=>{e.preventDefault();location.href='checkin.html';};
 $('saveTok').onclick=()=>{const v=$('tok').value.trim();if(!v)return;try{localStorage.setItem('gh_token',v);}catch(e){}$('login').classList.add('hidden');loadAll().catch(()=>{});};
-if(!token())$('login').classList.remove('hidden');else loadAll().catch(()=>{});
+if(!token())$('login').classList.remove('hidden');else loadAll().then(prefetch).catch(()=>{});
 // Live: re-read every minute, so changes made in a morning talk with KevinOS show up on screen within about a minute.
 let LAST='';
 setInterval(async()=>{if(!token())return;try{await loadAll();if(G&&G.made!==LAST){LAST=G.made;render();const m=$('bmeta');if(m)m.dataset.upd='1';}}catch(e){}},60*1000);
