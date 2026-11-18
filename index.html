@@ -625,6 +625,7 @@
      keep their meaning everywhere — the tab color is identity, never status. */
   body{--tab:var(--amber)}
   body[data-tab="today"]{--tab:#ffb020}
+  body[data-tab="speak"]{--tab:#38bdf8}
   body[data-tab="cal"]{--tab:#6aa9ff}
   body[data-tab="money"]{--tab:#3ecf8e}
   body[data-tab="peak"]{--tab:#ff7a45}
@@ -955,6 +956,12 @@
     <div id="peak-body" class="loading">Loading…</div>
   </div>
 
+  <!-- SPEAK (2026-11-17, Kevin: "Just put it in kevinOS a speak tab"): check-in, journal, notes and holds by voice.
+       The page itself is checkin.html (same login, same storage); it loads the first time the tab opens. -->
+  <div class="view" id="v-speak">
+    <iframe id="speak-frame" title="Speak" allow="microphone; autoplay" style="width:100%;height:calc(100dvh - 150px);border:0;display:block;background:transparent"></iframe>
+  </div>
+
   <!-- BRIEF: industry intel + markets/world, split into two sections -->
   <div class="view" id="v-brief">
     <div class="top"><h1>Brief</h1><div class="sub" id="brief-date"></div></div>
@@ -1134,6 +1141,9 @@
   </button>
   <button data-v="today" class="on">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M19.4 4.6l-1.8 1.8M6.4 17.6l-1.8 1.8"/></svg><span>Today</span>
+  </button>
+  <button data-v="speak">
+    <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg><span>Speak</span>
   </button>
   <button data-v="cal">
     <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg><span>Cal</span>
@@ -2358,7 +2368,7 @@ async function renderToday(){
     sig.appendChild(b);
   }
   // 🎙 Check-in (2026-11-17): the secretary asks one hold at a time, out loud; answers save to KevinOS (checkin.html)
-  sigRow('🎙','<b>Check-in</b> · one at a time, out loud','',()=>{location.href='checkin.html';});
+  sigRow('🎙','<b>Check-in</b> · one at a time, out loud','',()=>goView('speak'));
   // TOP 3 — bold title + one action line; the coach's why: sits behind a tap (detail sheet)
   if(top3.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Top 3</div>');
@@ -6997,6 +7007,7 @@ function goView(v){
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active','from-r','from-l'));
   const el=$('v-'+v); if(el)el.classList.add('active',dir);
+  if(v==='speak'){const f=$('speak-frame');if(f&&!f.getAttribute('src'))f.setAttribute('src','checkin.html');}
   runRender(v);
   window.scrollTo(0,0);
 }
@@ -7033,7 +7044,7 @@ function goView(v){
     paint();
   }
 }
-const TAB_ORDER=['dump','dev','today','cal','money','peak','brief','edu','agents'].filter(t=>!OFF[t]);
+const TAB_ORDER=['dump','dev','today','speak','cal','money','peak','brief','edu','agents'].filter(t=>!OFF[t]);
 document.body.dataset.tab=currentView;
 /* sound toggle (Dump tab) — per phone, remembered */
 {
