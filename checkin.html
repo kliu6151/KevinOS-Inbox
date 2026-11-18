@@ -33,8 +33,20 @@ input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);ba
 </head>
 <body>
 <main>
-  <h1>KevinOS check-in</h1>
+  <h1>KevinOS</h1>
+  <div class="row" id="tabs" style="grid-template-columns:repeat(4,1fr);margin:6px 0 4px">
+    <button class="quick" data-tab="checkin">Check-in</button><button class="quick" data-tab="journal">Journal</button>
+    <button class="quick" data-tab="note">Note</button><button class="quick" data-tab="hold">Hold</button>
+  </div>
   <div class="sub" id="sub">One at a time. Answer out loud or tap.</div>
+
+  <section id="write" class="card hidden">
+    <div class="q" id="wtitle"></div>
+    <div class="muted" id="whint" style="margin-top:6px"></div>
+    <textarea id="wtext" style="min-height:180px"></textarea>
+    <div class="row"><button class="quick" id="wmic">🎤 Start talking</button><button class="big" id="wsave" style="padding:14px">Save</button></div>
+    <div class="step" id="wstatus"></div>
+  </section>
 
   <section id="login" class="card hidden">
     <div>This browser isn't signed in yet. Paste the KevinOS GitHub token once (the same one the app uses).</div>
@@ -86,7 +98,7 @@ async function api(path,opts={}){
   return r.json();
 }
 async function readFile(p){const j=await api(`contents/${p}`);return j&&j.content?dec(j.content):'';}
-const show=(id)=>['login','start','ask','end'].forEach(s=>$(s).classList.toggle('hidden',s!==id));
+const show=(id)=>['login','start','ask','end','write'].forEach(s=>$(s).classList.toggle('hidden',s!==id));
 const SAY=window.speechSynthesis||null;
 // Voice (2026-11-17, Kevin: "make it sound less robotic"): use the best English voice on the phone. iPhone's
 // Premium / Enhanced voices (downloaded in Settings) sound far more natural than the default; pick one, it's remembered.
@@ -174,7 +186,53 @@ $('talk').onclick=()=>{
   r.onerror=()=>{$('talk').textContent='🎤 Talk';$('said').focus();};
   r.start();
 };
-load();
+// ---- Journal · Note · Hold by voice (2026-11-17, Kevin: "for the journal i want to be able to talk to it") ----
+// Each saves one file to the private repo; the mini PC files it within 30 minutes (ops/talk-apply.js):
+// journal → today's daily note under "## My journal" as said; note → the inbox, sorted in the morning like the Dump;
+// hold → a hold with his reason and day ("7523, waiting on the permit, check Monday").
+const MODES={
+  journal:{title:'Journal',hint:"Just talk. Whatever's on your mind. It goes into today's journal exactly as you said it.",
+    path:()=>`inbox/journal/${stamp()}.txt`,msg:'journal (voice)'},
+  note:{title:'Quick note',hint:"Anything to remember or do. It gets sorted into your tasks and calendar in the morning.",
+    path:()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `inbox/dump-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.md`;},msg:'inbox: voice note'},
+  hold:{title:'Hold something',hint:'Say the job and why, and when to look again. Like: "7523, waiting on the permit, check Monday."',
+    path:()=>`inbox/hold/${stamp()}.txt`,msg:'hold (voice)'},
+};
+let MODE='checkin',REC=null;
+function setTab(t){
+  MODE=MODES[t]?t:'checkin';
+  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('done',b.dataset.tab===MODE));
+  stopMic();
+  if(MODE==='checkin'){$('sub').textContent='One at a time. Answer out loud or tap.';if(token())show('start');else show('login');return;}
+  if(!token()){show('login');return;}
+  const m=MODES[MODE];$('sub').textContent='Talk, then Save.';$('wtitle').textContent=m.title;$('whint').textContent=m.hint;
+  $('wtext').value=ls('talk-draft-'+MODE);$('wstatus').textContent='';show('write');
+}
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{history.replaceState(null,'','#'+b.dataset.tab);setTab(b.dataset.tab);});
+$('wtext').oninput=()=>{try{localStorage.setItem('talk-draft-'+MODE,$('wtext').value);}catch(e){}};
+function stopMic(){if(REC){try{REC.stop();}catch(e){}REC=null;}$('wmic').textContent=SR?'🎤 Start talking':'🎤 Use the keyboard mic';}
+$('wmic').onclick=()=>{
+  if(!SR){$('wtext').focus();return;}
+  if(REC){stopMic();return;}
+  SAY&&SAY.cancel();
+  const r=new SR();r.lang='en-US';r.continuous=true;r.interimResults=false;
+  r.onresult=e=>{for(let k=e.resultIndex;k<e.results.length;k++)if(e.results[k].isFinal){const t=e.results[k][0].transcript.trim();$('wtext').value=($('wtext').value.trim()+' '+t).trim();$('wtext').oninput();}};
+  r.onend=()=>{if(REC===r){try{r.start();}catch(e){stopMic();}}};// keep listening through pauses until you tap Stop
+  r.onerror=()=>{stopMic();$('wtext').focus();};
+  REC=r;$('wmic').textContent='⏹ Stop';r.start();
+};
+$('wsave').onclick=async()=>{
+  stopMic();
+  const text=$('wtext').value.trim();if(!text){$('wstatus').textContent='Nothing to save yet.';return;}
+  const m=MODES[MODE];$('wsave').disabled=true;$('wstatus').textContent='Saving…';
+  try{
+    await api(`contents/${m.path()}`,{method:'PUT',body:JSON.stringify({message:m.msg,content:enc(text+'\n')})});
+    $('wtext').value='';try{localStorage.removeItem('talk-draft-'+MODE);}catch(e){}
+    $('wstatus').textContent=MODE==='journal'?'Saved. It goes into today\'s journal within 30 minutes.':MODE==='hold'?'Saved. It becomes a hold within 30 minutes.':'Saved. Sorted in the morning.';
+  }catch(e){$('wstatus').textContent='Not saved: '+e.message+'. Your words are kept here; try again.';}
+  finally{$('wsave').disabled=false;}
+};
+load().then(()=>{const t=(location.hash||'').slice(1);setTab(MODES[t]?t:'checkin');});
 </script>
 </body>
 </html>
