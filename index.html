@@ -2357,6 +2357,8 @@ async function renderToday(){
     b.onclick=()=>say(speech(),mark);
     sig.appendChild(b);
   }
+  // 🎙 Check-in (2026-11-17): the secretary asks one hold at a time, out loud; answers save to KevinOS (checkin.html)
+  sigRow('🎙','<b>Check-in</b> · one at a time, out loud','',()=>{location.href='checkin.html';});
   // TOP 3 — bold title + one action line; the coach's why: sits behind a tap (detail sheet)
   if(top3.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Top 3</div>');
