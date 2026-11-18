@@ -58,10 +58,13 @@ input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);ba
     <button class="big" id="go">Start check-in</button>
     <div class="row"><button class="quick" id="upd">Play the update</button><button class="quick" id="stop">Stop talking</button></div>
     <div class="step" id="count"></div>
-    <div class="step" style="margin-top:14px">Voice
-      <select id="voice" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;margin-top:6px"></select>
-      <button class="quick" id="testv" style="margin-top:8px;width:100%">Test this voice</button>
-      <div class="muted" id="vhint" style="margin-top:6px"></div>
+    <div class="step" style="margin-top:14px"><b>Voice: Heart</b> <span id="heartok" class="muted"></span>
+      <button class="quick" id="testheart" style="margin-top:8px;width:100%">Hear the Heart voice</button>
+      <details style="margin-top:10px"><summary class="muted">Backup voice (only used if a Heart clip isn't ready yet)</summary>
+        <select id="voice" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;margin-top:6px"></select>
+        <button class="quick" id="testv" style="margin-top:8px;width:100%">Test the backup voice</button>
+        <div class="muted" id="vhint" style="margin-top:6px"></div>
+      </details>
     </div>
   </section>
 
@@ -106,7 +109,11 @@ let VOICES=[];
 const vScore=v=>(/premium/i.test(v.name)?3:/enhanced|neural|natural/i.test(v.name)?2:0)+(/^en[-_]US/i.test(v.lang)?1:0);
 function loadVoices(){
   if(!SAY)return;
-  VOICES=SAY.getVoices().filter(v=>/^en/i.test(v.lang)).sort((a,b)=>vScore(b)-vScore(a)||a.name.localeCompare(b.name));
+  // Apple's joke voices (Albert, Zarvox, Bells…) are never a sensible backup: leave them out.
+  const NOVELTY=/^(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|fred|junior|ralph|kathy|grandma|grandpa|rocko|shelley|sandy|eddy|flo|reed)\b/i;
+  const SAFE=/^(samantha|ava|zoe|allison|susan|evan|nathan|tom|noelle|siri)/i;
+  VOICES=SAY.getVoices().filter(v=>/^en/i.test(v.lang)&&!NOVELTY.test(v.name))
+    .sort((a,b)=>vScore(b)-vScore(a)||(SAFE.test(b.name)?1:0)-(SAFE.test(a.name)?1:0)||a.name.localeCompare(b.name));
   const keep=ls('ck-voice'),sel=$('voice');
   sel.innerHTML=VOICES.map(v=>`<option value="${v.voiceURI}">${v.name} (${v.lang})${vScore(v)>=2?' ★':''}</option>`).join('');
   const pick=VOICES.find(v=>v.voiceURI===keep)||VOICES[0];
@@ -123,6 +130,7 @@ const SILENT='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAAB
 function unlockAudio(){try{AUD.src=SILENT;AUD.play().catch(()=>{});}catch(e){}}
 async function loadClips(){
   try{const j=await api('contents/manifest.json?ref=voice');if(j&&j.content){const m=JSON.parse(dec(j.content));CLIPS=Object.fromEntries(Object.values(m.items||{}).map(x=>[String(x.text).trim(),x.file]));}}catch(e){CLIPS={};}
+  const ok=$('heartok');if(ok)ok.textContent=Object.keys(CLIPS).length?'✓ ready':'(not ready yet)';
 }
 async function playClip(file){
   const r=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(file)}?ref=voice`,{cache:'no-store',headers:{'Authorization':`Bearer ${token()}`,'Accept':'application/vnd.github.raw'}});
@@ -137,6 +145,13 @@ async function say(t){
 }
 if(SAY){loadVoices();SAY.onvoiceschanged=loadVoices;}
 $('voice').onchange=()=>{try{localStorage.setItem('ck-voice',$('voice').value);}catch(e){}};
+$('testheart').onclick=async()=>{
+  unlockAudio();
+  if(!Object.keys(CLIPS).length)await loadClips();
+  const f=CLIPS["That's everything. Thanks."]||CLIPS[Object.keys(CLIPS)[0]];
+  if(!f){$('heartok').textContent='(clips not made yet; the mini PC makes them every 30 minutes)';return;}
+  try{await playClip(f);}catch(e){$('heartok').textContent='(could not play: '+e.message+')';}
+};
 $('testv').onclick=()=>sayPhone("Morning. Three things came back today. First one: Amster, the go-back was Friday. Done?");
 const stamp=()=>{const d=new Date();const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;};
 
