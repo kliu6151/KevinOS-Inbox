@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05070d">
+<title>KevinOS</title>
+<!--
+  KevinOS start screen for the computer (2026-11-17). Kevin: "I log onto my computer and it really does feel like an
+  assistant … in the middle is just like a start … I click start and then it uses up the whole screen … and it really
+  breaks down what we should do for the day." No money on it (money is a month-end review).
+  Reads data/guide.json (ops/guide.js, every 30 min) from the private KevinOS repo with the app's GitHub token
+  (localStorage gh_token) and plays the update in Kevin's chosen voice (Kokoro "Heart", the repo's `voice` branch).
+  No data lives in this public file.
+-->
+<style>
+:root{--bg:#05070d;--bg2:#0b1120;--card:rgba(20,28,47,.72);--line:rgba(120,150,200,.16);--ink:#eef3fb;--ink2:#9fb0c8;--ink3:#64748b;
+  --accent:#38bdf8;--accent2:#818cf8;--good:#34d399;--warn:#fbbf24}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;background:radial-gradient(1200px 700px at 50% 30%,#0f1a33 0%,var(--bg) 60%);color:var(--ink);
+  font:16px/1.45 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+.hidden{display:none!important}
+/* ---- intro ---- */
+#intro{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:24px}
+#clock{font-size:clamp(56px,9vw,120px);font-weight:200;letter-spacing:-2px;font-variant-numeric:tabular-nums}
+#date{color:var(--ink2);font-size:clamp(16px,1.6vw,20px);letter-spacing:.08em;text-transform:uppercase}
+#hello{font-size:clamp(20px,2.2vw,28px);margin-top:6px;color:var(--ink)}
+.orb{position:relative;width:180px;height:180px;margin-top:40px;border-radius:50%;border:0;cursor:pointer;color:#fff;
+  font-size:20px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;
+  background:radial-gradient(circle at 35% 30%,#7dd3fc,#2563eb 55%,#1e1b4b 100%);
+  box-shadow:0 0 40px rgba(56,189,248,.45),0 0 120px rgba(129,140,248,.25),inset 0 0 30px rgba(255,255,255,.18);animation:breathe 4s ease-in-out infinite}
+.orb::before,.orb::after{content:"";position:absolute;inset:-18px;border-radius:50%;border:1px solid rgba(56,189,248,.35);animation:ring 4s ease-out infinite}
+.orb::after{animation-delay:2s}
+@keyframes breathe{50%{transform:scale(1.04);box-shadow:0 0 60px rgba(56,189,248,.6),0 0 160px rgba(129,140,248,.3),inset 0 0 30px rgba(255,255,255,.2)}}
+@keyframes ring{0%{transform:scale(.9);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+#introSub{color:var(--ink3);font-size:14px;margin-top:22px}
+/* ---- board ---- */
+#board{height:100%;display:grid;grid-template-columns:1.25fr 1fr 1fr;grid-template-rows:auto 1fr auto;gap:18px;padding:22px 26px;
+  animation:rise .6s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+header{grid-column:1/-1;display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+header h1{margin:0;font-size:clamp(22px,2.2vw,30px);font-weight:500}
+header .meta{color:var(--ink2);font-size:15px;font-variant-numeric:tabular-nums}
+.col{min-height:0;display:flex;flex-direction:column;gap:14px;overflow:auto;padding-right:4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 18px;backdrop-filter:blur(6px)}
+.card h2{margin:0 0 10px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);font-weight:600}
+/* timeline */
+.tl{list-style:none;margin:0;padding:0}
+.tl li{display:grid;grid-template-columns:64px 14px 1fr;gap:10px;align-items:start;padding:7px 0}
+.tl .t{color:var(--ink2);font-variant-numeric:tabular-nums;font-size:14px;padding-top:2px;text-align:right}
+.tl .dot{width:10px;height:10px;border-radius:50%;margin-top:6px;background:var(--ink3);box-shadow:0 0 0 3px rgba(100,116,139,.15)}
+.tl li.appt .dot{background:var(--accent2)}
+.tl li.now .dot{background:var(--accent);box-shadow:0 0 0 4px rgba(56,189,248,.25),0 0 18px rgba(56,189,248,.7)}
+.tl li.past{opacity:.38}
+.tl li.now .x{font-weight:600}
+.tl .x{font-size:15px}.tl .k{color:var(--ink3);font-size:12px;margin-top:2px}
+/* now card */
+#now .big{font-size:clamp(20px,1.9vw,26px);line-height:1.3;font-weight:600}
+#now .after{color:var(--ink2);margin-top:10px;font-size:14px}
+.pill{display:inline-block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);border:1px solid rgba(56,189,248,.4);border-radius:999px;padding:2px 9px;margin-bottom:8px}
+.list{margin:0;padding:0;list-style:none}.list li{padding:7px 0;border-top:1px solid var(--line);font-size:15px}.list li:first-child{border-top:0}
+.list .s{color:var(--ink3);font-size:12px}
+.fp .lab{font-weight:600}.fp .n{color:var(--accent);font-variant-numeric:tabular-nums;margin-left:6px}
+.fp .who{color:var(--ink2);font-size:13px;margin-top:2px}
+footer{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.btn{border:1px solid var(--line);background:rgba(20,28,47,.8);color:var(--ink);border-radius:12px;padding:11px 16px;font:inherit;cursor:pointer;text-decoration:none}
+.btn:hover{border-color:rgba(56,189,248,.5)}
+.btn.primary{background:linear-gradient(135deg,#0284c7,#4f46e5);border:0}
+.muted{color:var(--ink3);font-size:13px}
+#login{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg)}
+#login .card{width:min(460px,92vw)}
+#login input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--ink);font:inherit;margin:10px 0}
+@media (max-width:1000px){body{overflow:auto}#board{grid-template-columns:1fr;height:auto}}
+@media (prefers-reduced-motion:reduce){.orb,.orb::before,.orb::after,#board{animation:none}}
+</style>
+</head>
+<body>
+<section id="intro">
+  <div id="clock">--:--</div>
+  <div id="date"></div>
+  <div id="hello">Good morning, Kevin.</div>
+  <button class="orb" id="start" aria-label="Start my day">Start</button>
+  <div id="introSub">Press Start. Space or Enter works too.</div>
+</section>
+
+<section id="board" class="hidden">
+  <header><h1 id="bhello"></h1><div class="meta" id="bmeta"></div></header>
+  <div class="col">
+    <div class="card"><h2>Your day</h2><ul class="tl" id="tl"></ul></div>
+  </div>
+  <div class="col">
+    <div class="card" id="now"><span class="pill" id="nowpill">Right now</span><div class="big" id="nowtitle"></div><div class="after" id="nowafter"></div></div>
+    <div class="card"><h2 id="backh">Came back to check</h2><ul class="list" id="back"></ul></div>
+    <div class="card"><h2 id="todoh">On your list</h2><ul class="list" id="todo"></ul></div>
+  </div>
+  <div class="col">
+    <div class="card fp"><h2 id="fph">FieldPacket work</h2><ul class="list" id="fp"></ul></div>
+    <div class="card"><h2>Team</h2><div id="team" class="muted"></div></div>
+  </div>
+  <footer>
+    <button class="btn primary" id="replay">▶ Play the update</button>
+    <button class="btn" id="stopv">■ Stop</button>
+    <a class="btn" href="index.html" id="checkin">🎙 Check-in</a>
+    <a class="btn" href="checkin.html#journal">Journal</a>
+    <a class="btn" href="https://www.getfieldpacket.com" target="_blank" rel="noopener">Open FieldPacket</a>
+    <button class="btn" id="exit">Exit full screen</button>
+  </footer>
+</section>
+
+<div id="login" class="hidden"><div class="card"><h2>Sign in once</h2>
+  <div class="muted">Paste the KevinOS GitHub token (the same one the app uses). It stays in this browser only.</div>
+  <input id="tok" type="password" autocomplete="off" placeholder="github_pat_..."><button class="btn primary" id="saveTok">Save</button></div></div>
+
+<script>
+const OWNER='kliu6151',REPO='KevinOS';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ls=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
+const token=()=>ls('gh_token');
+const dec=b=>decodeURIComponent(escape(atob(String(b).replace(/\n/g,''))));
+async function api(path){const r=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/${path}`,{cache:'no-store',headers:{'Authorization':`Bearer ${token()}`,'Accept':'application/vnd.github+json'}});if(r.status===404)return null;if(!r.ok)throw new Error(r.status);return r.json();}
+async function readJSON(p){const j=await api(`contents/${p}`);return j&&j.content?JSON.parse(dec(j.content)):null;}
+
+const NY=()=>Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',hourCycle:'h23',weekday:'long',month:'long',day:'numeric'}).formatToParts(new Date()).map(x=>[x.type,x.value]));
+const nowHM=()=>{const p=NY();return `${String(p.hour).padStart(2,'0')}:${p.minute}`;};
+const t12=hm=>{const [h,m]=hm.split(':').map(Number);return `${h%12||12}:${String(m).padStart(2,'0')} ${h<12?'AM':'PM'}`;};
+function tick(){const p=NY();const h=+p.hour;$('clock').textContent=`${h%12||12}:${p.minute}`;$('date').textContent=`${p.weekday}, ${p.month} ${p.day}`;
+  $('hello').textContent=`${h<12?'Good morning':h<17?'Good afternoon':'Good evening'}, Kevin.`;}
+tick();setInterval(tick,10000);
+
+let G=null,CLIPS={};
+const AUD=new Audio();
+async function loadAll(){
+  G=await readJSON('data/guide.json');
+  try{const m=await readJSON('manifest.json?ref=voice');CLIPS=Object.fromEntries(Object.values((m&&m.items)||{}).map(x=>[String(x.text).trim(),x.file]));}catch(e){CLIPS={};}
+}
+async function playUpdate(){
+  if(!G)return;
+  const f=CLIPS[String(G.spoken||'').trim()];
+  try{
+    if(f){const r=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(f)}?ref=voice`,{cache:'no-store',headers:{'Authorization':`Bearer ${token()}`,'Accept':'application/vnd.github.raw'}});
+      if(r.ok){AUD.src=URL.createObjectURL(await r.blob());await AUD.play();return;}}
+  }catch(e){}
+  if(window.speechSynthesis){const u=new SpeechSynthesisUtterance(G.spoken||'');speechSynthesis.cancel();speechSynthesis.speak(u);}
+}
+function render(){
+  if(!G)return;
+  const p=NY(),hm=nowHM();
+  $('bhello').textContent=(G.greeting||'').replace(/\s*Okay.*$/,'').replace(/^(Morning|Afternoon|Evening)/,(m)=>`Good ${m.toLowerCase()}`);
+  $('bmeta').textContent=`${p.weekday}, ${p.month} ${p.day} · ${t12(hm)} · updated ${G.made?new Date(G.made).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):'?'}`;
+  // timeline
+  const plan=(G.plan||[]).filter(b=>/^\d{2}:\d{2}$/.test(b.time));
+  let nowIdx=-1;for(let i=0;i<plan.length;i++)if(plan[i].time<=hm)nowIdx=i;
+  $('tl').innerHTML=plan.length?plan.map((b,i)=>`<li class="${b.kind==='appointment'?'appt ':''}${i<nowIdx?'past':i===nowIdx?'now':''}"><span class="t">${t12(b.time)}</span><span class="dot"></span><span><div class="x">${esc(b.title)}</div>${b.kind&&b.kind!=='task'?`<div class="k">${esc(b.kind)}</div>`:''}</span></li>`).join(''):'<li><span></span><span></span><span class="muted">No plan for today yet. Sunday planning or tonight\'s check-in builds it.</span></li>';
+  // right now
+  const cur=plan[nowIdx],next=plan[nowIdx+1];
+  if(cur){$('nowpill').textContent='Right now';$('nowtitle').textContent=cur.title;$('nowafter').textContent=next?`Next at ${t12(next.time)}: ${next.title}`:'That\'s the last block today.';}
+  else if(next){$('nowpill').textContent='First up';$('nowtitle').textContent=next.title;$('nowafter').textContent=`At ${t12(next.time)}.`;}
+  else{$('nowpill').textContent='Today';$('nowtitle').textContent=(G.todo&&G.todo[0]&&G.todo[0].title)||'Nothing scheduled.';$('nowafter').textContent='';}
+  // came back
+  const back=G.back||[];$('backh').textContent=`Came back to check (${back.length})`;
+  $('back').innerHTML=back.length?back.map(b=>`<li><b>${esc(b.ref)}</b><div class="s">${esc(b.text)}</div></li>`).join(''):`<li class="muted">Nothing came back today. ${G.held&&G.held.count?`${G.held.count} on hold and fine${G.held.next?`, next one back ${G.held.next}`:''}.`:''}</li>`;
+  // to do
+  const todo=G.todo||[];$('todoh').textContent=`On your list (${todo.length})`;
+  $('todo').innerHTML=todo.length?todo.slice(0,8).map(t=>`<li>${esc(t.title)}${t.sub?`<div class="s">${esc(t.sub)}</div>`:''}</li>`).join('')+(todo.length>8?`<li class="muted">+${todo.length-8} more</li>`:''):'<li class="muted">Nothing due.</li>';
+  // fieldpacket
+  const fp=(G.fieldpacket&&G.fieldpacket.work)||[];$('fph').textContent=`FieldPacket work${G.fieldpacket&&!G.fieldpacket.fresh?' (earlier list)':''}`;
+  $('fp').innerHTML=fp.length?fp.map(w=>`<li><span class="lab">${esc(w.label)}</span><span class="n">${w.count}</span><div class="who">${esc(w.names.join(', '))}${w.more?`, +${w.more} more`:''}</div></li>`).join(''):'<li class="muted">Nothing from FieldPacket today.</li>';
+  // team
+  const c=G.cris;$('team').innerHTML=c?`Cris this week: <b style="color:var(--ink)">${c.calls}</b> calls · ${c.conversations} conversations · ${c.talkMin} talk min`:'No call numbers yet.';
+}
+async function start(){
+  try{if(document.documentElement.requestFullscreen&&!document.fullscreenElement)await document.documentElement.requestFullscreen();}catch(e){}
+  AUD.play().catch(()=>{});
+  $('intro').classList.add('hidden');$('board').classList.remove('hidden');
+  if(!G)await loadAll().catch(()=>{});
+  render();playUpdate();
+}
+$('start').onclick=start;
+document.addEventListener('keydown',e=>{if(!$('intro').classList.contains('hidden')&&(e.key===' '||e.key==='Enter')){e.preventDefault();start();}});
+$('replay').onclick=playUpdate;
+$('stopv').onclick=()=>{try{AUD.pause();}catch(e){}window.speechSynthesis&&speechSynthesis.cancel();};
+$('exit').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();};
+$('checkin').onclick=e=>{e.preventDefault();location.href='checkin.html';};
+$('saveTok').onclick=()=>{const v=$('tok').value.trim();if(!v)return;try{localStorage.setItem('gh_token',v);}catch(e){}$('login').classList.add('hidden');loadAll().catch(()=>{});};
+if(!token())$('login').classList.remove('hidden');else loadAll().catch(()=>{});
+// Live: re-read every minute, so changes made in a morning talk with KevinOS show up on screen within about a minute.
+let LAST='';
+setInterval(async()=>{if(!token())return;try{await loadAll();if(G&&G.made!==LAST){LAST=G.made;render();const m=$('bmeta');if(m)m.dataset.upd='1';}}catch(e){}},60*1000);
+setInterval(()=>{if(!$('board').classList.contains('hidden'))render();},60*1000);
+</script>
+</body>
+</html>
