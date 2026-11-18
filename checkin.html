@@ -46,6 +46,11 @@ input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);ba
     <button class="big" id="go">Start check-in</button>
     <div class="row"><button class="quick" id="upd">Play the update</button><button class="quick" id="stop">Stop talking</button></div>
     <div class="step" id="count"></div>
+    <div class="step" style="margin-top:14px">Voice
+      <select id="voice" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;margin-top:6px"></select>
+      <button class="quick" id="testv" style="margin-top:8px;width:100%">Test this voice</button>
+      <div class="muted" id="vhint" style="margin-top:6px"></div>
+    </div>
   </section>
 
   <section id="ask" class="card hidden">
@@ -83,7 +88,24 @@ async function api(path,opts={}){
 async function readFile(p){const j=await api(`contents/${p}`);return j&&j.content?dec(j.content):'';}
 const show=(id)=>['login','start','ask','end'].forEach(s=>$(s).classList.toggle('hidden',s!==id));
 const SAY=window.speechSynthesis||null;
-function say(t){return new Promise(res=>{if(!SAY){res();return;}SAY.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=1.05;u.onend=res;u.onerror=res;SAY.speak(u);});}
+// Voice (2026-11-17, Kevin: "make it sound less robotic"): use the best English voice on the phone. iPhone's
+// Premium / Enhanced voices (downloaded in Settings) sound far more natural than the default; pick one, it's remembered.
+let VOICES=[];
+const vScore=v=>(/premium/i.test(v.name)?3:/enhanced|neural|natural/i.test(v.name)?2:0)+(/^en[-_]US/i.test(v.lang)?1:0);
+function loadVoices(){
+  if(!SAY)return;
+  VOICES=SAY.getVoices().filter(v=>/^en/i.test(v.lang)).sort((a,b)=>vScore(b)-vScore(a)||a.name.localeCompare(b.name));
+  const keep=ls('ck-voice'),sel=$('voice');
+  sel.innerHTML=VOICES.map(v=>`<option value="${v.voiceURI}">${v.name} (${v.lang})${vScore(v)>=2?' ★':''}</option>`).join('');
+  const pick=VOICES.find(v=>v.voiceURI===keep)||VOICES[0];
+  if(pick)sel.value=pick.voiceURI;
+  $('vhint').textContent=VOICES.some(v=>vScore(v)>=2)?'★ = natural-sounding voice.':'For a more natural voice: iPhone Settings, Accessibility, Spoken Content, Voices, English, download a Premium or Enhanced voice (Ava, Zoe, Evan, Nathan), then reopen this page.';
+}
+const voice=()=>VOICES.find(v=>v.voiceURI===$('voice').value)||null;
+function say(t){return new Promise(res=>{if(!SAY){res();return;}SAY.cancel();const u=new SpeechSynthesisUtterance(t);const v=voice();if(v){u.voice=v;u.lang=v.lang;}u.rate=1.0;u.pitch=1.0;u.onend=res;u.onerror=res;SAY.speak(u);});}
+if(SAY){loadVoices();SAY.onvoiceschanged=loadVoices;}
+$('voice').onchange=()=>{try{localStorage.setItem('ck-voice',$('voice').value);}catch(e){}};
+$('testv').onclick=()=>say("Morning. Three things came back today. First one: Amster, the go-back was Friday. Done?");
 const stamp=()=>{const d=new Date();const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;};
 
 let QS=[],i=0;
