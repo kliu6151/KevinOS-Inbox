@@ -102,10 +102,30 @@ function loadVoices(){
   $('vhint').textContent=VOICES.some(v=>vScore(v)>=2)?'★ = natural-sounding voice.':'For a more natural voice: iPhone Settings, Accessibility, Spoken Content, Voices, English, download a Premium or Enhanced voice (Ava, Zoe, Evan, Nathan), then reopen this page.';
 }
 const voice=()=>VOICES.find(v=>v.voiceURI===$('voice').value)||null;
-function say(t){return new Promise(res=>{if(!SAY){res();return;}SAY.cancel();const u=new SpeechSynthesisUtterance(t);const v=voice();if(v){u.voice=v;u.lang=v.lang;}u.rate=1.0;u.pitch=1.0;u.onend=res;u.onerror=res;SAY.speak(u);});}
+function sayPhone(t){return new Promise(res=>{if(!SAY){res();return;}SAY.cancel();const u=new SpeechSynthesisUtterance(t);const v=voice();if(v){u.voice=v;u.lang=v.lang;}u.rate=1.0;u.pitch=1.0;u.onend=res;u.onerror=res;SAY.speak(u);});}
+// Kevin's chosen voice (Kokoro "Heart", made on the mini PC by ops/voice/render.js and kept on the private repo's
+// `voice` branch). A line plays as that clip when one matches its exact text; otherwise the phone voice reads it.
+let CLIPS={};
+const AUD=new Audio();
+const SILENT='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+function unlockAudio(){try{AUD.src=SILENT;AUD.play().catch(()=>{});}catch(e){}}
+async function loadClips(){
+  try{const j=await api('contents/manifest.json?ref=voice');if(j&&j.content){const m=JSON.parse(dec(j.content));CLIPS=Object.fromEntries(Object.values(m.items||{}).map(x=>[String(x.text).trim(),x.file]));}}catch(e){CLIPS={};}
+}
+async function playClip(file){
+  const r=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURIComponent(file)}?ref=voice`,{cache:'no-store',headers:{'Authorization':`Bearer ${token()}`,'Accept':'application/vnd.github.raw'}});
+  if(!r.ok)throw new Error('clip '+r.status);
+  AUD.src=URL.createObjectURL(await r.blob());
+  await new Promise((res,rej)=>{AUD.onended=res;AUD.onerror=rej;AUD.play().catch(rej);});
+}
+async function say(t){
+  const f=CLIPS[String(t||'').trim()];
+  if(f){try{SAY&&SAY.cancel();await playClip(f);return;}catch(e){/* fall back to the phone voice */}}
+  return sayPhone(t);
+}
 if(SAY){loadVoices();SAY.onvoiceschanged=loadVoices;}
 $('voice').onchange=()=>{try{localStorage.setItem('ck-voice',$('voice').value);}catch(e){}};
-$('testv').onclick=()=>say("Morning. Three things came back today. First one: Amster, the go-back was Friday. Done?");
+$('testv').onclick=()=>sayPhone("Morning. Three things came back today. First one: Amster, the go-back was Friday. Done?");
 const stamp=()=>{const d=new Date();const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;};
 
 let QS=[],i=0;
@@ -116,6 +136,7 @@ async function load(){
     const t=(await readFile('data/checkin-today.txt')).trim();
     QS=t.split('\n').map(l=>l.trim()).filter(Boolean).filter(l=>!l.startsWith('none|')).map(l=>{const k=l.indexOf('|');return {ref:l.slice(0,k),q:l.slice(k+1)};});
     $('count').textContent=QS.length?`${QS.length} to check today.`:'Nothing to check today.';
+    loadClips();
     if(new URLSearchParams(location.search).has('update'))$('upd').classList.add('done');
   }catch(e){$('err').textContent='Could not read KevinOS: '+e.message;}
 }
@@ -136,11 +157,11 @@ async function answer(text){
   finally{$('send').disabled=false;}
 }
 $('saveTok').onclick=()=>{const v=$('tok').value.trim();if(!v)return;try{localStorage.setItem('gh_token',v);}catch(e){}load();};
-$('go').onclick=()=>{i=0;ask();};
-$('upd').onclick=async()=>{try{const t=await readFile('data/guide-spoken.txt');await say(t||'No update yet.');}catch(e){$('err').textContent=e.message;}};
-$('stop').onclick=()=>SAY&&SAY.cancel();
-document.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>answer(b.dataset.a));
-$('send').onclick=()=>answer($('said').value);
+$('go').onclick=()=>{unlockAudio();i=0;ask();};
+$('upd').onclick=async()=>{unlockAudio();try{const t=await readFile('data/guide-spoken.txt');await say(t.trim()||'No update yet.');}catch(e){$('err').textContent=e.message;}};
+$('stop').onclick=()=>{SAY&&SAY.cancel();try{AUD.pause();}catch(e){}};
+document.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{unlockAudio();answer(b.dataset.a);});
+$('send').onclick=()=>{unlockAudio();answer($('said').value);};
 // 🎤 Talk: the browser's own speech recognition when the phone allows it; otherwise the keyboard mic in the box.
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 if(!SR)$('talk').textContent='🎤 Use the keyboard mic';
