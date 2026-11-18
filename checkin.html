@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#060A12">
+<title>KevinOS Check-in</title>
+<!--
+  KevinOS check-in (2026-11-17). One question at a time, read out loud, answered by voice or a tap.
+  Kevin: "if it's a summary it'll list a bunch of things and when I answer I won't be able to remember it all".
+  Reads data/checkin-today.txt and data/guide-spoken.txt from the private KevinOS repo with the same GitHub token as the
+  app (localStorage gh_token); each answer is saved as inbox/checkin/<ref>-<time>.txt, which the mini PC turns into
+  hold updates within 30 minutes (ops/checkin.js). No data lives in this public file.
+  Siri: a shortcut with one action, "Open URLs" → this page. "?update" plays the short update first.
+-->
+<style>
+:root{--bg:#0b1120;--card:#141c2f;--ink:#f1f5f9;--ink2:#9fb0c8;--blue:#2a78d6;--green:#1baf7a;--line:#25324d}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--bg:#f6f7f9;--card:#fff;--ink:#0b0b0b;--ink2:#52514e;--line:#e3e5ea}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.45 -apple-system,system-ui,Segoe UI,Roboto,sans-serif}
+main{max-width:560px;margin:0 auto;padding:max(18px,env(safe-area-inset-top)) 16px 40px}
+h1{font-size:20px;margin:6px 0 2px}.sub{color:var(--ink2);font-size:14px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin:12px 0}
+.q{font-size:22px;line-height:1.35;font-weight:600}.ref{color:var(--ink2);font-size:13px;margin-bottom:6px}
+button{font:inherit;border:0;border-radius:12px;padding:14px 16px;cursor:pointer}
+.big{width:100%;background:var(--blue);color:#fff;font-size:19px;font-weight:600;padding:18px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.quick{background:var(--line);color:var(--ink)}.quick.done{background:var(--green);color:#fff}
+textarea{width:100%;min-height:84px;margin-top:14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;padding:12px}
+.muted{color:var(--ink2);font-size:14px}.hidden{display:none}
+input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;margin:8px 0}
+.step{color:var(--ink2);font-size:14px;margin-top:8px}
+</style>
+</head>
+<body>
+<main>
+  <h1>KevinOS check-in</h1>
+  <div class="sub" id="sub">One at a time. Answer out loud or tap.</div>
+
+  <section id="login" class="card hidden">
+    <div>This browser isn't signed in yet. Paste the KevinOS GitHub token once (the same one the app uses).</div>
+    <input id="tok" type="password" autocomplete="off" placeholder="github_pat_...">
+    <button class="big" id="saveTok">Save</button>
+  </section>
+
+  <section id="start" class="card hidden">
+    <button class="big" id="go">Start check-in</button>
+    <div class="row"><button class="quick" id="upd">Play the update</button><button class="quick" id="stop">Stop talking</button></div>
+    <div class="step" id="count"></div>
+  </section>
+
+  <section id="ask" class="card hidden">
+    <div class="ref" id="ref"></div>
+    <div class="q" id="q"></div>
+    <div class="row">
+      <button class="quick done" data-a="done">Done</button>
+      <button class="quick" data-a="still waiting">Still waiting</button>
+      <button class="quick" data-a="skip">Skip for today</button>
+      <button class="quick" data-a="next week">Next week</button>
+    </div>
+    <textarea id="said" placeholder="Or say what changed (tap here, then the mic on your keyboard)"></textarea>
+    <div class="row"><button class="quick" id="talk">🎤 Talk</button><button class="big" id="send" style="padding:14px">Save and next</button></div>
+    <div class="step" id="pos"></div>
+  </section>
+
+  <section id="end" class="card hidden"><div class="q" id="endmsg">That's everything. Thanks.</div>
+    <div class="muted" style="margin-top:8px">Your answers update KevinOS within 30 minutes.</div></section>
+
+  <div class="muted" id="err"></div>
+</main>
+<script>
+const OWNER='kliu6151',REPO='KevinOS';
+const $=id=>document.getElementById(id);
+const ls=k=>{try{return localStorage.getItem(k)||'';}catch(e){return '';}};
+const token=()=>ls('gh_token');
+const enc=s=>btoa(unescape(encodeURIComponent(s)));
+const dec=b=>decodeURIComponent(escape(atob(String(b).replace(/\n/g,''))));
+async function api(path,opts={}){
+  const r=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/${path}`,{...opts,cache:'no-store',headers:{'Authorization':`Bearer ${token()}`,'Accept':'application/vnd.github+json',...(opts.body?{'Content-Type':'application/json'}:{})}});
+  if(r.status===404)return null;
+  if(!r.ok)throw new Error((await r.json().catch(()=>({}))).message||r.status);
+  return r.json();
+}
+async function readFile(p){const j=await api(`contents/${p}`);return j&&j.content?dec(j.content):'';}
+const show=(id)=>['login','start','ask','end'].forEach(s=>$(s).classList.toggle('hidden',s!==id));
+const SAY=window.speechSynthesis||null;
+function say(t){return new Promise(res=>{if(!SAY){res();return;}SAY.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=1.05;u.onend=res;u.onerror=res;SAY.speak(u);});}
+const stamp=()=>{const d=new Date();const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;};
+
+let QS=[],i=0;
+async function load(){
+  if(!token()){show('login');return;}
+  show('start');
+  try{
+    const t=(await readFile('data/checkin-today.txt')).trim();
+    QS=t.split('\n').map(l=>l.trim()).filter(Boolean).filter(l=>!l.startsWith('none|')).map(l=>{const k=l.indexOf('|');return {ref:l.slice(0,k),q:l.slice(k+1)};});
+    $('count').textContent=QS.length?`${QS.length} to check today.`:'Nothing to check today.';
+    if(new URLSearchParams(location.search).has('update'))$('upd').classList.add('done');
+  }catch(e){$('err').textContent='Could not read KevinOS: '+e.message;}
+}
+async function ask(){
+  if(i>=QS.length){show('end');await say(QS.length?"That's everything. Thanks.":'Nothing to check today.');return;}
+  show('ask');$('said').value='';
+  $('ref').textContent=QS[i].ref;$('q').textContent=QS[i].q;$('pos').textContent=`${i+1} of ${QS.length}`;
+  await say(QS[i].q);
+}
+async function answer(text){
+  text=String(text||'').trim();if(!text)return;
+  const ref=QS[i].ref;
+  $('send').disabled=true;$('err').textContent='';
+  try{
+    await api(`contents/inbox/checkin/${ref.replace(/[^0-9A-Za-z-]/g,'')}-${stamp()}.txt`,{method:'PUT',body:JSON.stringify({message:`check-in ${ref} (phone)`,content:enc(`${ref}|${text}`)})});
+    i++;ask();
+  }catch(e){$('err').textContent='Not saved: '+e.message+'. Try again.';}
+  finally{$('send').disabled=false;}
+}
+$('saveTok').onclick=()=>{const v=$('tok').value.trim();if(!v)return;try{localStorage.setItem('gh_token',v);}catch(e){}load();};
+$('go').onclick=()=>{i=0;ask();};
+$('upd').onclick=async()=>{try{const t=await readFile('data/guide-spoken.txt');await say(t||'No update yet.');}catch(e){$('err').textContent=e.message;}};
+$('stop').onclick=()=>SAY&&SAY.cancel();
+document.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>answer(b.dataset.a));
+$('send').onclick=()=>answer($('said').value);
+// 🎤 Talk: the browser's own speech recognition when the phone allows it; otherwise the keyboard mic in the box.
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SR)$('talk').textContent='🎤 Use the keyboard mic';
+$('talk').onclick=()=>{
+  if(!SR){$('said').focus();return;}
+  SAY&&SAY.cancel();const r=new SR();r.lang='en-US';r.interimResults=false;r.maxAlternatives=1;
+  $('talk').textContent='Listening…';
+  r.onresult=e=>{$('said').value=e.results[0][0].transcript;};
+  r.onend=()=>{$('talk').textContent='🎤 Talk';if($('said').value.trim())answer($('said').value);};
+  r.onerror=()=>{$('talk').textContent='🎤 Talk';$('said').focus();};
+  r.start();
+};
+load();
+</script>
+</body>
+</html>
