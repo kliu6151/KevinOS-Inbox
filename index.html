@@ -300,7 +300,9 @@
   .cal-grid.full .ce{display:block;font-size:10px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     border-left:2px solid var(--k);padding-left:3px;margin:1px 0;color:var(--text)}
   .cal-grid.full .ce.more{border:0;color:var(--faint)}
-  @media (min-width:880px){.cal-grid.full .cal-cell{min-height:118px;padding:6px}.cal-grid.full .ce{font-size:12px}.cal-grid.full .cal-cell .dn{font-size:14px}}
+  @media (min-width:880px){.cal-grid.full .cal-cell{min-height:118px;padding:6px}.cal-grid.full .ce{font-size:12px}.cal-grid.full .cal-cell .dn{font-size:14px}
+    /* the calendar uses the whole screen on the computer (2026-11-19, Kevin: "should we have it use more space?") */
+    body[data-tab="cal"] main{max-width:min(1400px,calc(100vw - 260px))}}
   .dow{text-align:center;font-size:11px;color:var(--faint);font-weight:700;padding:4px 0}
   .cal-cell{
     aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;
