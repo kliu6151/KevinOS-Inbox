@@ -961,6 +961,26 @@ body[data-tab="start"]{--tab:#818cf8}
     .bump{animation:bump .9s var(--ease)}
     @keyframes bump{0%{color:var(--accent);transform:scale(1.12)}100%{transform:none}}
   }
+
+  /* hover actions (desktop pass, 2026-11-19) */
+  .hacts{display:none}
+  @media (hover:hover) and (pointer:fine){
+    .item{position:relative}
+    .hacts{display:flex;gap:6px;position:absolute;right:10px;top:50%;transform:translateY(-50%);opacity:0;pointer-events:none;
+      transition:opacity .16s var(--ease,ease)}
+    .item:hover .hacts{opacity:1;pointer-events:auto}
+    .hacts>button{font:600 12px/1 -apple-system,system-ui,"Segoe UI",sans-serif;padding:7px 10px;border-radius:9px;border:1px solid var(--border2);
+      background:var(--panel);color:var(--text);cursor:pointer;transition:background .15s,border-color .15s}
+    .hacts>button:hover{border-color:var(--accent)}
+    .hacts>button[data-h="done"]:hover{background:color-mix(in srgb,var(--green,#34d399) 18%,var(--panel))}
+    .hmenu{position:absolute;right:0;top:calc(100% + 6px);z-index:20;display:flex;flex-direction:column;min-width:170px;padding:6px;
+      background:var(--panel);border:1px solid var(--border2);border-radius:12px;box-shadow:0 12px 30px -12px rgba(0,0,0,.7)}
+    .hmenu[hidden]{display:none}
+    .hmenu button{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border:0;border-radius:8px;background:transparent;color:var(--text);
+      font:500 13px -apple-system,system-ui,"Segoe UI",sans-serif;cursor:pointer;text-align:left}
+    .hmenu button:hover{background:rgba(255,255,255,.06)}
+    .hmenu small{color:var(--faint)}
+  }
 </style>
 </head>
 <body>
@@ -1707,10 +1727,9 @@ async function refCascade(planLine){
 }
 /* swipe-left on a task/loop: push it one day (task due:, loop nudge:). Calendar
    events and plan rows don't snooze — their left swipe opens the sheet instead. */
-async function snoozeLine(path,it){
+async function snoozeLine(path,it,to=plusDays(1)){
   const key=path==='data/loops.md'?'nudge':path==='data/tasks.md'?'due':null;
   if(!key)return false;
-  const to=plusDays(1);
   try{
     // same per-file queue + conflict retry as check-offs (a snooze right after a tap used to race it)
     await withFile(path,()=>editLine(path,it.line,(lines,i)=>{
@@ -1775,6 +1794,25 @@ const stripMeta=s=>s.split(' — ')[0].split(' | ')[0].trim();
 // calendar bodies lead with the date, so the title comes AFTER the dash
 const evTitle=b=>b.replace(/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?\s*[—-]?\s*/,'').split(' | ')[0].trim()||stripMeta(b);
 
+/* hover actions (desktop pass, 2026-11-19): a mouse over a row shows ✓ Done and, for tasks and follow-ups, Wait ▾.
+   Touch screens never see them (they keep swipe right = done, swipe left = tomorrow). */
+const waitLabel=to=>{const d=new Date(to+'T12:00');return d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});};
+function hoverActs(div,hit,onWait){
+  const a=document.createElement('div');a.className='hacts';
+  a.innerHTML='<button data-h="done">✓ Done</button>'+(onWait?'<button data-h="wait">Wait ▾</button><div class="hmenu" hidden></div>':'');
+  a.onclick=e=>e.stopPropagation();
+  a.querySelector('[data-h="done"]').onclick=e=>{e.stopPropagation();hit.click();};
+  if(onWait){
+    const menu=a.querySelector('.hmenu');
+    const dow=new Date().getDay(),toMon=((8-dow)%7)||7;
+    const opts=[['Tomorrow',1],['In 3 days',3],['Next Monday',toMon]];
+    menu.innerHTML=opts.map(([l,d])=>`<button data-d="${d}">${l}<small>${waitLabel(plusDays(d))}</small></button>`).join('');
+    a.querySelector('[data-h="wait"]').onclick=e=>{e.stopPropagation();menu.hidden=!menu.hidden;};
+    menu.querySelectorAll('button').forEach(b=>b.onclick=e=>{e.stopPropagation();menu.hidden=true;fx('play','snooze');onWait(plusDays(+b.dataset.d));});
+    div.addEventListener('mouseleave',()=>{menu.hidden=true;});
+  }
+  div.appendChild(a);
+}
 function itemHTML(it,file,extra='',title){
   const t=(title||stripMeta(it.body)).replace(/\*\*/g,''); // plan titles arrive **bold**
   const div=document.createElement('div');
@@ -1795,6 +1833,7 @@ function itemHTML(it,file,extra='',title){
       }});
     };
     div.onclick=()=>openSheet(it,file,t);
+    hoverActs(div,hit,(file==='data/tasks.md'||file==='data/loops.md')?async to=>{if(await snoozeLine(file,it,to)){div.classList.add('gone');fx('banner','Back '+waitLabel(to),'calm',1600);afterToggle(file);}}:null);
     fx('swipe',div,{
       right:()=>hit.click(),
       left:(file==='data/tasks.md'||file==='data/loops.md')
@@ -1834,6 +1873,7 @@ function planItem(it,file){
     // plan rows open the same detail sheet as every other item — without this, "Not done —
     // say why" was unreachable on exactly the items Kevin most needs to explain (his Top 3)
     div.onclick=()=>openSheet(it,file,stripMeta(title));
+    hoverActs(div,hit,null);
   }
   return div;
 }
