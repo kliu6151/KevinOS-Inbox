@@ -379,6 +379,12 @@
     border-radius:9px;padding:10px 12px;font-size:16px;outline:none;color-scheme:dark;
   }
   #ob-text:focus{border-color:var(--accent)}
+  .tgrid{display:block}
+  @media (min-width:1100px){
+    body[data-tab="today"] main{max-width:min(1320px,calc(100vw - 280px))}
+    .tgrid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start}
+    .tgrid .tcol>.sec:first-child{margin-top:0}
+  }
   @media (min-width:880px){#outbar{left:calc(232px + 24px);right:auto;width:420px;bottom:24px}}
 
   /* ---- PEAK: health / fitness / recovery ----
@@ -2196,6 +2202,56 @@ function bizStrip(body,tasksAll){
   }
 }
 let bizIO=null;
+/* TODAY LAYOUT (2026-11-19, OD-0086 — Kevin approved the cut list): the page renders as before, then its pieces are
+   placed: LEFT = the day (now/next, timeline, first move, plan tomorrow) · RIGHT = what needs him (overnight, today's list,
+   follow-ups, needs attention) then the schedule · MORE = everything else in one closed fold. Two columns on a wide
+   screen, stacked on the phone. Nothing is deleted from the page, only moved. */
+function todayLayout(body,prevFolds){
+  const L=[],needs=[],top=[],sched=[],more=[];
+  let zone='left',foldZone=null;
+  const secZone=s=>/^today's list/i.test(s)?'needs':/^also today/i.test(s)?'skip':/^(top 3|today's plan)/i.test(s)?'left':'more';
+  const FOLD={'Schedule':'sched','Follow-ups':'needs','Needs attention':'needs'};
+  const put=(z,el)=>{({left:L,needs,top,sched,more})[z].push(el);};
+  for(const el of [...body.children]){
+    if(foldZone){put(foldZone,el);foldZone=null;continue;}               // a fold's card goes with its head
+    if(el.classList.contains('signals')){
+      for(const r of [...el.children])put(r.dataset.z==='right'?'top':'more',r);
+      el.remove();continue;
+    }
+    if(el.classList.contains('biz-strip')||el.classList.contains('where')||el.classList.contains('pocket')){put('more',el);continue;}
+    if(el.classList.contains('sec')){
+      zone=secZone(el.textContent.trim());
+      if(zone==='skip'){el.remove();zone='needs';continue;}
+      if(zone==='more')put('more',el);else if(zone==='needs')put('needs',el);else put('left',el);
+      continue;
+    }
+    if(el.classList.contains('fold')){
+      const t=(el.querySelector('.ft')||{}).textContent||'';
+      const z=zone==='needs'&&FOLD[t]?FOLD[t]:zone==='left'?'left':'more';
+      put(z,el);foldZone=z;continue;
+    }
+    put(zone==='needs'?'needs':zone==='left'?'left':'more',el);
+  }
+  body.innerHTML='';
+  const grid=document.createElement('div');grid.className='tgrid';
+  const lc=document.createElement('div');lc.className='tcol';L.forEach(e=>lc.appendChild(e));
+  const rc=document.createElement('div');rc.className='tcol';
+  rc.insertAdjacentHTML('beforeend','<div class="sec">Needs you</div>');
+  if(top.length){const s=document.createElement('div');s.className='signals';top.forEach(e=>s.appendChild(e));rc.appendChild(s);}
+  needs.forEach(e=>rc.appendChild(e));
+  if(sched.length){rc.insertAdjacentHTML('beforeend','<div class="sec">Coming up</div>');sched.forEach(e=>rc.appendChild(e));}
+  grid.appendChild(lc);grid.appendChild(rc);body.appendChild(grid);
+  if(more.length){
+    const f=fold('More','agents, systems, money, held, the full plan',prevFolds&&prevFolds.has('More')?prevFolds.get('More'):false);
+    // loose signal rows keep their row style inside a signals box
+    let box=null;
+    for(const e of more){
+      if(e.classList&&(e.classList.contains('sigrow')||e.dataset.z)){if(!box){box=document.createElement('div');box.className='signals';f.card.appendChild(box);}box.appendChild(e);}
+      else{box=null;f.card.appendChild(e);}
+    }
+    body.appendChild(f.head);body.appendChild(f.card);
+  }
+}
 async function renderToday(){
   const body=$('today-body');
   $('today-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
@@ -2284,7 +2340,7 @@ async function renderToday(){
     nextHTML=`<div class="next-k">NEXT · ${esc(when)}</div><div class="next-t">${esc(evTitle(next.it.body))}</div>${where?`<div class="next-w">${esc(where)}</div>`:''}`;
   }else nextHTML=`<div class="next-k">NEXT</div><div class="next-t">Nothing booked</div><div class="next-w">no appointments in the next 7 days</div>`;
   const lv=SB&&SB.month?`<span class="hchip lv" id="hero-lv">Lv ${SB.month.level} · ${compactAmt(SB.month.installed)}</span>`:'';
-  body.insertAdjacentHTML('beforeend',`<div id="prog-wrap" class="hero"><div class="ring"></div><div class="hero-r">${nextHTML}<div class="hero-chips"><span class="streak-slot"></span>${lv}</div></div></div>`);
+  body.insertAdjacentHTML('beforeend',`<div id="prog-wrap" class="hero"><div class="ring"></div><div class="hero-r">${nextHTML}</div></div>`);
   const hlv=$('hero-lv');if(hlv)hlv.onclick=()=>goView('money');
 
   // DAY TIMELINE — today's timed commitments on one rail, with a "now" marker
@@ -2355,7 +2411,7 @@ async function renderToday(){
 
   // SIGNALS (Kevin 2026-10-03: "I rarely scroll down this far"): the three one-line cues live here, above Top 3
   const sig=document.createElement('div');sig.className='signals';body.appendChild(sig);
-  const sigRow=(icon,text,metaTxt,onTap)=>{const b=document.createElement('button');b.className='sigrow';b.innerHTML=`<span class="sl">${icon}</span><span class="st">${text}</span><span class="sm">${metaTxt||''}</span>`;b.onclick=onTap;sig.appendChild(b);};
+  const sigRow=(icon,text,metaTxt,onTap)=>{const b=document.createElement('button');b.className='sigrow';b.dataset.z=icon==='☀️'?'right':'more';b.innerHTML=`<span class="sl">${icon}</span><span class="st">${text}</span><span class="sm">${metaTxt||''}</span>`;b.onclick=onTap;sig.appendChild(b);};
   // 🟢 SYSTEMS (2026-10-14): live status from the Worker's heartbeats — first row, so a red is the
   // first thing Kevin sees (he reads the top of the screen only). Async: Today never waits on it.
   if(aiProxyUrl()&&localStorage.getItem('ai_proxy_token')){const h=document.createElement('div');sig.prepend(h);systemsRow(h);}
@@ -2368,13 +2424,13 @@ async function renderToday(){
   // by themselves, so Today reads top to bottom — overnight, needs-you + approvals, the FieldPacket passes,
   // then the Top 3 — with nothing to tap open. Tapping ☀️ closed/open remembers the choice for the day.
   const morningOpen=(()=>{try{const k=localStorage.getItem('morning-open')||'';const [d,v]=k.split('|');if(d===t)return v==='1';}catch(e){}return new Date().getHours()<10;})();
-  {const h=document.createElement('div');sig.appendChild(h);overnightRow(h,morningOpen);}
+  {const h=document.createElement('div');h.dataset.z='right';sig.appendChild(h);overnightRow(h,morningOpen);}
   // 📋 FieldPacket to-do (2026-10-18): FieldPacket's morning list, relayed by ops/fp-todo.js; tap to open in place
   {const h=document.createElement('div');sig.appendChild(h);fpTodoRow(h,morningOpen);}
   // 📊 Pipeline dashboard (2026-10-20): the Claude dashboard — private, opens in a new tab signed in to Claude
   {const d=document.createElement('a');d.className='sigrow';d.href='https://claude.ai/artifact/8rumwDvXS2Ymy1gYANj4kF';d.target='_blank';d.rel='noopener';d.style.cssText='text-decoration:none;color:inherit';d.innerHTML='<span class="sl">📊</span><span class="st"><b>Pipeline dashboard</b> · charts and trends</span><span class="sm">↗</span>';d.onclick=()=>fx('play','tap');sig.appendChild(d);}
   // 🔊 Read today's plan (2026-11-07): Top 3 + first move + what's left of the day plan, spoken on-device (free)
-  if(daily&&SAY){
+  if(false&&daily&&SAY){ // removed from Today 2026-11-19 (OD-0086): the Start tab speaks the day
     const speech=()=>{
       const parts=[];
       const open3=top3.filter(i=>!i.checked).map(i=>stripMeta(i.body).replace(/\*\*/g,'').split(' — ')[0].trim()).filter(Boolean);
@@ -2395,7 +2451,7 @@ async function renderToday(){
     sig.appendChild(b);
   }
   // 🎙 Check-in (2026-11-17): the secretary asks one hold at a time, out loud; answers save to KevinOS (checkin.html)
-  sigRow('🎙','<b>Check-in</b> · one at a time, out loud','',()=>goView('speak'));
+  // 🎙 Check-in row removed 2026-11-19 (OD-0086): the Speak tab is the check-in
   // TOP 3 — bold title + one action line; the coach's why: sits behind a tap (detail sheet)
   if(top3.length){
     body.insertAdjacentHTML('beforeend','<div class="sec">Top 3</div>');
@@ -2444,7 +2500,7 @@ async function renderToday(){
   /* Everything else is ONE LINE each until tapped (Kevin 2026-09-30: "not that much text
      to read"). The count and any overdue warning ride on the fold's header. */
   const tfold=(title,count,warn,build)=>{
-    const f=fold(title,count,prevFolds.has(title)?prevFolds.get(title):false,warn);
+    const f=fold(title,count,prevFolds.has(title)?prevFolds.get(title):/^(Follow-ups|Needs attention|Schedule)$/.test(title),warn); // open by default since 2026-11-19: they ARE the Needs you list
     body.appendChild(f.head);body.appendChild(f.card);build(f.card);
   };
   if(daily)body.insertAdjacentHTML('beforeend','<div class="sec">Also today</div>');
@@ -2520,7 +2576,7 @@ async function renderToday(){
   // 📷 WeChat job photos (2026-10-13): pulled on demand on KevinLoo by a Claude click-through (WeChat's
   // cache is encrypted; scheduled runs cannot get app control). The run writes data/wechat-photos.md;
   // this row shows the last pull and turns red after 3 days. Tap on the laptop hands off to Claude.
-  if(wcf&&(bizFilter==='all'||bizFilter==='airsync')){
+  if(false&&wcf&&(bizFilter==='all'||bizFilter==='airsync')){ // WeChat agent retired (OD-0039); row removed 2026-11-19
     const last=(wcf.text.match(/- last pull: (\d{4}-\d{2}-\d{2})/)||[])[1];
     const today=(wcf.text.match(/- today: ([^\n]+)/)||[])[1]||'';
     const days=last?Math.round((new Date(t+'T12:00')-new Date(last+'T12:00'))/864e5):null;
@@ -2546,7 +2602,7 @@ async function renderToday(){
   }
 
   // habit streaks
-  if(habits){
+  if(false&&habits){ // streaks removed 2026-11-19 (OD-0082)
     const hs=habits.text.split('\n').map(l=>l.match(/^- ([^|]+)\|.*streak:(\d+)/)).filter(Boolean);
     if(hs.length){
       body.insertAdjacentHTML('beforeend','<div class="sec">Streaks</div>');
@@ -2602,6 +2658,7 @@ async function renderToday(){
     fp.card.appendChild(wp);
     body.appendChild(fp.head);body.appendChild(fp.card);
   }
+  todayLayout(body,prevFolds);
 }
 
 /* ---- CALENDAR (month grid + day agenda) ---- */
