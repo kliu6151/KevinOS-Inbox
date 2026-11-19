@@ -115,9 +115,23 @@ body.wall .clock{font-size:28px}
   .phone{display:block}
   .bar-in{flex-wrap:wrap}
 }
+/* fluid layer (UI pass 1, 2026-11-19): softer surfaces, rows that respond, pieces that settle in on load */
+:root{--ease:cubic-bezier(.22,1,.36,1)}
+.tile,.panel{border-radius:16px;box-shadow:0 8px 24px -18px rgba(0,0,0,.7);transition:transform .18s var(--ease),border-color .2s var(--ease),background .2s var(--ease)}
+.row{transition:background .18s var(--ease),opacity .3s var(--ease)}
+.btn{transition:background .15s var(--ease),border-color .15s var(--ease),transform .12s var(--ease)}
+.btn:active{transform:scale(.96)}
+@media (hover:hover){.tile:hover{transform:translateY(-2px);border-color:var(--line-2)}.row:hover{background:rgba(255,255,255,.025)}}
+@media (prefers-reduced-motion:no-preference){
+  body.first .tile,body.first .panel{animation:settle .45s var(--ease) both}
+  .tile:nth-child(2){animation-delay:.03s}.tile:nth-child(3){animation-delay:.06s}.tile:nth-child(4){animation-delay:.09s}
+  .tile:nth-child(5){animation-delay:.12s}.tile:nth-child(6){animation-delay:.15s}.tile:nth-child(7){animation-delay:.18s}
+  .pop{animation:settle .18s var(--ease) both}
+  @keyframes settle{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+}
 </style>
 </head>
-<body>
+<body class="first">
 <header class="bar"><div class="bar-in">
   <div class="title"><b>Kevin's Desk</b><span id="sub">loading…</span></div>
   <div class="clock" id="clock"></div>
@@ -343,6 +357,8 @@ async function load(){
 load();
 setInterval(load,5*60*1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
+
+setTimeout(()=>document.body.classList.remove('first'),2500); // settle-in only on the first load
 </script>
 </body>
 </html>

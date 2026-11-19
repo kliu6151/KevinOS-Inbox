@@ -922,6 +922,45 @@ body[data-tab="start"]{--tab:#818cf8}
   /* switched off by Kevin 2026-11-10 ("not using"): the Ask box and Peak — hidden, not deleted (OFF below) */
   body.off-ask #ai-open,body.off-ask nav button[data-v="ask"]{display:none!important}
   body.off-peak nav button[data-v="peak"],body.off-peak #more-ov button[data-go="peak"]{display:none!important}
+
+  /* ==== FLUID LAYER (UI pass 1, 2026-11-19) — calm, iPhone-style: softer surfaces, quieter labels, motion that
+     follows the finger. Everything motion-related sits behind prefers-reduced-motion. ==== */
+  :root{--ease:cubic-bezier(.22,1,.36,1);--ease-out:cubic-bezier(.16,1,.3,1)}
+  .sec{font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;font-size:13px;font-weight:650;letter-spacing:.01em;
+    text-transform:none;color:var(--muted,#9aa5b5);margin:26px 4px 10px}
+  .card,.fold,.sigrow{border-radius:16px}
+  .card{box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 8px 24px -16px rgba(0,0,0,.6)}
+  .fold{transition:background .2s var(--ease),border-color .2s var(--ease),transform .18s var(--ease)}
+  .fold .chev{transition:transform .28s var(--ease)}
+  .item{transition:background .18s var(--ease),opacity .25s var(--ease)}
+  .sigrow{transition:background .2s var(--ease),border-color .2s var(--ease),transform .18s var(--ease)}
+  @media (hover:hover){
+    .sigrow:hover,.fold:hover{background:rgba(255,255,255,.045)}
+    .item:hover{background:rgba(255,255,255,.025)}
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .view.active.from-r{animation:fromR .34s var(--ease)}
+    .view.active.from-l{animation:fromL .34s var(--ease)}
+    /* entering a tab: the pieces settle in one after another (only on a tab change, never on a quiet refresh) */
+    .view.enter .card,.view.enter .fold,.view.enter .sigrow,.view.enter .sec,.view.enter .nowcard,.view.enter .hero,.view.enter .fm{
+      animation:settle .46s var(--ease-out) both}
+    .view.enter .tcol>*:nth-child(2),.view.enter>div>*:nth-child(2){animation-delay:.03s}
+    .view.enter .tcol>*:nth-child(3),.view.enter>div>*:nth-child(3){animation-delay:.06s}
+    .view.enter .tcol>*:nth-child(4),.view.enter>div>*:nth-child(4){animation-delay:.09s}
+    .view.enter .tcol>*:nth-child(5),.view.enter>div>*:nth-child(5){animation-delay:.12s}
+    .view.enter .tcol>*:nth-child(n+6),.view.enter>div>*:nth-child(n+6){animation-delay:.15s}
+    .view.enter .tcol:nth-child(2)>*{animation-delay:.08s}
+    @keyframes settle{from{opacity:0;transform:translateY(10px) scale(.995)}to{opacity:1;transform:none}}
+    /* a fold opening slides its card down instead of snapping */
+    .foldcard.fin{animation:foldIn .26s var(--ease-out)}
+    @keyframes foldIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+    /* rows that arrive after the page (systems, overnight, FieldPacket list) fade in rather than pop */
+    .signals>div>*{animation:fadeIn .3s var(--ease-out) both}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    /* a number that changed on a quiet refresh glows once */
+    .bump{animation:bump .9s var(--ease)}
+    @keyframes bump{0%{color:var(--accent);transform:scale(1.12)}100%{transform:none}}
+  }
 </style>
 </head>
 <body>
@@ -1814,7 +1853,7 @@ function fold(title,countLabel,open=false,warn=0){
   head.className='fold'+(open?' open':'');
   head.innerHTML=`<svg class="chev" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg><span class="ft">${esc(title)}</span>${countLabel?`<span class="fc">${esc(countLabel)}</span>`:''}${warn?`<span class="fw">${warn} ⚠</span>`:''}`;
   const c=card();c.classList.add('foldcard');c.style.display=open?'':'none';
-  head.onclick=()=>{const show=c.style.display==='none';c.style.display=show?'':'none';head.classList.toggle('open',show);};
+  head.onclick=()=>{const show=c.style.display==='none';c.style.display=show?'':'none';head.classList.toggle('open',show);if(show){c.classList.remove('fin');void c.offsetWidth;c.classList.add('fin');}};
   return {head,card:c};
 }
 /* capped list: show first `cap`, rest behind "N more" */
@@ -7024,6 +7063,9 @@ const viewBody={today:'today-body',cal:'cal-body',money:'money-body',peak:'peak-
 async function runRender(name){
   const fn=renderers[name];if(!fn||!token())return;
   const bodyEl=$(viewBody[name]);
+  // fluid redraw (2026-11-19): keep the height while the page rebuilds so it never jumps, then glow counts that changed
+  const prevCounts=new Map([...bodyEl.querySelectorAll('.fold')].map(h=>[(h.querySelector('.ft')||{}).textContent,(h.querySelector('.fc')||{}).textContent]));
+  if(bodyEl.offsetHeight)bodyEl.style.minHeight=bodyEl.offsetHeight+'px';
   // the initial "Loading…" container class centers + mutes ALL text; it must not
   // survive into rendered content (skeleton/empty/error states carry their own styles)
   bodyEl.classList.remove('loading');
@@ -7049,6 +7091,8 @@ async function runRender(name){
     }
   }
   keepView=false;
+  bodyEl.style.minHeight='';
+  bodyEl.querySelectorAll('.fold').forEach(h=>{const t=(h.querySelector('.ft')||{}).textContent,fc=h.querySelector('.fc');if(fc&&prevCounts.has(t)&&prevCounts.get(t)!==fc.textContent)fc.classList.add('bump');});
   updateBadge();
 }
 
@@ -7092,7 +7136,7 @@ function goView(v){
   document.body.dataset.tab=v;
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active','from-r','from-l'));
-  const el=$('v-'+v); if(el)el.classList.add('active',dir);
+  const el=$('v-'+v); if(el){el.classList.add('active',dir,'enter');clearTimeout(el._enterT);el._enterT=setTimeout(()=>el.classList.remove('enter'),900);}
   if(v==='start'){const f=$('start-frame');if(f&&!f.getAttribute('src'))f.setAttribute('src','start.html');}
   if(v==='speak'){const f=$('speak-frame');if(f&&!f.getAttribute('src'))f.setAttribute('src','checkin.html');}
   runRender(v);
@@ -7165,6 +7209,15 @@ navH();
 window.addEventListener('resize',navH);
 window.addEventListener('orientationchange',()=>setTimeout(navH,250));
 
+/* live (2026-11-19): every 3 minutes the open tab refreshes in place — skipped while typing, while a sheet is open,
+   or while the app is in the background */
+setInterval(()=>{
+  if(document.hidden||!renderers[currentView]||!token())return;
+  const a=document.activeElement;if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return;
+  if([...document.querySelectorAll('[id$=-ov]')].some(o=>!o.hidden))return;
+  if(['speak','start'].includes(currentView))return;
+  runRender(currentView);
+},180000);
 /* coming back to the app after 60s+ silently refreshes the current tab */
 document.addEventListener('visibilitychange',()=>{
   if(!document.hidden&&Date.now()-lastRender>60000&&renderers[currentView])runRender(currentView);
