@@ -289,6 +289,18 @@
   }
   .cal-head button:active{transform:scale(.94)}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  /* full-page month (2026-11-19, Kevin: "a whole page calendar rather than just showing the week"):
+     each day shows its events by time and title, like a wall calendar */
+  .cal-grid.full{gap:3px}
+  .cal-grid.full .cal-cell{aspect-ratio:auto;min-height:74px;align-items:stretch;justify-content:flex-start;padding:4px 3px;
+    border:1px solid rgba(255,255,255,.08);font-size:12px;text-align:left;overflow:hidden}
+  .cal-grid.full .cal-cell .dn{font-weight:700;font-size:12px;margin:0 2px 2px}
+  .cal-grid.full .cal-cell.today .dn{color:var(--accent)}
+  .cal-grid.full .cal-cell.sel{background:var(--accent-soft);border-color:var(--accent)}
+  .cal-grid.full .ce{display:block;font-size:10px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    border-left:2px solid var(--k);padding-left:3px;margin:1px 0;color:var(--text)}
+  .cal-grid.full .ce.more{border:0;color:var(--faint)}
+  @media (min-width:880px){.cal-grid.full .cal-cell{min-height:118px;padding:6px}.cal-grid.full .ce{font-size:12px}.cal-grid.full .cal-cell .dn{font-size:14px}}
   .dow{text-align:center;font-size:11px;color:var(--faint);font-weight:700;padding:4px 0}
   .cal-cell{
     aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;
@@ -1697,6 +1709,9 @@ async function quickAddTask(text){
 }
 
 /* ---- parsers ---- */
+/* calendar lines Kevin never sees (2026-11-19, OD-0084): energy audits are Slavko's. They stay in data/calendar.md
+   (auditor pay checks read them); only the app hides them. Writes still use the full file. */
+const calChecklist=txt=>parseChecklist(txt).filter(it=>!/— Energy audit:/i.test(it.body));
 function parseChecklist(text){
   const items=[];let section='';
   for(const raw of text.split('\n')){
@@ -2243,7 +2258,7 @@ async function renderToday(){
   const isDup=it=>hiddenDups.has(it.line);
 
   // calendar window (today → +3 days); plan-covered and ref-linked lines don't repeat
-  const calAll=cal?parseChecklist(cal.text).filter(it=>!it.checked&&!isDup(it)&&bizVisible(it,'data/calendar.md')):[];
+  const calAll=cal?calChecklist(cal.text).filter(it=>!it.checked&&!isDup(it)&&bizVisible(it,'data/calendar.md')):[];
   const events=calAll.filter(it=>{
     const d=(it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];
     if(!d||d<t||d>horizon)return false;
@@ -2272,7 +2287,7 @@ async function renderToday(){
 
   // DAY TIMELINE — today's timed commitments on one rail, with a "now" marker
   // includes events already checked off today — they show as green ticks (progress, not gaps)
-  const todays=(cal?parseChecklist(cal.text):[]).map(it=>{const m=it.body.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})/);return m&&m[1]===t?{it,min:(+m[2])*60+(+m[3]),hm:m[2]+':'+m[3],done:it.checked}:null;})
+  const todays=(cal?calChecklist(cal.text):[]).map(it=>{const m=it.body.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})/);return m&&m[1]===t?{it,min:(+m[2])*60+(+m[3]),hm:m[2]+':'+m[3],done:it.checked}:null;})
     .filter(Boolean).sort((a,b)=>a.min-b.min);
   const dayBlocks=daily?dpParse(daily.text).filter(b=>b.end):[];
   const plannedByKevin=!!(daily&&daily.text.includes(DP_MARK));
@@ -2596,7 +2611,7 @@ let calCovered={};
 const coveredFor=(ds,it)=>(calCovered[ds]||[]).find(c=>c.time===evTime(it)&&c.title===evTitle(it.body))||null;
 /* Cal view (2026-10-03): 'week' = 7-day strip + the day as a time rail (default — Kevin lives
    day-to-week; the month grid was 42 taps of nothing); 'month' = the original grid, one tap away. */
-let calView=(()=>{try{return localStorage.getItem('cal_view')==='month'?'month':'week';}catch(e){return 'week';}})();
+let calView=(()=>{try{return localStorage.getItem('cal_view2')==='week'?'week':'month';}catch(e){return 'month';}})();
 const calShift=(ds,n)=>{const d=new Date(ds+'T00:00');d.setDate(d.getDate()+n);const p=x=>String(x).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;};
 const calH12=hm=>{let[h,m]=hm.split(':').map(Number);const ap=h>=12?'p':'a';h=h%12||12;return h+(m?':'+String(m).padStart(2,'0'):'')+ap;};
 /* address line under a calendar row: the where: meta + a Maps link (Apple Maps URL — opens the
@@ -2681,7 +2696,7 @@ function drawCal(){
     $('cal-prev').onclick=()=>{calSel=calShift(calSel,-7);calMonth=toMonth(calSel);drawCal();};
     $('cal-next').onclick=()=>{calSel=calShift(calSel,7);calMonth=toMonth(calSel);drawCal();};
   }else{
-    const grid=document.createElement('div');grid.className='cal-grid';
+    const grid=document.createElement('div');grid.className='cal-grid full';
     ['S','M','T','W','T','F','S'].forEach(d=>grid.insertAdjacentHTML('beforeend',`<div class="dow">${d}</div>`));
     const first=new Date(y,m,1),days=new Date(y,m+1,0).getDate();
     for(let i=0;i<first.getDay();i++)grid.insertAdjacentHTML('beforeend','<div></div>');
@@ -2689,10 +2704,12 @@ function drawCal(){
       const ds=`${y}-${p(m+1)}-${p(d)}`;
       const cell=document.createElement('button');
       cell.className='cal-cell'+(ds===t?' today':'')+(ds===calSel?' sel':'')+(byDay[ds]&&ds<t?' past-due':'');
-      // up to three dots, one per kind present that day (plan/due items = amber)
-      const kinds=[...new Set((byDay[ds]||[]).map(it=>evKind(it.body)))].slice(0,3);
-      const dots=kinds.map(k=>`<i style="background:${EV_KINDS[k].c}"></i>`).join('')+(!kinds.length&&calVirtual[ds]?'<i style="background:var(--amber)"></i>':'');
-      cell.innerHTML=`${d}${dots?`<span class="dots">${dots}</span>`:''}`;
+      // the day's events by time + title (wall calendar), then plan/due items; "+N more" past three
+      const evs=(byDay[ds]||[]).filter(it=>!coveredFor(ds,it)).sort((a,b)=>evTime(a).localeCompare(evTime(b)));
+      const lines=evs.map(it=>{const tm=evTime(it);return `<span class="ce" style="--k:${EV_KINDS[evKind(it.body)].c}">${tm?calH12(tm)+' ':''}${esc(evTitle(it.body).replace(/^(Sales visit|Job|Energy audit):\s*/i,''))}</span>`;})
+        .concat((calVirtual[ds]||[]).map(v=>`<span class="ce" style="--k:var(--amber)">${esc(stripMeta(v.it.body).split(' — ')[0])}</span>`));
+      const shown=lines.slice(0,3).join('')+(lines.length>3?`<span class="ce more">+${lines.length-3} more</span>`:'');
+      cell.innerHTML=`<span class="dn">${d}</span>${shown}`;
       cell.onclick=()=>{calSel=ds;drawCal();};
       grid.appendChild(cell);
     }
@@ -2702,7 +2719,7 @@ function drawCal(){
   }
   body.insertAdjacentHTML('beforeend',`<div class="klegend">${Object.values(EV_KINDS).map(k=>`<span><i style="background:${k.c}"></i>${k.l}</span>`).join('')}</div>`);
   body.insertAdjacentHTML('beforeend',`<div class="cal-view"><button id="cal-view-btn">${calView==='week'?'Month grid ▾':'Week strip ▴'}</button></div>`);
-  $('cal-view-btn').onclick=()=>{calView=calView==='week'?'month':'week';try{localStorage.setItem('cal_view',calView);}catch(e){}drawCal();};
+  $('cal-view-btn').onclick=()=>{calView=calView==='week'?'month':'week';try{localStorage.setItem('cal_view2',calView);}catch(e){}drawCal();};
 
   // selected day agenda
   const selDate=new Date(calSel+'T00:00');
@@ -2768,7 +2785,7 @@ async function renderCal(){
   const t=todayStr(),dailyPath=`daily/${t}.md`;
   const [f,tk,lp,dl]=await Promise.all([
     getFile('data/calendar.md'),getFile('data/tasks.md'),getFile('data/loops.md'),getFile(dailyPath)]);
-  calEvs=f?parseChecklist(f.text).filter(it=>!it.checked&&it.body.match(/\d{4}-\d{2}-\d{2}/)&&bizVisible(it,'data/calendar.md')):[];
+  calEvs=f?calChecklist(f.text).filter(it=>!it.checked&&it.body.match(/\d{4}-\d{2}-\d{2}/)&&bizVisible(it,'data/calendar.md')):[];
   // Today⇄Cal sync (2026-07-20): the calendar is the date-lens over EVERYTHING dated —
   // today's plan items land on today, tasks land on their due: date, loops on their
   // nudge: date. Rebuilt from source files each render; nothing is written anywhere.
@@ -4800,7 +4817,7 @@ async function aiGetToday(){
   const secItems=re=>{const s=secByName(ns.secs,re);return s?checkboxLines(s.lines).map(i=>Object.assign(aiItem(i,`daily/${t}.md`),{done:i.checked||undefined})):[];};
   const fmSec=secByName(ns.secs,/^first move/i);
   const tasksAll=open(tasks,'data/tasks.md'),loopsAll=open(loops,'data/loops.md');
-  const schedule=cal?parseChecklist(cal.text).filter(i=>{
+  const schedule=cal?calChecklist(cal.text).filter(i=>{
     const d=(i.body.match(/^\d{4}-\d{2}-\d{2}/)||[])[0];
     return !i.checked&&d&&d>=t&&d<=plusDays(3);
   }).map(i=>{
@@ -4947,7 +4964,7 @@ async function recommendTasks(a={}){
     getFile('data/tasks.md'),getFile('data/loops.md'),getFile(`daily/${t}.md`),getFile('data/calendar.md')]);
   const d0=new Date(),nowMin=d0.getHours()*60+d0.getMinutes();
   let nextEv=null;
-  if(cal)for(const it of parseChecklist(cal.text)){
+  if(cal)for(const it of calChecklist(cal.text)){
     if(it.checked)continue;
     const m=it.body.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})/);
     if(m&&m[1]===t){const em=+m[2]*60+ +m[3];if(em>nowMin&&(nextEv===null||em<nextEv))nextEv=em;}
@@ -5575,7 +5592,7 @@ async function aiGetDayContext(a={}){
   const date=aiDate(a.date)?a.date:plusDays(1);
   const t=todayStr();
   const [cal,tasks,loops,note,todayNote]=await Promise.all([getFile('data/calendar.md'),getFile('data/tasks.md'),getFile('data/loops.md'),getFile(`daily/${date}.md`),date!==t?getFile(`daily/${t}.md`):null]);
-  const evs=cal?parseChecklist(cal.text).filter(it=>!it.checked&&evDate(it)===date):[];
+  const evs=cal?calChecklist(cal.text).filter(it=>!it.checked&&evDate(it)===date):[];
   const fixed=evs.filter(it=>evTime(it)).map(it=>({time:evTime(it),title:evTitle(it.body),where:meta(it.body,'where')||undefined,kind:evKind(it.body),hcp:/\| hcp:/.test(it.body)||undefined}))
     .sort((x,y)=>x.time.localeCompare(y.time));
   const untimed=evs.filter(it=>!evTime(it)).map(it=>evTitle(it.body));
