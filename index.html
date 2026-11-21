@@ -4605,8 +4605,8 @@ async function renderBrief(){
     const f=await getFile(`daily/${d}.md`)||await getFile(`daily/${d}-intel.md`);
     if(!f)continue;
     const secs=noteSections(f.text).secs;
-    const intel=secByName(secs,/^intel\b/i),markets=secByName(secs,/^markets?\b/i),tech=secByName(secs,/^tech\b/i),week=secByName(secs,/^week in markets\b/i);
-    if(intel||markets){found={date:d,ageDays:i,intel,markets,tech,week};break;}
+    const intel=secByName(secs,/^intel\b/i),markets=secByName(secs,/^markets?\b/i),tech=secByName(secs,/^tech\b/i),week=secByName(secs,/^week in markets\b/i),idea=secByName(secs,/^idea of the day\b/i),pred=secByName(secs,/^this week'?s prediction\b/i),check=secByName(secs,/^prediction check\b/i),big=secByName(secs,/^the week'?s big picture\b/i),fpr=secByName(secs,/^fieldpacket radar\b/i);
+    if(intel||markets){found={date:d,ageDays:i,intel,markets,tech,week,idea,pred,check,big,fpr};break;}
   }
   body.innerHTML='';
   $('brief-date').textContent=found
@@ -4636,6 +4636,12 @@ async function renderBrief(){
   // Fridays (2026-11-20): the week's Tech & AI and the week in markets and companies
   if(found.tech)section('Tech & AI · this week',found.tech,'');
   if(found.week)section('Week in markets & companies',found.week,'');
+  if(found.fpr)section('FieldPacket radar',found.fpr,'');
+  // growth (2026-11-21, Kevin: 'what else do you recommend on this news/brief section to grow me as a person' -> all 3)
+  if(found.idea)section('Idea of the day',found.idea,'');
+  if(found.pred)section("This week's prediction",found.pred,'');
+  if(found.check)section('Prediction check',found.check,'');
+  if(found.big)section("The week's big picture",found.big,'');
 }
 
 /* ---- LEARN / EDUCATION: TOC + collapsible sections, tappable progress ---- */
