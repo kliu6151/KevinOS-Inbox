@@ -4605,8 +4605,8 @@ async function renderBrief(){
     const f=await getFile(`daily/${d}.md`)||await getFile(`daily/${d}-intel.md`);
     if(!f)continue;
     const secs=noteSections(f.text).secs;
-    const intel=secByName(secs,/^intel\b/i),markets=secByName(secs,/^markets?\b/i);
-    if(intel||markets){found={date:d,ageDays:i,intel,markets};break;}
+    const intel=secByName(secs,/^intel\b/i),markets=secByName(secs,/^markets?\b/i),tech=secByName(secs,/^tech\b/i),week=secByName(secs,/^week in markets\b/i);
+    if(intel||markets){found={date:d,ageDays:i,intel,markets,tech,week};break;}
   }
   body.innerHTML='';
   $('brief-date').textContent=found
@@ -4633,6 +4633,9 @@ async function renderBrief(){
   };
   section('Industry',found.intel,'No industry section in this briefing.');
   section('Markets & World',found.markets,'No markets section yet — the routine adds one from 2026-08-03 onward.');
+  // Fridays (2026-11-20): the week's Tech & AI and the week in markets and companies
+  if(found.tech)section('Tech & AI · this week',found.tech,'');
+  if(found.week)section('Week in markets & companies',found.week,'');
 }
 
 /* ---- LEARN / EDUCATION: TOC + collapsible sections, tappable progress ---- */
