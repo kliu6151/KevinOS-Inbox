@@ -926,6 +926,43 @@ body[data-tab="start"]{--tab:#818cf8}
   /* ==== FLUID LAYER (UI pass 1, 2026-11-19) — calm, iPhone-style: softer surfaces, quieter labels, motion that
      follows the finger. Everything motion-related sits behind prefers-reduced-motion. ==== */
   :root{--ease:cubic-bezier(.22,1,.36,1);--ease-out:cubic-bezier(.16,1,.3,1)}
+/* company picker + company pages (2026-11-25, Kevin: "a selection of which company I want to look at") */
+#co-pick{margin:0 0 14px}
+#co-pick .coq{font-size:13px;color:var(--muted);margin:0 0 8px}
+#co-pick .cog{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+#co-pick .cog::-webkit-scrollbar{display:none}
+#co-pick .co{flex:0 0 auto;min-width:92px;text-align:left;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:9px 12px;color:var(--text);cursor:pointer}
+#co-pick .co b{display:block;font-size:14px}
+#co-pick .co small{display:block;font-size:11px;color:var(--faint);margin-top:2px}
+#co-pick .co.on{border-color:var(--k);box-shadow:inset 0 0 0 1px var(--k)}
+#co-pick .co i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--k);margin-right:6px}
+#co-pick.first .cog{display:grid;grid-template-columns:1fr 1fr;overflow:visible}
+#co-pick.first .co{min-width:0;padding:14px}
+.cop .score{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0 0 16px}
+@media(min-width:700px){.cop .score{grid-template-columns:repeat(4,1fr)}}
+.cop .tile{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px}
+.cop .tile b{display:block;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}
+.cop .tile b.na{font-size:15px;color:var(--faint);font-weight:500;padding-top:8px}
+.cop .tile span{display:block;font-size:12px;color:var(--muted);margin-top:4px}
+.cop .tile small{display:block;font-size:11px;color:var(--faint)}
+.cop .rm{display:grid;grid-template-columns:1fr;gap:8px;margin:0 0 12px}
+@media(min-width:700px){.cop .rm{grid-template-columns:repeat(3,1fr)}}
+.cop .rmc{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px 12px}
+.cop .rmc h4{margin:0 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--k,var(--muted))}
+.cop .rmc div{font-size:14px;padding:3px 0}
+.cop .goal{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin:0 0 8px}
+.cop .goal .gt{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+.cop .goal .gt small{color:var(--faint);white-space:nowrap}
+.cop .bar{height:6px;border-radius:3px;background:var(--border);margin:8px 0 4px;overflow:hidden}
+.cop .bar i{display:block;height:100%;background:var(--k,#14b8a6)}
+.cop .goal .gn{font-size:12px;color:var(--faint)}
+.cop .need{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--k,#14b8a6);border-radius:12px;padding:10px 12px;margin:0 0 8px}
+.cop .need b{display:block;font-size:14px}
+.cop .need small{display:block;color:var(--faint);font-size:12px;margin-top:3px}
+.cop .need .how{color:var(--muted);font-size:12px;margin-top:4px}
+.cop .dl div{font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)}
+.cop .dl div:last-child{border-bottom:0}
+.cop .dl small{color:var(--faint)}
   .sec{font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;font-size:13px;font-weight:650;letter-spacing:.01em;
     text-transform:none;color:var(--muted,#9aa5b5);margin:26px 4px 10px}
   .card,.fold,.sigrow{border-radius:16px}
@@ -1015,6 +1052,7 @@ body[data-tab="start"]{--tab:#818cf8}
   <div class="view active" id="v-today">
     <div class="top"><h1>Today</h1><div class="sub" id="today-date"></div></div>
     <button id="ai-open"><span class="spark">✦</span><span>Ask KevinOS…</span></button>
+    <div id="co-pick"></div>
     <div id="today-body" class="loading">Loading…</div>
   </div>
 
@@ -2180,6 +2218,7 @@ const bizChip=(it,file)=>{const b=bizOfLine(it,file);const d=BIZ.find(x=>x.id===
 /* switch business without losing the place on the page: re-render, then put the scroll back */
 function setBiz(id){
   fx('haptic');bizFilter=id;try{localStorage.setItem('biz',id);}catch(e){}
+  coSel=id==='all'?'overview':id;try{localStorage.setItem('co',coSel);}catch(e){}
   const y=window.scrollY;
   runRender('today');
   const back=()=>window.scrollTo({top:y,behavior:'instant'});setTimeout(back,60);setTimeout(back,400);
@@ -2331,8 +2370,128 @@ function todayLayout(body,prevFolds){
     body.appendChild(f.head);body.appendChild(f.card);
   }
 }
+/* COMPANY PICKER (2026-11-25, Kevin: "when I open Kevin OS … a selection of which company I want to look at").
+   Overview / Airsync / A1 / Kevin Ventures open the existing Today filtered by the business strip (OD-0013 tags);
+   FieldPacket and Personal have their own pages. Every page: scoreboard · roadmap · needs you · details (folded).
+   The choice is remembered on this device. Spec (private repo): ops/specs/company-pages.md */
+const CO=[
+  {id:'overview',name:'Overview',sub:'everything',k:'#9aa5b5'},
+  {id:'airsync',name:'Airsync',sub:'cash engine',k:'#ffb020'},
+  {id:'a1',name:'A1',sub:'electrical',k:'#3987e5'},
+  {id:'kv',name:'Kevin Ventures',sub:'all ventures',k:'#8b5cf6'},
+  {id:'fp',name:'FieldPacket',sub:'Kevin Ventures',k:'#14b8a6'},
+  {id:'personal',name:'Personal',sub:'life, spending',k:'#ff8fb1'},
+];
+const coFirst=(()=>{try{return !localStorage.getItem('co');}catch(e){return false;}})();
+let coSel=(()=>{try{return localStorage.getItem('co')||(bizFilter==='all'?'overview':bizFilter);}catch(e){return 'overview';}})();
+function renderCoPick(){
+  const el=$('co-pick');if(!el)return;
+  const first=coFirst&&!el.dataset.picked;
+  el.className=first?'first':'';
+  el.innerHTML=(first?'<div class="coq">Which company?</div>':'')+'<div class="cog">'+CO.map(o=>
+    `<button class="co${o.id===coSel?' on':''}" data-co="${o.id}" style="--k:${o.k}"><b><i></i>${esc(o.name)}</b><small>${esc(o.sub)}</small></button>`).join('')+'</div>';
+  el.querySelectorAll('.co').forEach(b=>b.onclick=()=>pickCo(b.dataset.co));
+  const h=document.querySelector('#v-today .top h1');
+  if(h)h.textContent=coSel==='fp'?'FieldPacket':coSel==='personal'?'Personal':'Today';
+}
+function pickCo(id){
+  fx('haptic');coSel=id;$('co-pick').dataset.picked='1';
+  try{localStorage.setItem('co',id);}catch(e){}
+  if(['overview','airsync','a1','kv'].includes(id)){bizFilter=id==='overview'?'all':id;try{localStorage.setItem('biz',bizFilter);}catch(e){}}
+  runRender('today');window.scrollTo({top:0,behavior:'instant'});
+}
+const coSec=(body,t)=>{const s=document.createElement('div');s.className='sec';s.textContent=t;body.appendChild(s);};
+function coScore(body,tiles){
+  const w=document.createElement('div');w.className='score';
+  w.innerHTML=tiles.map(t=>`<div class="tile">${t.value==null?'<b class="na">—</b>':`<b>${esc(String(t.value))}${t.of?`<small style="display:inline;font-size:14px"> / ${t.of}</small>`:''}</b>`}<span>${esc(t.label)}</span>${t.sub?`<small>${esc(t.sub)}</small>`:''}</div>`).join('');
+  body.appendChild(w);
+}
+/* the FieldPacket page: data/fieldpacket-overview.json (script-owned, ops/fp-overview.js) + FieldPacket's own task/loop
+   lines with the usual Done / Wait / swipe. No customer names, no money amounts. */
+async function renderFP(body){
+  const [ov,tasks,loops]=await Promise.all([getFile('data/fieldpacket-overview.json').catch(()=>null),getFile('data/tasks.md'),getFile('data/loops.md')]);
+  body.innerHTML='';const page=document.createElement('div');page.className='cop';page.style.setProperty('--k','#14b8a6');body.appendChild(page);
+  let o=null;try{o=ov?JSON.parse(ov.text):null;}catch(e){}
+  if(!o){const c=card();page.appendChild(c);empty(c,'The FieldPacket overview hasn\'t been written yet (data/fieldpacket-overview.json). It updates every 30 minutes on the mini PC.');return;}
+  coScore(page,o.score||[]);
+  coSec(page,'Roadmap');
+  const rm=document.createElement('div');rm.className='rm';
+  rm.innerHTML=[['Now','now'],['Next','next'],['Later','later']].map(([h,k])=>`<div class="rmc"><h4>${h}</h4>${((o.roadmap||{})[k]||[]).map(x=>`<div>${esc(x)}</div>`).join('')}</div>`).join('');
+  page.appendChild(rm);
+  for(const g of (o.goals||[])){
+    const pct=g.value!=null&&g.target?Math.min(100,Math.round(g.value/g.target*100)):0;
+    const d=document.createElement('div');d.className='goal';
+    d.innerHTML=`<div class="gt"><span>${esc(g.title)}</span><small>by ${esc(g.due||'')}</small></div><div class="bar"><i style="width:${pct}%"></i></div><div class="gn">${g.value!=null?esc(g.value+(g.target?' of '+g.target:'')):esc(g.note||'')}</div>`;
+    page.appendChild(d);
+  }
+  coSec(page,'Needs you');
+  for(const x of (o.needs||[])){const d=document.createElement('div');d.className='need';d.innerHTML=`<b>${esc(x.text)}</b>${x.detail?`<small>${esc(x.detail)}</small>`:''}${x.how?`<div class="how">→ ${esc(x.how)}</div>`:''}`;page.appendChild(d);}
+  const isFP=it=>/field ?packet|\bFP\b/i.test(it.body);
+  const fpTasks=tasks?parseChecklist(tasks.text).filter(it=>!it.checked&&(isFP(it)||(bizOf(it.section)==='kv'&&isFP(it)))):[];
+  const fpLoops=loops?parseChecklist(loops.text).filter(it=>!it.checked&&isFP(it)):[];
+  const list=document.createElement('div');list.className='card';
+  fpTasks.forEach(it=>list.appendChild(itemHTML(it,'data/tasks.md')));
+  fpLoops.forEach(it=>list.appendChild(itemHTML(it,'data/loops.md',meta(it.body,'waiting-on')?'waiting on '+esc(meta(it.body,'waiting-on')):'')));
+  if(fpTasks.length||fpLoops.length)page.appendChild(list);
+  else if(!(o.needs||[]).length){const c=card();page.appendChild(c);empty(c,'Nothing needs you for FieldPacket right now.');}
+  const det=fold('Details','what\'s being built, launch, handoff',false);
+  const b=o.building||{};const h=o.handoff||{};
+  det.card.innerHTML=`<div class="dl">
+    <div>Launch: <b>${esc(o.launch&&o.launch.label||'')}</b> <small>(${esc(o.launch&&o.launch.why||'')})</small></div>
+    <div>Being built: <b>${b.activeLast30d||0}</b> of ${b.features||0} features changed in the last 30 days · <b>${b.halfBuilt||0}</b> half-built branches never reached main</div>
+    ${(b.recent||[]).map(r=>`<div>${esc(r.label)} <small>· ${esc(r.group||'')} · ${r.changes30d} changes · last ${esc(r.last||'')}</small></div>`).join('')}
+    <div>FieldPacket last read the handoff: <b>${esc(h.lastFpReply||'unknown')}</b>${h.waitingForFp?` · ${h.waitingForFp} messages since`:''}</div>
+    <div><small>Business plan, market size and pricing: docs/projects/fieldpacket/BUSINESS-PLAN.md (month-end review)</small></div>
+  </div>`;
+  page.appendChild(det.head);page.appendChild(det.card);
+}
+/* the Personal page: personal calendar (type:personal), the ## Personal tasks, and personal spending as TOTALS from
+   data/bank.md's Personal book (script-owned; no single charge, payee or account ever reaches the repo). */
+function personalBank(text){
+  const lines=(text||'').split('\n');const s=lines.findIndex(l=>/^## Personal\b/.test(l));if(s<0)return null;
+  const out=[];
+  for(let i=s+1;i<lines.length&&!lines[i].startsWith('## ');i++){
+    const m=lines[i].match(/^- (\d{4}-\d{2})( \(so far\))? \| in \$([\d,]+)[^|]*\| out \$([\d,]+)[^|]*(?:\| card spending \$([\d,]+))?/);
+    if(m)out.push({month:m[1],soFar:!!m[2],in:m[3],out:m[4],cards:m[5]||'0'});
+  }
+  return out.length?out:null;
+}
+async function renderPersonal(body){
+  const [cal,tasks,bank]=await Promise.all([getFile('data/calendar.md'),getFile('data/tasks.md'),getFile('data/bank.md').catch(()=>null)]);
+  body.innerHTML='';const page=document.createElement('div');page.className='cop';page.style.setProperty('--k','#ff8fb1');body.appendChild(page);
+  const t=todayStr(),horizon=plusDays(14);
+  const evs=cal?calChecklist(cal.text).filter(it=>!it.checked&&bizOfLine(it,'data/calendar.md')==='personal').filter(it=>{const d=(it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];return d&&d>=t&&d<=horizon;}):[];
+  const mine=tasks?parseChecklist(tasks.text).filter(it=>!it.checked&&/^personal/i.test(it.section||'')):[];
+  const bk=bank?personalBank(bank.text):null;
+  const cur=bk&&bk[0],prev=bk&&bk[1];
+  coScore(page,[
+    {label:'coming up (14 days)',value:evs.length},
+    {label:'personal to-dos',value:mine.length},
+    {label:'out this month',value:cur?'$'+cur.out:null,sub:cur?(cur.soFar?'so far · cards $'+cur.cards:'cards $'+cur.cards):'not sorted yet'},
+    {label:'out last month',value:prev?'$'+prev.out:null,sub:prev?'cards $'+prev.cards:'not sorted yet'},
+  ]);
+  coSec(page,'Coming up');
+  const cl=document.createElement('div');cl.className='card';
+  if(evs.length)evs.forEach(it=>cl.appendChild(itemHTML(it,'data/calendar.md','',evTitle(it.body)+' · '+(it.body.match(/\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?/)||[''])[0])));
+  else empty(cl,'Nothing personal on the calendar in the next 14 days.');
+  page.appendChild(cl);
+  coSec(page,'Needs you');
+  const tl=document.createElement('div');tl.className='card';
+  if(mine.length)mine.forEach(it=>tl.appendChild(itemHTML(it,'data/tasks.md')));else empty(tl,'No open personal to-dos.');
+  page.appendChild(tl);
+  const det=fold('Details','spending by month',false);
+  det.card.innerHTML='<div class="dl">'+(bk?bk.slice(0,4).map(m=>`<div>${esc(m.month)}${m.soFar?' <small>(so far)</small>':''} · in $${esc(m.in)} · out $${esc(m.out)} · cards $${esc(m.cards)}</div>`).join(''):'<div>Personal spending isn\'t sorted yet — the bank page sorts accounts into books.</div>')
+    +'<div><small>Totals only, from the bank feed. Money moved between your own accounts is not counted. Holds are not tagged personal yet, so they stay on Today.</small></div></div>';
+  page.appendChild(det.head);page.appendChild(det.card);
+}
 async function renderToday(){
   const body=$('today-body');
+  renderCoPick();
+  if(coSel==='fp'||coSel==='personal'){
+    $('today-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
+    if(!keepView)body.innerHTML=skel();
+    return coSel==='fp'?renderFP(body):renderPersonal(body);
+  }
   $('today-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
   // fold open/closed state survives the check-off re-render (same pattern as Money)
   const prevFolds=new Map([...body.querySelectorAll('.fold')].map(h=>[h.querySelector('.ft').textContent,h.classList.contains('open')]));
