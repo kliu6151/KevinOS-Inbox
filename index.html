@@ -963,6 +963,17 @@ body[data-tab="start"]{--tab:#818cf8}
 .cop .dl div{font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)}
 .cop .dl div:last-child{border-bottom:0}
 .cop .dl small{color:var(--faint)}
+.cop .ovl{background:var(--panel);border:1px solid var(--border);border-radius:14px;margin:0 0 10px;overflow:hidden}
+.cop .ovh{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.cop .ovh .dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto;background:var(--faint)}
+.cop .ovh .dot.ok{background:#3fb950}.cop .ovh .dot.due{background:#f2b134}
+.cop .ovh b{font-size:15px}.cop .ovh .ovc{flex:1;min-width:0;color:var(--muted);font-size:12px;text-align:right}
+.cop .ovh .chev{color:var(--faint);font-size:18px}
+.cop .ovl .card{margin:0;border:0;border-top:1px solid var(--border);border-radius:0;background:transparent}
+.cop .ovl .ovn{padding:0 12px 11px;font-size:13px;color:var(--muted)}
+.cop .ovday{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin:0 0 10px;font-size:14px}
+.cop .ovday div{padding:3px 0}.cop .ovday small{color:var(--faint)}
+.cop .ovfull{display:block;width:100%;margin:6px 0 0;padding:12px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:14px}
   .sec{font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;font-size:13px;font-weight:650;letter-spacing:.01em;
     text-transform:none;color:var(--muted,#9aa5b5);margin:26px 4px 10px}
   .card,.fold,.sigrow{border-radius:16px}
@@ -2371,8 +2382,8 @@ function todayLayout(body,prevFolds){
   }
 }
 /* COMPANY PICKER (2026-11-25, Kevin: "when I open Kevin OS … a selection of which company I want to look at").
-   Overview / Airsync / A1 / Kevin Ventures open the existing Today filtered by the business strip (OD-0013 tags);
-   FieldPacket and Personal have their own pages. Every page: scoreboard · roadmap · needs you · details (folded).
+   Overview has its own page (one line per company + today strip, 2026-11-25); Airsync / A1 / Kevin Ventures open the
+   existing Today filtered by the business strip (OD-0013 tags); FieldPacket and Personal have their own pages. Every page: scoreboard · roadmap · needs you · details (folded).
    The choice is remembered on this device. Spec (private repo): ops/specs/company-pages.md */
 const CO=[
   {id:'overview',name:'Overview',sub:'everything',k:'#9aa5b5'},
@@ -2392,10 +2403,11 @@ function renderCoPick(){
     `<button class="co${o.id===coSel?' on':''}" data-co="${o.id}" style="--k:${o.k}"><b><i></i>${esc(o.name)}</b><small>${esc(o.sub)}</small></button>`).join('')+'</div>';
   el.querySelectorAll('.co').forEach(b=>b.onclick=()=>pickCo(b.dataset.co));
   const h=document.querySelector('#v-today .top h1');
-  if(h)h.textContent=coSel==='fp'?'FieldPacket':coSel==='personal'?'Personal':'Today';
+  if(h)h.textContent=coSel==='fp'?'FieldPacket':coSel==='personal'?'Personal':coSel==='overview'&&!ovFull?'Overview':'Today';
 }
+let ovFull=false; // "Open the full Today" from Overview — until the next pick
 function pickCo(id){
-  fx('haptic');coSel=id;$('co-pick').dataset.picked='1';
+  fx('haptic');coSel=id;ovFull=false;$('co-pick').dataset.picked='1';
   try{localStorage.setItem('co',id);}catch(e){}
   if(['overview','airsync','a1','kv'].includes(id)){bizFilter=id==='overview'?'all':id;try{localStorage.setItem('biz',bizFilter);}catch(e){}}
   runRender('today');window.scrollTo({top:0,behavior:'instant'});
@@ -2440,6 +2452,7 @@ async function renderFP(body){
     <div>Launch: <b>${esc(o.launch&&o.launch.label||'')}</b> <small>(${esc(o.launch&&o.launch.why||'')})</small></div>
     <div>Being built: <b>${b.activeLast30d||0}</b> of ${b.features||0} features changed in the last 30 days · <b>${b.halfBuilt||0}</b> half-built branches never reached main</div>
     ${(b.recent||[]).map(r=>`<div>${esc(r.label)} <small>· ${esc(r.group||'')} · ${r.changes30d} changes · last ${esc(r.last||'')}</small></div>`).join('')}
+    ${o.passes?`<div>Today's passes: <b>${esc(o.passes.line)}</b> <small>(finals ${o.passes.finalsAll} · workscopes ${o.passes.workscopesAll} waiting in all · whole FieldPacket list ${o.passes.listTotal})</small></div>`:''}
     <div>FieldPacket last read the handoff: <b>${esc(h.lastFpReply||'unknown')}</b>${h.waitingForFp?` · ${h.waitingForFp} messages since`:''}</div>
     <div><small>Business plan, market size and pricing: docs/projects/fieldpacket/BUSINESS-PLAN.md (month-end review)</small></div>
   </div>`;
@@ -2484,13 +2497,75 @@ async function renderPersonal(body){
     +'<div><small>Totals only, from the bank feed. Money moved between your own accounts is not counted. Holds are not tagged personal yet, so they stay on Today.</small></div></div>';
   page.appendChild(det.head);page.appendChild(det.card);
 }
+/* OVERVIEW (2026-11-25, Kevin: "one, I can see a higher overview"): one line per company — a dot (amber = something
+   is due, green = nothing due; never red for late, OD-0053), 1-2 counts (no money, memory: money is month-end) and the
+   ONE most important item with the usual Done / Wait buttons; tap the line → that company's page. Then today: next
+   calendar item + first move. Everything else stays behind "Open the full Today". */
+function ovDue(it,file){const d=meta(it.body,file==='data/loops.md'?'nudge':'due');return d&&d<=todayStr()?d:'';}
+function ovPick(items){
+  const due=items.filter(x=>x.due).sort((a,b)=>a.due.localeCompare(b.due));
+  if(due.length)return due[0];
+  const p1=items.find(x=>/\bpri:\s*1\b/.test(x.it.body));
+  return p1||null;
+}
+async function renderOverview(body){
+  const t=todayStr();
+  const [cal,loops,tasks,daily,ov]=await Promise.all([getFile('data/calendar.md'),getFile('data/loops.md'),getFile('data/tasks.md'),
+    getFile(`daily/${t}.md`).catch(()=>null),getFile('data/fieldpacket-overview.json').catch(()=>null)]);
+  body.innerHTML='';const page=document.createElement('div');page.className='cop';body.appendChild(page);
+  const all=[];
+  if(tasks)parseChecklist(tasks.text).filter(it=>!it.checked).forEach(it=>all.push({it,file:'data/tasks.md'}));
+  if(loops)parseChecklist(loops.text).filter(it=>!it.checked).forEach(it=>all.push({it,file:'data/loops.md'}));
+  all.forEach(x=>{x.biz=bizOfLine(x.it,x.file);x.due=ovDue(x.it,x.file);});
+  let fo=null;try{fo=ov?JSON.parse(ov.text):null;}catch(e){}
+  const line=(id,name,k,counts,pick,note)=>{
+    const w=document.createElement('div');w.className='ovl';w.style.setProperty('--k',k);
+    const dueN=counts.due||0;
+    w.innerHTML=`<div class="ovh"><span class="dot ${counts.na?'':dueN?'due':'ok'}"></span><b>${esc(name)}</b><span class="ovc">${esc(counts.text)}</span><span class="chev">›</span></div>`;
+    w.querySelector('.ovh').onclick=()=>pickCo(id);
+    if(pick){const cd=document.createElement('div');cd.className='card';cd.appendChild(itemHTML(pick.it,pick.file,pick.file==='data/loops.md'&&meta(pick.it.body,'waiting-on')?'waiting on '+esc(meta(pick.it.body,'waiting-on')):''));w.appendChild(cd);}
+    else if(note)w.insertAdjacentHTML('beforeend',`<div class="ovn">${note}</div>`);
+    page.appendChild(w);
+  };
+  for(const b of [{id:'airsync',name:'Airsync',k:'#ffb020'},{id:'a1',name:'A1',k:'#3987e5'},{id:'kv',name:'Kevin Ventures',k:'#8b5cf6'}]){
+    const mine=all.filter(x=>x.biz===b.id),due=mine.filter(x=>x.due).length,wait=mine.filter(x=>x.file==='data/loops.md'&&meta(x.it.body,'waiting-on')).length;
+    line(b.id,b.name,b.k,{due,text:`${due?due+' due · ':''}${mine.length} open${wait?' · '+wait+' waiting':''}`},ovPick(mine),'Nothing due.');
+  }
+  // FieldPacket: today's passes + what needs Kevin, from the script-owned overview
+  {
+    const ps=fo&&fo.passes,nd=(fo&&fo.needs)||[];
+    line('fp','FieldPacket','#14b8a6',{na:!fo,due:nd.length,text:fo?(ps?'today: '+ps.line:(fo.launch?fo.launch.daysTo+' days to launch':'')):'not read yet'},null,
+      nd.length?`${esc(nd[0].text)}${nd[0].how?' <small>→ '+esc(nd[0].how)+'</small>':''}`:'Nothing needs you.');
+  }
+  {
+    const mine=all.filter(x=>x.biz==='personal'),due=mine.filter(x=>x.due).length,h7=plusDays(7);
+    const ev=cal?calChecklist(cal.text).filter(it=>!it.checked&&bizOfLine(it,'data/calendar.md')==='personal').filter(it=>{const d=(it.body.match(/(\d{4}-\d{2}-\d{2})/)||[])[1];return d&&d>=t&&d<=h7;}).length:0;
+    line('personal','Personal','#ff8fb1',{due,text:`${due?due+' due · ':''}${mine.length} to-do${mine.length===1?'':'s'} · ${ev} coming up`},ovPick(mine),'Nothing due.');
+  }
+  // TODAY strip: the next calendar item + the first move
+  coSec(page,'Today');
+  const d=document.createElement('div');d.className='ovday';
+  const now=new Date(),hm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  const evs=cal?calChecklist(cal.text).filter(it=>!it.checked&&!/\| ?cancelled:/.test(it.body)).map(it=>{const m=it.body.match(/^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?/);return m?{it,d:m[1],tm:m[2]||''}:null;}).filter(Boolean)
+    .filter(e=>e.d>t||(e.d===t&&(!e.tm||e.tm>=hm))).sort((a,b)=>(a.d+a.tm).localeCompare(b.d+b.tm)):[];
+  const nx=evs[0];
+  const when=nx?(nx.d===t?(nx.tm||'today'):new Date(nx.d+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})+(nx.tm?' '+nx.tm:'')):'';
+  const fmSec=daily?secByName(noteSections(daily.text).secs,/^first move/i):null;
+  const fm=fmSec?fmSec.lines.map(l=>l.trim()).filter(Boolean)[0]:'';
+  d.innerHTML=`<div><small>Next:</small> ${nx?`<b>${esc(when)}</b> · ${esc(evTitle(nx.it.body))}`:'nothing on the calendar'}</div>`
+    +`<div><small>First move:</small> ${fm?inline(fm.replace(/^[-*]\s*/,'')):'no plan written yet'}</div>`;
+  page.appendChild(d);
+  const full=document.createElement('button');full.className='ovfull';full.textContent='Open the full Today ›';
+  full.onclick=()=>{fx('haptic');ovFull=true;runRender('today');};
+  page.appendChild(full);
+}
 async function renderToday(){
   const body=$('today-body');
   renderCoPick();
-  if(coSel==='fp'||coSel==='personal'){
+  if(coSel==='fp'||coSel==='personal'||(coSel==='overview'&&!ovFull)){
     $('today-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
     if(!keepView)body.innerHTML=skel();
-    return coSel==='fp'?renderFP(body):renderPersonal(body);
+    return coSel==='fp'?renderFP(body):coSel==='personal'?renderPersonal(body):renderOverview(body);
   }
   $('today-date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
   // fold open/closed state survives the check-off re-render (same pattern as Money)
