@@ -2418,6 +2418,52 @@ function coScore(body,tiles){
   w.innerHTML=tiles.map(t=>`<div class="tile">${t.value==null?'<b class="na">—</b>':`<b>${esc(String(t.value))}${t.of?`<small style="display:inline;font-size:14px"> / ${t.of}</small>`:''}</b>`}<span>${esc(t.label)}</span>${t.sub?`<small>${esc(t.sub)}</small>`:''}</div>`).join('');
   body.appendChild(w);
 }
+/* FieldPacket's verdicts on KOS-lane branches, with Approve / Decline (2026-11-25, Kevin: "if Field Packet reviews,
+   then it should send it back to Kevin OS … I would just log into Kevin OS to approve it or decline it"). FieldPacket
+   reviews every night (ops/fp-nightly-handoff.ps1); a tap writes queue/fp/<id>.md "Approved: kevinos/<topic>" (or
+   Declined), the relay puts it in the handoff, and the NEXT night FieldPacket re-checks against that day's main and
+   merges it into local main if clean (never pushes). Decided branches hide locally until data/fp-reviews.json catches up. */
+function fpReviews(page,rv){
+  const items=(rv&&rv.items)||[];if(!items.length)return;
+  let decided={};try{decided=JSON.parse(localStorage.getItem('fp-rv-decided')||'{}');}catch(e){}
+  const label={needs_kevin:'Reviewed — your call',approved:'Approved — FieldPacket checks and merges tonight',needs_changes:'Back to review after the final check',waiting_review:'Waiting for FieldPacket\'s review tonight'};
+  const vcol={'RECOMMEND MERGE':'#16a34a','RECOMMEND REJECT':'#dc2626','NEEDS CHANGES':'#b45309'};
+  const box=document.createElement('div');box.className='card';box.style.cssText='padding:10px 12px';
+  box.innerHTML='<div style="font-weight:800;margin-bottom:4px">KOS-lane changes</div>';
+  for(const x of items){
+    const it=document.createElement('div');it.style.cssText='padding:8px 0;border-top:1px solid var(--line,#eee)';
+    const dec=decided[x.branch];
+    const verdict=x.verdict?`<span style="font-weight:800;color:${vcol[x.verdict]||'inherit'}">${esc(x.verdict.toLowerCase())}</span>`:'';
+    const said=dec?(dec==='approved'?'Approved — FieldPacket checks and merges tonight':'Declined — FieldPacket closes it tonight'):(label[x.state]||x.state);
+    it.innerHTML=`<div><b>${esc(x.topic.replace(/-/g,' '))}</b> ${verdict}</div>`+
+      `<div class="rv-st" style="font-size:12.5px;opacity:.75;margin-top:2px">${esc(said)}</div>`+
+      (x.why?`<div style="font-size:13px;margin-top:3px">${esc(x.why)}</div>`:'')+
+      (x.finalCheck&&!x.finalCheck.ok?`<div style="font-size:12.5px;color:#b45309;margin-top:2px">Final check: ${esc(x.finalCheck.why||'')}</div>`:'')+
+      (x.state==='needs_kevin'&&!dec?`<div class="rv-b" style="display:flex;gap:8px;margin-top:6px"><button class="rv-a" style="flex:1;padding:8px;border-radius:10px;border:0;background:#16a34a;color:#fff;font-weight:700">Approve</button><button class="rv-d" style="flex:1;padding:8px;border-radius:10px;border:0;background:#dc2626;color:#fff;font-weight:700">Decline</button></div>`:'');
+    const decide=async(d)=>{
+      for(const q of it.querySelectorAll('button'))q.disabled=true;
+      const dt=new Date(),p=n=>String(n).padStart(2,'0');
+      const at=`${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())} ${p(dt.getHours())}:${p(dt.getMinutes())}`;
+      const id=`q-${at.replace(/[^0-9]/g,'')}-${Math.random().toString(36).slice(2,6)}`;
+      const word=d==='approved'?'Approved':'Declined';
+      const text=d==='approved'
+        ?`Kevin approved ${x.branch} in KevinOS after FieldPacket's verdict (${x.verdict||'no verdict'}, ${x.verdictDate||'?'}). Tonight: fetch it again, rebase onto CURRENT local main, re-run every gate, check for conflicts with what landed since the review; clean: merge into LOCAL main (not pushed) and post "- ${x.branch} — MERGED LOCALLY (not pushed) — …"; otherwise "- ${x.branch} — NOT MERGED — <why>".`
+        :`Kevin declined ${x.branch} in KevinOS after FieldPacket's verdict (${x.verdict||'no verdict'}). Close it: post "- ${x.branch} — CLOSED — Kevin declined". Do not delete the branch.`;
+      const content=`---\nid: ${id}\nto: fp\nfrom: kevin\nvia: app\nat: ${at} NY\nsubject: ${word}: ${x.branch}\nneeds: FP\n---\n\n${text}\n`;
+      try{
+        await api(`contents/queue/fp/${id}.md`,{method:'PUT',body:JSON.stringify({message:`queue: fp ${id} ${word.toLowerCase()} ${x.topic} (app)`,content:enc(content)})});
+        decided[x.branch]=d;try{localStorage.setItem('fp-rv-decided',JSON.stringify(decided));}catch(e){}
+        it.querySelector('.rv-st').textContent=d==='approved'?'Approved — FieldPacket checks and merges tonight':'Declined — FieldPacket closes it tonight';
+        const bx=it.querySelector('.rv-b');if(bx)bx.remove();fx('play','tap');fx('haptic');
+      }catch(e){for(const q of it.querySelectorAll('button'))q.disabled=false;alert('Could not save that — try again.');}
+    };
+    const a=it.querySelector('.rv-a'),dn=it.querySelector('.rv-d');if(a)a.onclick=()=>decide('approved');if(dn)dn.onclick=()=>decide('declined');
+    box.appendChild(it);
+  }
+  const ns=rv.nightly||{};
+  box.insertAdjacentHTML('beforeend',`<div style="font-size:12px;opacity:.65;padding-top:6px;border-top:1px solid var(--line,#eee)">FieldPacket's nightly review: ${esc(ns.status==='ok'?'last ran '+String(ns.last||'').slice(0,10):ns.status==='pending'?'first run tonight at 1:00 AM':ns.status+(ns.note?' — '+ns.note:''))}</div>`);
+  page.appendChild(box);
+}
 /* the FieldPacket page: data/fieldpacket-overview.json (script-owned, ops/fp-overview.js) + FieldPacket's own task/loop
    lines with the usual Done / Wait / swipe. No customer names, no money amounts. */
 async function renderFP(body){
@@ -2437,7 +2483,9 @@ async function renderFP(body){
     page.appendChild(d);
   }
   coSec(page,'Needs you');
-  for(const x of (o.needs||[])){const d=document.createElement('div');d.className='need';d.innerHTML=`<b>${esc(x.text)}</b>${x.detail?`<small>${esc(x.detail)}</small>`:''}${x.how?`<div class="how">→ ${esc(x.how)}</div>`:''}`;page.appendChild(d);}
+  // with the review card below, the "N waiting for review" line would say the same thing twice
+  for(const x of (o.needs||[]).filter(n=>!(n.kind==='review'&&o.reviews&&(o.reviews.items||[]).length))){const d=document.createElement('div');d.className='need';d.innerHTML=`<b>${esc(x.text)}</b>${x.detail?`<small>${esc(x.detail)}</small>`:''}${x.how?`<div class="how">→ ${esc(x.how)}</div>`:''}`;page.appendChild(d);}
+  fpReviews(page,o.reviews);
   const isFP=it=>/field ?packet|\bFP\b/i.test(it.body);
   const fpTasks=tasks?parseChecklist(tasks.text).filter(it=>!it.checked&&(isFP(it)||(bizOf(it.section)==='kv'&&isFP(it)))):[];
   const fpLoops=loops?parseChecklist(loops.text).filter(it=>!it.checked&&isFP(it)):[];
