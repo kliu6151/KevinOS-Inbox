@@ -7000,7 +7000,7 @@ async function ordersRow(holder){
   box.innerHTML=secs.map(sc=>`<div style="font-weight:800;margin:8px 0 3px">${esc(sc.title)}</div>`+sc.items.map(i=>
     `<div style="padding:4px 0 4px 10px;border-top:1px solid var(--line,#eee)">${fpInline(i.head).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')}`+
     (i.res?`<div style="opacity:.8;font-size:12.5px;margin-top:2px">${fpInline(i.res)}</div>`:'')+'</div>').join('')).join('')+
-    '<div style="opacity:.6;font-size:12px;margin-top:8px">Say "Vesper, …" into the ring to add one.</div>';
+    '<div style="margin-top:10px"><a href="https://minipc.tail34adc5.ts.net:8444/orders" target="_blank" rel="noopener" style="font-weight:700">Live view — what is running right now ↗</a></div><div style="opacity:.6;font-size:12px;margin-top:6px">Say "Vesper, …" into the ring to add one. The live view needs Tailscale on.</div>';
   b.onclick=()=>{fx('play','tap');box.hidden=!box.hidden;};
   holder.replaceChildren(b,box);
 }
