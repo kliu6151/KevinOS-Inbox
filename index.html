@@ -2788,7 +2788,7 @@ async function renderToday(){
   {const h=document.createElement('div');h.dataset.z='right';sig.appendChild(h);overnightRow(h,morningOpen);}
   // 📋 FieldPacket to-do (2026-10-18): FieldPacket's morning list, relayed by ops/fp-todo.js; tap to open in place
   {const h=document.createElement('div');sig.appendChild(h);fpTodoRow(h,morningOpen);}
-  // 🎙 Orders (2026-11-26): everything Kevin told KevinOS by ring ("Claude, …") with its status + result (ops/orders/orders.js)
+  // 🎙 Orders (2026-11-26): everything Kevin told KevinOS by ring ("Vesper, …") with its status + result (ops/orders/orders.js)
   {const h=document.createElement('div');sig.appendChild(h);ordersRow(h);}
   // 📊 Pipeline dashboard (2026-10-20): the Claude dashboard — private, opens in a new tab signed in to Claude
   {const d=document.createElement('a');d.className='sigrow';d.href='https://claude.ai/artifact/8rumwDvXS2Ymy1gYANj4kF';d.target='_blank';d.rel='noopener';d.style.cssText='text-decoration:none;color:inherit';d.innerHTML='<span class="sl">📊</span><span class="st"><b>Pipeline dashboard</b> · charts and trends</span><span class="sm">↗</span>';d.onclick=()=>fx('play','tap');sig.appendChild(d);}
@@ -7000,7 +7000,7 @@ async function ordersRow(holder){
   box.innerHTML=secs.map(sc=>`<div style="font-weight:800;margin:8px 0 3px">${esc(sc.title)}</div>`+sc.items.map(i=>
     `<div style="padding:4px 0 4px 10px;border-top:1px solid var(--line,#eee)">${fpInline(i.head).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')}`+
     (i.res?`<div style="opacity:.8;font-size:12.5px;margin-top:2px">${fpInline(i.res)}</div>`:'')+'</div>').join('')).join('')+
-    '<div style="opacity:.6;font-size:12px;margin-top:8px">Say "Claude, …" into the ring to add one.</div>';
+    '<div style="opacity:.6;font-size:12px;margin-top:8px">Say "Vesper, …" into the ring to add one.</div>';
   b.onclick=()=>{fx('play','tap');box.hidden=!box.hidden;};
   holder.replaceChildren(b,box);
 }
